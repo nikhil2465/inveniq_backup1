@@ -56,10 +56,19 @@ export default function Freight({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Freight Planning — AI-Optimized Logistics</div>
-        <div className="psub">
-          Outbound lane costs · Vehicle utilisation · Consolidation opportunities · Inbound freight analysis
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Freight Planning — AI-Optimized Logistics</div>
+          <div className="psub">
+            Outbound lane costs · Vehicle utilisation · Consolidation opportunities · Inbound freight analysis
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Optimize my freight costs today — which deliveries can be consolidated, what is the total saving, and what is the exact dispatch plan I should follow?')}>
+              ✨ AI Route Optimizer
+            </button>
+          )}
         </div>
       </div>
 
@@ -120,6 +129,12 @@ export default function Freight({ onGoChat }) {
           </div>
         </div>
       </div>
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Which delivery zones have the worst cost-per-sheet and lowest truck fill rate? What policy changes — minimum order value, route batching — would bring me below ₹16/sheet average?')}>
+          <span>✨</span>
+          <span>Ask AI: Freight cost reduction policy — bring average below ₹16/sheet →</span>
+        </div>
+      )}
     </div>
   );
 }

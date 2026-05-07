@@ -27,6 +27,7 @@ async def get_pool() -> Optional[aiomysql.Pool]:
             minsize=2,
             maxsize=10,
             autocommit=True,
+            connect_timeout=10,
         )
         logger.info("MySQL pool created: %s/%s", cfg.mysql_host, cfg.mysql_db)
         return _pool

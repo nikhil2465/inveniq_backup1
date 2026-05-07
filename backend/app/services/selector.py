@@ -119,6 +119,9 @@ KEYWORD_MAP = {
         "contractor", "interior firm", "retailer", "carpenter",
         "outstanding", "payment", "mehta", "sharma",
         "patel", "kumar", "city interiors", "overdue", "dso",
+        "new customer", "acquire", "upsell", "cross sell", "cross-sell",
+        "which customer", "target customer", "grow customer", "customer base",
+        "collections", "collect payment", "recovery", "follow up",
     ],
     "louvers": [
         "louver", "louvre", "louvers", "louvres",
@@ -178,12 +181,40 @@ KEYWORD_MAP = {
         "orders this month", "orders mtd", "category revenue", "product mix",
         "how much did i sell", "total sales", "revenue by sku", "which day",
         "highest revenue", "avg order value", "sales growth", "revenue growth",
+        "grow", "growth", "expand", "increase sales", "more revenue", "scale",
+        "double revenue", "business growth", "grow my business", "grow sales",
+        "next quarter", "annual target", "beat last year",
     ],
     "inward": [
         "inward", "outward", "stock movement", "goods received today",
         "putaway", "pick pack", "shrinkage", "qc pass", "qc fail",
         "received today", "how much came in", "stock in", "stock out",
         "dispatch velocity", "picking error", "grn today", "movement today",
+    ],
+    "quotes": [
+        "quote", "quotation", "quotations", "quote builder", "proposal",
+        "rfq", "win rate", "pipeline value", "quote status", "draft quote",
+        "send quote", "quote won", "quote lost", "negotiating quote",
+        "quote number", "qt-", "create quotation", "new quote", "quote history",
+        "whatsapp scan", "scan requirement", "scan boq", "boq quote",
+        "quote analysis", "win probability", "quote margin", "expiring quote",
+        "quotation builder", "build quote",
+    ],
+    "projects": [
+        "project", "projects", "inquiry", "inquiries", "site visit", "boq",
+        "bill of quantities", "project stage", "inquiry to invoice",
+        "project pipeline", "project tracker", "project status", "site",
+        "tower", "phase", "block", "conversion", "project value",
+        "prj-", "project number", "architect", "project close", "project win",
+        "in production", "project delivery", "project invoice", "project milestone",
+    ],
+    "catalog": [
+        "product catalog", "catalog", "catalogue", "product list",
+        "what products", "what do you sell", "product range", "specifications",
+        "aluminium z", "louver blade", "hpl thickness", "compact laminate",
+        "product code", "product id", "sku price", "sell price", "buy price",
+        "product spec", "available products", "product categories",
+        "acp panel", "toilet cubicle", "kitchen laminate",
     ],
 }
 
@@ -263,9 +294,21 @@ def select_tools(query: str, mode: str = "ask") -> List[str]:
             if t not in tools:
                 tools.append(t)
 
+    # Growth queries need sales + customer + finance together for a complete answer
+    _GROWTH_WORDS = ["grow", "growth", "expand", "increase sales", "more revenue", "scale", "new customer", "upsell", "collections", "recover", "target customer"]
+    if any(w in q for w in _GROWTH_WORDS):
+        for t in ["sales", "customer", "finance", "quotes"]:
+            if t not in tools:
+                tools.append(t)
+
+    # Quote/project pipeline queries also pull finance for margin context
+    if any(w in q for w in ["quote", "quotation", "win rate", "pipeline", "project"]):
+        if "finance" not in tools:
+            tools.append("finance")
+
     # Default fallback — stock + demand + finance covers 85% of dealer questions
     if not tools:
         tools = ["stock", "demand", "finance"]
 
-    # Cap at 5 tools to keep LLM context focused
-    return tools[:5]
+    # Cap at 6 tools to keep LLM context focused
+    return tools[:6]

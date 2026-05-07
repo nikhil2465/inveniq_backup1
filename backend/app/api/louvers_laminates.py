@@ -9,11 +9,15 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.core.config import get_settings
+from app.services.email_service import send_delay_notification, send_test_email, get_ai_analysis
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Louvers & Laminates"])
 
 try:
-    from app.db.connection import get_pool
+    from app.db.connection import get_pool, is_db_available
+    from app.db.sales_order_queries import query_overdue_orders, query_single_overdue_order
     _DB_AVAILABLE = True
 except ImportError:
     _DB_AVAILABLE = False
@@ -68,6 +72,165 @@ async def update_order_status(order_id: int, req: OrderStatusUpdate):
     if req.status not in VALID_ORDER_STATUSES:
         raise HTTPException(422, f"Status must be one of {VALID_ORDER_STATUSES}")
     return {"success": True, "order_id": order_id, "status": req.status, "demo_mode": True}
+
+
+@router.post("/louvers/test-email")
+async def test_email_config():
+    """Send a test email to verify SMTP configuration is working."""
+    settings = get_settings()
+    result   = await send_test_email(settings)
+    return result
+
+
+@router.get("/louvers/orders/overdue")
+async def get_overdue_orders():
+    """Return all overdue orders (DB-first, mock fallback) without sending any emails."""
+    today = datetime.date.today()
+
+    if _DB_AVAILABLE and await is_db_available():
+        pool    = await get_pool()
+        orders  = await query_overdue_orders(pool)
+        source  = "mysql"
+    else:
+        all_orders = _mock_dashboard()["orders"]
+        orders = [
+            {**o, "days_overdue": (today - datetime.date.fromisoformat(o["delivery_date"])).days,
+             "delay_reason": o.get("notes", ""), "data_source": "mock"}
+            for o in all_orders
+            if o.get("delivery_date")
+            and o["status"] not in ("DELIVERED", "CANCELLED")
+            and datetime.date.fromisoformat(o["delivery_date"]) < today
+        ]
+        source = "mock"
+
+    total_value = sum(o.get("total_value", 0) for o in orders)
+    return {
+        "orders":      orders,
+        "count":       len(orders),
+        "total_value": total_value,
+        "data_source": source,
+    }
+
+
+@router.get("/louvers/orders/{order_id}/ai-analysis")
+async def get_order_ai_analysis(order_id: int):
+    """Return GPT-4o delay analysis for a single order (DB-first, mock fallback)."""
+    settings = get_settings()
+    today    = datetime.date.today()
+    order    = None
+
+    if _DB_AVAILABLE and await is_db_available():
+        pool  = await get_pool()
+        order = await query_single_overdue_order(pool, order_id)
+
+    if not order:
+        mock = next((o for o in _mock_dashboard()["orders"] if o["order_id"] == order_id), None)
+        if mock and mock.get("delivery_date"):
+            delivery  = datetime.date.fromisoformat(mock["delivery_date"])
+            days_late = max(0, (today - delivery).days)
+            order     = {**mock, "days_overdue": days_late, "delay_reason": mock.get("notes", "")}
+
+    if not order:
+        raise HTTPException(404, f"Order {order_id} not found")
+
+    days_overdue = order.get("days_overdue", 0)
+    ai = await get_ai_analysis(order, days_overdue, settings.openai_api_key)
+
+    if not ai:
+        raise HTTPException(503, "AI analysis unavailable — check OPENAI_API_KEY in backend/.env")
+
+    return {
+        "order_id":     order_id,
+        "order_number": order.get("order_number"),
+        "days_overdue": days_overdue,
+        **ai,
+    }
+
+
+@router.post("/louvers/orders/check-delays")
+async def check_and_notify_delays():
+    """Scan all orders for overdue deliveries and send email alerts. DB-first, mock fallback."""
+    settings = get_settings()
+    today    = datetime.date.today()
+
+    # ── DB path ───────────────────────────────────────────────────────────────
+    if _DB_AVAILABLE and await is_db_available():
+        pool    = await get_pool()
+        overdue = await query_overdue_orders(pool)
+        source  = "mysql"
+    else:
+        # ── Mock fallback ─────────────────────────────────────────────────────
+        all_orders = _mock_dashboard()["orders"]
+        overdue = [
+            {**o, "days_overdue": (today - datetime.date.fromisoformat(o["delivery_date"])).days}
+            for o in all_orders
+            if o.get("delivery_date")
+            and o["status"] not in ("DELIVERED", "CANCELLED")
+            and datetime.date.fromisoformat(o["delivery_date"]) < today
+        ]
+        source = "mock"
+
+    if not overdue:
+        return {"success": True, "overdue_count": 0, "notified": [],
+                "data_source": source, "message": "No overdue orders found."}
+
+    results = []
+    for order in overdue:
+        days_late = order.get("days_overdue", 0)
+        result    = await send_delay_notification(order, days_late, settings)
+        results.append({
+            **result,
+            "days_overdue": days_late,
+            "customer":     order.get("customer_name"),
+            "order_number": order.get("order_number"),
+        })
+
+    sent_count = sum(1 for r in results if r.get("sent"))
+    demo_count = sum(1 for r in results if r.get("demo_mode"))
+    return {
+        "success":          True,
+        "data_source":      source,
+        "overdue_count":    len(overdue),
+        "emails_sent":      sent_count,
+        "demo_mode_count":  demo_count,
+        "notified":         results,
+    }
+
+
+@router.post("/louvers/orders/{order_id}/notify-delay")
+async def notify_single_order_delay(order_id: int):
+    """Send a delay notification email for one specific order. DB-first, mock fallback."""
+    settings = get_settings()
+    today    = datetime.date.today()
+    order    = None
+    source   = "mock"
+
+    # ── DB path ───────────────────────────────────────────────────────────────
+    if _DB_AVAILABLE and await is_db_available():
+        pool  = await get_pool()
+        order = await query_single_overdue_order(pool, order_id)
+        if order:
+            source = "mysql"
+
+    # ── Mock fallback ─────────────────────────────────────────────────────────
+    if not order:
+        mock = next((o for o in _mock_dashboard()["orders"] if o["order_id"] == order_id), None)
+        if mock:
+            if mock["status"] in ("DELIVERED", "CANCELLED"):
+                raise HTTPException(400, f"Order {order_id} is already {mock['status']} — no alert needed")
+            if not mock.get("delivery_date"):
+                raise HTTPException(400, f"Order {order_id} has no delivery date set")
+            delivery  = datetime.date.fromisoformat(mock["delivery_date"])
+            days_late = max(0, (today - delivery).days)
+            order     = {**mock, "days_overdue": days_late}
+
+    if not order:
+        raise HTTPException(404, f"Order {order_id} not found in DB or mock data")
+
+    days_late = order.get("days_overdue", 0)
+    result    = await send_delay_notification(order, days_late, settings)
+    return {**result, "days_overdue": days_late, "order_id": order_id, "data_source": source}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DISTRIBUTOR CLAIMS
@@ -300,6 +463,29 @@ def _mock_dashboard() -> dict:
          "delivery_date":(today+datetime.timedelta(days=9)).isoformat(),
          "site_location":"Marathahalli, Bangalore","status":"DRAFT",
          "notes":"Hotel washroom cubicles — 40 units","created_at":"2026-04-22T10:00:00"},
+
+        # ── OVERDUE TEST ORDERS (delivery date in the past) ───────────────────
+        {"order_id":9,"order_number":"LO-20260418-DEL-001","customer_name":"Crystal Interiors",
+         "customer_type":"Interior Firm","product_name":"HPL 1mm Matte (8×4)",
+         "category":"High Pressure Laminate","quantity":90,"unit":"sheet","sell_price":1300,"buy_price":1080,
+         "total_value":117000,"margin_pct":16.9,"supplier_name":"Century Plyboards",
+         "delivery_date":(today-datetime.timedelta(days=5)).isoformat(),
+         "site_location":"Koramangala, Bangalore","status":"IN_PRODUCTION",
+         "notes":"Matte finish for residential apartment fitout — OVERDUE","created_at":"2026-04-10T10:00:00"},
+        {"order_id":10,"order_number":"LO-20260420-DEL-001","customer_name":"BuildRight Construction",
+         "customer_type":"Contractor","product_name":"HPL Compact 6mm (8×4)",
+         "category":"Compact Laminate","quantity":60,"unit":"sheet","sell_price":3600,"buy_price":2980,
+         "total_value":216000,"margin_pct":17.2,"supplier_name":"Stylam Industries",
+         "delivery_date":(today-datetime.timedelta(days=3)).isoformat(),
+         "site_location":"HSR Layout, Bangalore","status":"CONFIRMED",
+         "notes":"Toilet partitions for commercial complex — OVERDUE","created_at":"2026-04-12T09:00:00"},
+        {"order_id":11,"order_number":"LO-20260415-DEL-001","customer_name":"NovaBuild Developers",
+         "customer_type":"Developer","product_name":"PVC Louver Blades 100mm",
+         "category":"Louvers","quantity":320,"unit":"RM","sell_price":580,"buy_price":390,
+         "total_value":185600,"margin_pct":32.8,"supplier_name":"Polycab India",
+         "delivery_date":(today-datetime.timedelta(days=8)).isoformat(),
+         "site_location":"Electronic City Phase 2, Bangalore","status":"DISPATCHED",
+         "notes":"Car park screening — dispatched but not delivered — OVERDUE","created_at":"2026-04-08T11:00:00"},
     ]
 
     # ── Distributor Claims ────────────────────────────────────────────────────

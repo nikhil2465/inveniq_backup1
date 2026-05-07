@@ -58,10 +58,19 @@ export default function Sales({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Sales Performance — Revenue &amp; Margin Intelligence</div>
-        <div className="psub">
-          What's selling, what's not, and where your money really comes from
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Sales Performance — Revenue &amp; Margin Intelligence</div>
+          <div className="psub">
+            What's selling, what's not, and where your money really comes from
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Give me a full sales performance analysis — revenue trend, top margin products, discount leakage, and what I should focus on to grow profit this month.')}>
+              ✨ AI Sales Analysis
+            </button>
+          )}
         </div>
       </div>
 
@@ -106,7 +115,9 @@ export default function Sales({ onGoChat }) {
               ['ica', '!', 'Interior firms yield 31% margin vs 19% from contractors', 'Increase marketing spend on interior design segment. Target 5 new interior firms this month.', 'CUSTOMER MIX · MARGIN IMPROVEMENT'],
               ['icr', '!', '8mm Flexi BWP true margin 6.7% — not stated 23.8%', 'Gauri freight ₹110/sh destroys profitability. Reprice or switch supplier.', 'TRUE COST · IMMEDIATE ACTION'],
             ].map(([ic, icon, t, dd, m]) => (
-              <div key={t} className="ii">
+              <div key={t} className="ii"
+                style={{ cursor: onGoChat ? 'pointer' : 'default' }}
+                onClick={() => onGoChat?.(`Sales insight: ${t}. Background: ${dd} (${m}). Give me a detailed action plan to act on this insight and quantify the revenue or margin impact.`)}>
                 <div className={`iic ${ic}`}>{icon}</div>
                 <div><div className="iti">{t}</div><div className="ide">{dd}</div><div className="imt">{m}</div></div>
               </div>
@@ -114,6 +125,12 @@ export default function Sales({ onGoChat }) {
           </div>
         </div>
       </div>
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Which products and customer segments are driving the most margin? Where am I losing margin through discounts and what should I change?')}>
+          <span>✨</span>
+          <span>Ask AI: Margin improvement analysis — where am I losing money and how to fix it →</span>
+        </div>
+      )}
     </div>
   );
 }

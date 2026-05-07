@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 const Stat = ({ value, label, color }) => (
   <div style={{ textAlign:'center', padding:'20px 16px' }}>
@@ -25,7 +25,7 @@ const Step = ({ n, title, desc, icon }) => (
   </div>
 );
 
-export default function About() {
+export default function About({ onGoChat }) {
   return (
     <div className="view">
       {/* ── HERO ── */}
@@ -41,7 +41,7 @@ export default function About() {
           A complete AI intelligence layer for dealers and distributors. Turn raw inventory, sales, and procurement data into clear decisions — instantly.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-          {[['12 Live Dashboards','var(--b2)'],['AI Chat Assistant','#10a37f'],['GPT-4o Powered','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
+          {[['22 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['GPT-4o Powered','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
             <span key={t} style={{ padding:'8px 16px', borderRadius:20, fontSize:12, fontWeight:700, background:c+'22', border:`1px solid ${c}55`, color:c }}>{t}</span>
           ))}
         </div>
@@ -50,15 +50,15 @@ export default function About() {
       {/* ── STATS ── */}
       <div className="card" style={{ marginBottom:16 }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', borderBottom:'1px solid var(--border)' }}>
-          <Stat value="12" label="Intelligence Dashboards" color="var(--b2)" />
-          <Stat value="9" label="AI Data Tools" color="#10b981" />
+          <Stat value="22" label="Intelligence Modules" color="var(--b2)" />
+          <Stat value="16" label="AI Data Tools" color="#10b981" />
           <Stat value="3" label="Chat Modes (Ask/Explain/Act)" color="#8b5cf6" />
-          <Stat value="13" label="Database Tables" color="#0ea5e9" />
-          <Stat value="149+" label="Sample Data Rows" color="#f59e0b" />
+          <Stat value="67+" label="API Endpoints" color="#0ea5e9" />
+          <Stat value="13" label="Knowledge Base Topics" color="#f59e0b" />
           <Stat value="0" label="Setup Time (Demo Mode)" color="#10b981" />
         </div>
         <div style={{ padding:'12px 16px', textAlign:'center', fontSize:12, color:'var(--text3)' }}>
-          Built for plywood & building materials dealers in India. Adaptable to any product distribution business.
+          Built for louvers, laminates & building materials dealers in India. Adaptable to any product distribution business.
         </div>
       </div>
 
@@ -90,22 +90,29 @@ export default function About() {
 
       {/* ── FEATURES ── */}
       <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.8px', fontFamily:'var(--mono)', marginBottom:10 }}>
-        12 Intelligence Modules
+        22 Intelligence Modules
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:10, marginBottom:16 }}>
         {[
           { icon:'📊', title:'Business Overview', desc:'One-page snapshot: revenue, margin, dead stock, at-risk customers, and 12-month revenue trend chart.', color:'var(--b2)' },
+          { icon:'📈', title:'Analytics & BI', desc:'12-month revenue trend, category breakdown, top products by margin, customer LTV, supplier scorecards.', color:'#10b981' },
           { icon:'📦', title:'Stock Intelligence', desc:'Every SKU ranked by health. Critical low-stock alerts. Dead vs. moving stock split. Godown-wise breakdown.', color:'#0ea5e9' },
           { icon:'💀', title:'Dead Stock & Ageing', desc:'Inventory aged >90 days. ₹ value locked. AI suggests liquidation strategy (discount, bundle, return).', color:'#dc2626' },
           { icon:'🚪', title:'Inward & Outward', desc:'Full GRN pipeline from receiving to put-away. Shrinkage detection. Dispatch velocity. QC pass rates.', color:'#10b981' },
-          { icon:'📈', title:'Sales Performance', desc:'12-month revenue trend. Margin by SKU. Day-of-week patterns. MTD vs. target comparison.', color:'#f59e0b' },
-          { icon:'👥', title:'Customer Intelligence', desc:'Every account: segment, outstanding, days since last order, credit risk score, and churn probability.', color:'#8b5cf6' },
-          { icon:'📋', title:'Orders & Fulfilment', desc:'Today\'s orders, dispatched, pending. Delay analysis. Fulfilment SLA. Order trend by week.', color:'#6366f1' },
+          { icon:'🔮', title:'Demand Forecasting', desc:'AI forecasts per SKU for next 30/60/90 days. SURGE, GROWING, STABLE, DEAD signals.', color:'var(--b2)' },
           { icon:'🏭', title:'Supplier & Procurement', desc:'Supplier scorecards: on-time %, lead time, GRN match rate, price vs. market. AI recommendation.', color:'#14b8a6' },
           { icon:'📑', title:'PO & GRN', desc:'Full purchase order lifecycle. Goods receipt matching. 3-way match discrepancy log with AI RCA.', color:'#ec4899' },
+          { icon:'🗂️', title:'Product Catalog', desc:'Full catalog of louvers, laminates, ACP, and operable systems with sell/buy pricing and specifications.', color:'#8b5cf6' },
+          { icon:'👥', title:'Customer Intelligence', desc:'Every account: segment, outstanding, days since last order, credit risk score, and churn probability.', color:'#8b5cf6' },
+          { icon:'📋', title:'Sales Orders', desc:'Full sales order lifecycle with AI delay detection, email notifications, claims, and rebate management.', color:'#6366f1' },
+          { icon:'📬', title:'Orders & Fulfilment', desc:'Today\'s orders, dispatched, pending. Delay analysis. Fulfilment SLA. Order trend by week.', color:'#f59e0b' },
           { icon:'🚚', title:'Freight Planning', desc:'Lane-wise cost per sheet. Vehicle fill rates. Route optimization. Inbound vs. outbound cost.', color:'#f97316' },
+          { icon:'📉', title:'Sales Performance', desc:'12-month revenue trend. Margin by SKU. Day-of-week patterns. MTD vs. target comparison.', color:'#f59e0b' },
+          { icon:'🧾', title:'Claims & Rebates', desc:'Distributor claims lifecycle. Volume, accrual, and lumpsum rebate programs with real-time calculation.', color:'#22c55e' },
+          { icon:'💲', title:'Discount Calculator', desc:'Margin-aware pricing with segment slabs, category overrides, and per-quote margin guardrails.', color:'#10b981' },
+          { icon:'🗺️', title:'Project Tracker', desc:'Full inquiry-to-invoice pipeline with milestone tracking, stage updates, and win-rate analysis.', color:'#6366f1' },
+          { icon:'📝', title:'Quotation Builder', desc:'Professional quotes with AI win-probability, margin health analysis, and WhatsApp requirement scanner.', color:'#8b5cf6' },
           { icon:'💰', title:'Profitability & Cash', desc:'Owner-level view: gross margin, cash cycle (DIO+DSO-DPO), GST summary, overdue receivables.', color:'#22c55e' },
-          { icon:'🔮', title:'Demand Forecasting', desc:'AI forecasts per SKU for next 30/60/90 days. SURGE, GROWING, STABLE, DEAD signals.', color:'var(--b2)' },
         ].map(f => <Feature key={f.title} {...f} />)}
       </div>
 
@@ -148,9 +155,9 @@ export default function About() {
         <div className="ch"><div className="ctit">How It Works — 3 Simple Steps</div></div>
         <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'8px 0 8px' }}>
           <Step n={1} icon="⚙️" title="Connect Your Data"
-            desc="Point InvenIQ to your MySQL database or run it without any database in Demo Mode. All 12 dashboards show rich data immediately. No complex setup needed — just one .env file." />
+            desc="Point InvenIQ to your MySQL database or run it without any database in Demo Mode. All 22 modules show rich data immediately. No complex setup needed — just one .env file." />
           <Step n={2} icon="📊" title="See Everything at a Glance"
-            desc="12 intelligence dashboards show every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, and demand forecasts — all live." />
+            desc="22 intelligence modules cover every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, demand forecasts, quotations, and projects — all live." />
           <Step n={3} icon="🤖" title="Ask AI for Answers and Plans"
             desc="Type any question in plain language. The AI reads your live data, finds the root cause of problems, and gives you a step-by-step action plan. No reports, no spreadsheets." />
         </div>
@@ -202,7 +209,7 @@ export default function About() {
         <div style={{ fontSize:28, marginBottom:10 }}>🎯</div>
         <div style={{ fontWeight:800, fontSize:18, marginBottom:8, color:'var(--green)' }}>Try It Right Now — No Setup Needed</div>
         <div style={{ fontSize:13, color:'var(--text2)', maxWidth:480, margin:'0 auto 16px', lineHeight:1.7 }}>
-          InvenIQ runs in Demo Mode out of the box. All 12 dashboards show realistic sample data for a Bangalore plywood dealer. Click any "Ask AI" button to try the chatbot.
+          InvenIQ runs in Demo Mode out of the box. All 22 modules show realistic sample data for a Bangalore building materials dealer. Click any "Ask AI" button to try the chatbot.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
           <a href="https://github.com/nikhil2465/ai_chatbot_inventory1" target="_blank" rel="noopener noreferrer"
@@ -219,6 +226,13 @@ export default function About() {
           github.com/nikhil2465/ai_chatbot_inventory1
         </a>
       </div>
+
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Give me a complete business health check — revenue trends, margins, top risks, and my highest-priority actions for this week.')}>
+          <span>✨</span>
+          <span>Ask AI: Full business health check & weekly priorities →</span>
+        </div>
+      )}
     </div>
   );
 }

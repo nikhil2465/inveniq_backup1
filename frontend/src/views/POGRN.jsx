@@ -1137,6 +1137,13 @@ export default function POGRN({ onGoChat }) {
         </button>
         <span style={{ fontFamily: 'var(--mono)' }}>Updated {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
+
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Show me my PO and GRN status — which purchase orders are overdue, any GRN mismatches, and what should I follow up with suppliers today?')}>
+          <span>✨</span>
+          <span>Ask AI: Overdue POs, GRN mismatches & supplier follow-ups →</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
 import ErrorState from '../components/ErrorState';
-import DiscountAIPanel from './DiscountAIPanel';
+import DiscountAIPanel from '../components/DiscountAIPanel';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt    = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -368,7 +368,7 @@ function CreateOrderWizard({ products, quotations, onClose, onCreated, openAI, i
           <div className="ll-so-doc">
             <div className="ll-so-doc-hdr">
               <div>
-                <div className="ll-so-doc-co">InvenIQ — Louvers &amp; Laminates</div>
+                <div className="ll-so-doc-co">InvenIQ — Sales Orders</div>
                 <div className="ll-so-doc-tagline">Inventory Intelligence Platform</div>
               </div>
               <div style={{textAlign:'right'}}>
@@ -453,16 +453,256 @@ function CreateOrderWizard({ products, quotations, onClose, onCreated, openAI, i
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DELAY COMMAND CENTER
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DelayCommandCenter({ openAI }) {
+  const [orders,     setOrders]     = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [source,     setSource]     = useState('mock');
+  const [totalVal,   setTotalVal]   = useState(0);
+  const [expanded,   setExpanded]   = useState({});
+  const [aiData,     setAiData]     = useState({});
+  const [aiLoading,  setAiLoading]  = useState({});
+  const [notified,   setNotified]   = useState({});   // id → 'sending'|'sent'|'demo'|'error'
+  const [bulkState,  setBulkState]  = useState('idle');
+  const [bulkResult, setBulkResult] = useState(null);
+
+  const fmtL = (n) => { const v = Number(n); return v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : `₹${v.toLocaleString('en-IN',{maximumFractionDigits:0})}`; };
+
+  const fetchOverdue = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/louvers/orders/overdue');
+      const d   = await res.json();
+      setOrders(d.orders     || []);
+      setSource(d.data_source || 'mock');
+      setTotalVal(d.total_value || 0);
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchOverdue(); }, [fetchOverdue]);
+
+  const getSev = (days) => days >= 7 ? 'critical' : days >= 3 ? 'high' : 'moderate';
+  const getSevLabel = (days) => days >= 7 ? 'CRITICAL' : days >= 3 ? 'HIGH' : 'MODERATE';
+
+  const handleSendAll = async () => {
+    setBulkState('sending');
+    try {
+      const res  = await fetch('/api/louvers/orders/check-delays', { method: 'POST' });
+      const json = await res.json();
+      setBulkResult(json);
+      setBulkState('done');
+      const upd = {};
+      (json.notified || []).forEach(n => {
+        const o = orders.find(x => x.order_number === n.order_number);
+        if (o) upd[o.order_id] = n.sent ? 'sent' : n.demo_mode ? 'demo' : 'error';
+      });
+      setNotified(prev => ({ ...prev, ...upd }));
+    } catch(e) { setBulkState('idle'); console.error(e); }
+  };
+
+  const handleNotifyOne = async (orderId) => {
+    setNotified(prev => ({ ...prev, [orderId]: 'sending' }));
+    try {
+      const res  = await fetch(`/api/louvers/orders/${orderId}/notify-delay`, { method: 'POST' });
+      const json = await res.json();
+      setNotified(prev => ({ ...prev, [orderId]: json.sent ? 'sent' : json.demo_mode ? 'demo' : 'error' }));
+    } catch(e) { setNotified(prev => ({ ...prev, [orderId]: 'error' })); }
+  };
+
+  const handleAiToggle = async (orderId) => {
+    if (aiData[orderId]) { setExpanded(prev => ({ ...prev, [orderId]: !prev[orderId] })); return; }
+    setExpanded(prev => ({ ...prev, [orderId]: true }));
+    setAiLoading(prev => ({ ...prev, [orderId]: true }));
+    try {
+      const res  = await fetch(`/api/louvers/orders/${orderId}/ai-analysis`);
+      const json = await res.json();
+      setAiData(prev => ({ ...prev, [orderId]: json }));
+    } catch(e) { console.error(e); }
+    finally { setAiLoading(prev => ({ ...prev, [orderId]: false })); }
+  };
+
+  if (loading) return (
+    <div className="dcc-wrap">
+      <div className="dcc-loading-state">⏳ Checking overdue orders…</div>
+    </div>
+  );
+  if (!orders.length) return null;
+
+  return (
+    <div className="dcc-wrap">
+      {/* Header */}
+      <div className="dcc-header">
+        <div className="dcc-header-left">
+          <div className="dcc-header-icon">⚠</div>
+          <div>
+            <div className="dcc-title">Delay Command Center</div>
+            <div className="dcc-meta">
+              <span>{orders.length} order{orders.length > 1 ? 's' : ''} overdue</span>
+              <span className="dcc-meta-dot">·</span>
+              <span className="dcc-meta-risk">{fmtL(totalVal)} at risk</span>
+              <span className="dcc-meta-dot">·</span>
+              <span className={`dcc-source-badge ${source === 'mysql' ? 'live' : 'demo'}`}>
+                {source === 'mysql' ? '🟢 Live MySQL' : '🟡 Demo Mode'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="dcc-header-right">
+          {bulkState === 'done' && bulkResult && (
+            <span className="dcc-bulk-ok">
+              ✓ {bulkResult.emails_sent > 0
+                ? `${bulkResult.emails_sent} alert${bulkResult.emails_sent > 1 ? 's' : ''} sent`
+                : 'Logged (add SMTP password to send)'}
+            </span>
+          )}
+          <button
+            className={`dcc-send-all-btn${bulkState === 'sending' ? ' loading' : ''}`}
+            onClick={handleSendAll}
+            disabled={bulkState === 'sending'}
+          >
+            {bulkState === 'sending' ? '⏳ Sending…' : `📧 Send All Alerts (${orders.length})`}
+          </button>
+        </div>
+      </div>
+
+      {/* Order rows */}
+      <div className="dcc-orders">
+        {orders.map((order, idx) => {
+          const sev  = getSev(order.days_overdue);
+          const ai   = aiData[order.order_id];
+          const exp  = expanded[order.order_id];
+          const ns   = notified[order.order_id];
+          const aiL  = aiLoading[order.order_id];
+          const last = idx === orders.length - 1;
+
+          return (
+            <div key={order.order_id} className={`dcc-order sev-${sev}${last ? ' last' : ''}`}>
+              {/* Main info row */}
+              <div className="dcc-order-main">
+                <div className="dcc-order-col-left">
+                  <span className={`dcc-sev sev-${sev}`}>{getSevLabel(order.days_overdue)}</span>
+                  <div>
+                    <div className="dcc-order-num">{order.order_number}</div>
+                    <div className="dcc-order-cust">{order.customer_name}</div>
+                    <div className="dcc-order-type">{order.customer_type}</div>
+                  </div>
+                </div>
+
+                <div className="dcc-order-col-mid">
+                  <div className="dcc-order-prod">{order.product_name}</div>
+                  <div className="dcc-order-detail">
+                    {order.quantity} {order.unit} · {order.category}
+                  </div>
+                  {order.delay_reason && order.delay_reason !== '—' && (
+                    <div className="dcc-order-reason">⚡ {order.delay_reason}</div>
+                  )}
+                </div>
+
+                <div className="dcc-order-col-right">
+                  <div className="dcc-order-value">{fmtL(order.total_value)}</div>
+                  <div className={`dcc-days sev-${sev}`}>
+                    <span className="dcc-days-n">{order.days_overdue}</span>
+                    <span className="dcc-days-l">days late</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action row */}
+              <div className="dcc-order-btns">
+                <button
+                  className={`dcc-btn-notify${ns === 'sent' ? ' sent' : ns === 'demo' ? ' demo' : ns === 'error' ? ' err' : ''}`}
+                  onClick={() => handleNotifyOne(order.order_id)}
+                  disabled={ns === 'sending' || ns === 'sent'}
+                >
+                  {ns === 'sending' ? '⏳ Sending…'
+                    : ns === 'sent'  ? '✓ Sent to Admin'
+                    : ns === 'demo'  ? '✓ Logged'
+                    : ns === 'error' ? '✗ Failed — Retry'
+                    : '📧 Notify Admin'}
+                </button>
+
+                <button
+                  className={`dcc-btn-ai${aiL ? ' loading' : exp ? ' active' : ''}`}
+                  onClick={() => handleAiToggle(order.order_id)}
+                >
+                  {aiL ? '✨ Analysing…' : exp ? '✨ Hide Analysis' : '✨ AI Analysis'}
+                </button>
+
+                <button
+                  className="dcc-btn-chat"
+                  onClick={() => openAI(
+                    `Order ${order.order_number} for ${order.customer_name} is ${order.days_overdue} days overdue. `+
+                    `Product: ${order.product_name}, value ${fmtL(order.total_value)}, status ${order.status}. `+
+                    `Delay reason: ${order.delay_reason || 'not specified'}. What should I do immediately to resolve this?`
+                  )}
+                >
+                  💬 Chat
+                </button>
+              </div>
+
+              {/* AI Analysis panel */}
+              {exp && (
+                <div className="dcc-ai-panel">
+                  {aiL ? (
+                    <div className="dcc-ai-loading">✨ GPT-4o is analysing this order…</div>
+                  ) : ai ? (
+                    <div>
+                      {/* Summary */}
+                      <div className="dcc-ai-summary-row">
+                        <span className="dcc-ai-badge">✨ GPT-4o Analysis</span>
+                        <p className="dcc-ai-summary">{ai.executive_summary}</p>
+                      </div>
+                      {/* Grid */}
+                      <div className="dcc-ai-grid">
+                        <div className="dcc-ai-block">
+                          <div className="dcc-ai-block-lbl">Root Cause</div>
+                          <p className="dcc-ai-block-txt">{ai.root_cause}</p>
+                        </div>
+                        <div className="dcc-ai-block">
+                          <div className="dcc-ai-block-lbl">Risk Assessment</div>
+                          <p className="dcc-ai-block-txt">{ai.financial_risk}</p>
+                        </div>
+                      </div>
+                      {/* Actions */}
+                      <div className="dcc-ai-block" style={{marginBottom:10}}>
+                        <div className="dcc-ai-block-lbl">Recommended Actions</div>
+                        <ol className="dcc-ai-ol">
+                          {(ai.actions || []).map((a, i) => <li key={i}>{a}</li>)}
+                        </ol>
+                      </div>
+                      {/* Resolution */}
+                      <div className="dcc-ai-resolution">
+                        <span style={{fontSize:14}}>🎯</span>
+                        <span>{ai.resolution}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="dcc-ai-loading">AI unavailable — check OPENAI_API_KEY in backend/.env</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TAB 1: SALES ORDERS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SalesOrdersTab({ data, onRefresh, openAI }) {
   const products   = data?.products   || [];
   const quotations = data?.quotations || {};
-  const [orders, setOrders]           = useState(data?.orders || []);
-  const [filter, setFilter]           = useState('ALL');
-  const [showWizard, setShowWizard]   = useState(false);
-  const [wizardInit, setWizardInit]   = useState(null);
+  const [orders, setOrders]         = useState(data?.orders || []);
+  const [filter, setFilter]         = useState('ALL');
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardInit, setWizardInit] = useState(null);
 
   useEffect(() => { setOrders(data?.orders || []); }, [data]);
 
@@ -482,6 +722,9 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
 
   return (
     <div>
+      {/* ── Delay Command Center ── */}
+      <DelayCommandCenter openAI={openAI} />
+
       {/* ── Create Sales Order — action bar ── */}
       <div className="ll-create-order-bar">
         <div className="ll-create-order-bar-left">
@@ -526,7 +769,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
         </div>
         <AiBtn sm label="Catalogue insights"
           onClick={() => openAI(
-            `Give me an overview of the louvers and laminates product range: HPL laminates (₹1,300/sheet), `+
+            `Give me an overview of the sales orders product catalogue: HPL laminates (₹1,300/sheet), `+
             `Compact 6mm (₹3,600/sheet), Acrylic (₹2,100/sheet), Aluminium 100mm Anodized (₹2,100/RM), `+
             `80mm Powder Coated (₹1,680/RM), PVC Blades (₹580/RM), Motorised Louvre System (₹12,000/SQM). `+
             `Which products give the best margins? Which should I push for Architects vs Contractors vs Developers?`
@@ -585,7 +828,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
                 const active = orders.filter(o=>o.status!=='DELIVERED'&&o.status!=='CANCELLED');
                 const total  = orders.reduce((a,o)=>a+o.total_value,0);
                 openAI(
-                  `Analyse my louvers & laminates order pipeline: ${orders.length} total orders, `+
+                  `Analyse my sales orders pipeline: ${orders.length} total orders, `+
                   `${active.length} active, total value ${fmtL(total)}, avg margin ${fmtPct(orders.reduce((a,o)=>a+o.margin_pct,0)/orders.length)}. `+
                   `Orders by status: DRAFT (${orders.filter(o=>o.status==='DRAFT').length}), `+
                   `CONFIRMED (${orders.filter(o=>o.status==='CONFIRMED').length}), `+
@@ -751,7 +994,7 @@ function DistributorClaimsTab({ data, onRefresh, openAI }) {
         <div className="ll-claim-kpi">
           <AiBtn label="Full claims analysis"
             onClick={() => openAI(
-              `Analyse distributor claims for my louvers & laminates business: `+
+              `Analyse distributor claims for my sales orders module: `+
               `${claims.length} total claims, ${fmtL(totalPending)} pending, ${fmtL(totalApproved)} approved. `+
               `Claim types: price difference, transit damage, freight excess, promo support, shortage. `+
               `What's the industry benchmark for claim resolution? How do I build a watertight claims policy?`
@@ -1007,13 +1250,13 @@ function CustomerRebatesTab({ data, onRefresh, openAI }) {
         <div className="ll-claim-kpi">
           <AiBtn label="Rebate strategy"
             onClick={()=>openAI(
-              `Review my customer rebate programme for louvers & laminates: `+
+              `Review my customer rebate programme for sales orders: `+
               `${rebates.length} schemes total, ${fmtL(totalLiability)} total liability, `+
               `types: volume (${rebates.filter(r=>r.rebate_type==='VOLUME').length}), `+
               `loyalty (${rebates.filter(r=>r.rebate_type==='LOYALTY').length}), `+
               `project (${rebates.filter(r=>r.rebate_type==='PROJECT').length}), `+
               `annual target (${rebates.filter(r=>r.rebate_type==='ANNUAL_TARGET').length}). `+
-              `Is my rebate structure effective? Benchmarks for louvers/laminates industry? How to improve ROI on rebates?`
+              `Is my rebate structure effective? What benchmarks apply? How to improve ROI on rebates?`
             )} />
         </div>
       </div>
@@ -1105,7 +1348,7 @@ function CustomerRebatesTab({ data, onRefresh, openAI }) {
                   `(${form.customer_type}): target ${fmt(form.target_amount)}, `+
                   `${fmtPct(form.rebate_pct)} rebate = ${fmt(estimatedValue)} payout. `+
                   `Category: ${form.category||'all products'}. Period: ${form.period_start||'?'} to ${form.period_end||'?'}. `+
-                  `Is this rebate structure competitive? What's the industry standard for louvers & laminates? `+
+                  `Is this rebate structure competitive? What's the industry standard? `+
                   `How do I set targets that motivate without eroding margin?`
                 )} />
             </div>
@@ -1216,7 +1459,7 @@ const TABS = [
   { id:'rebates', label:'💰 Customer Rebates',      sub:'Volume and loyalty schemes' },
 ];
 
-export default function LouversLaminates({ onGoChat, dbStatus }) {
+export default function SalesOrders({ onGoChat, dbStatus }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -1250,9 +1493,9 @@ export default function LouversLaminates({ onGoChat, dbStatus }) {
       {/* ── Page Header ──────────────────────────────────────────────────────── */}
       <div className="dc-page-header">
         <div>
-          <div className="kl" style={{color:'var(--text3)',marginBottom:2}}>LOUVERS & LAMINATES</div>
+          <div className="kl" style={{color:'var(--text3)',marginBottom:2}}>SALES ORDERS</div>
           <div style={{fontSize:20,fontWeight:800,color:'var(--text)',letterSpacing:'-0.5px',marginBottom:2}}>
-            Sales · Claims · Rebates
+            Orders · Claims · Rebates
           </div>
           <div style={{fontSize:11,color:'var(--text3)',fontFamily:'var(--mono)'}}>
             HPL · Compact Laminate · Acrylic · Aluminium Louvers · PVC · Operable Systems
@@ -1261,7 +1504,7 @@ export default function LouversLaminates({ onGoChat, dbStatus }) {
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <AiBtn label="Full business briefing"
             onClick={()=>openAI(
-              `Give me a full business briefing for my louvers & laminates division: `+
+              `Give me a full business briefing for my sales orders division: `+
               `${kpis.orders_this_month} orders this month, revenue ${fmtL(kpis.order_revenue||0)}, `+
               `avg margin ${fmtPct(kpis.avg_margin_pct||0)}, pipeline ${fmtL(kpis.pipeline_value||0)}, `+
               `distributor claims pending ${fmtL(kpis.claims_pending||0)}, `+
@@ -1276,11 +1519,11 @@ export default function LouversLaminates({ onGoChat, dbStatus }) {
       <div className="kg" style={{gridTemplateColumns:'repeat(6,1fr)',marginBottom:6}}>
         {[
           {label:'Orders (MTD)',    val:kpis.orders_this_month,       cls:'sg', fmt:'num',
-           ai:`I have ${kpis.orders_this_month} sales orders this month. Is this a healthy order volume for a louvers & laminates distributor? What should I do to grow order count?`},
+           ai:`I have ${kpis.orders_this_month} sales orders this month. Is this a healthy order volume? What should I do to grow order count?`},
           {label:'Order Revenue',   val:kpis.order_revenue,           cls:'sb', fmt:'L',
-           ai:`My louvers & laminates order revenue is ${fmtL(kpis.order_revenue||0)} this month. How does this compare to industry benchmarks? What product mix should I focus on to grow revenue?`},
+           ai:`My sales orders revenue is ${fmtL(kpis.order_revenue||0)} this month. How does this compare to industry benchmarks? What product mix should I focus on to grow revenue?`},
           {label:'Avg Margin',      val:kpis.avg_margin_pct,          cls:'sg', fmt:'pct',
-           ai:`My average order margin is ${fmtPct(kpis.avg_margin_pct||0)} across louvers & laminates. Which products give the highest margins? How can I improve the average?`},
+           ai:`My average order margin is ${fmtPct(kpis.avg_margin_pct||0)} across sales orders. Which products give the highest margins? How can I improve the average?`},
           {label:'Pipeline Value',  val:kpis.pipeline_value,          cls:'st', fmt:'L',
            ai:`My active pipeline value is ${fmtL(kpis.pipeline_value||0)}. What conversion rate should I expect? How do I prioritise which orders to push to close?`},
           {label:'Claims Pending',  val:kpis.claims_pending,          cls:'sp', fmt:'L',
@@ -1300,7 +1543,7 @@ export default function LouversLaminates({ onGoChat, dbStatus }) {
       <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
         <AiBtn sm label="KPI scorecard"
           onClick={()=>openAI(
-            `Give me a KPI scorecard for my louvers & laminates business: `+
+            `Give me a KPI scorecard for my sales orders: `+
             `${kpis.orders_this_month} orders, revenue ${fmtL(kpis.order_revenue||0)}, `+
             `margin ${fmtPct(kpis.avg_margin_pct||0)}, pipeline ${fmtL(kpis.pipeline_value||0)}, `+
             `claims ${fmtL(kpis.claims_pending||0)}, rebate liability ${fmtL(kpis.rebate_liability||0)}. `+
@@ -1327,6 +1570,13 @@ export default function LouversLaminates({ onGoChat, dbStatus }) {
 
       {/* ── AI Panel ─────────────────────────────────────────────────────────── */}
       <DiscountAIPanel isOpen={aiOpen} onClose={()=>setAiOpen(false)} initialMessage={aiMessage} />
+
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Analyze my sales orders — show pending fulfillment, delayed orders, revenue at risk, and which orders to prioritize for dispatch today.')}>
+          <span>✨</span>
+          <span>Ask AI: Pending orders, dispatch priorities & revenue at risk →</span>
+        </div>
+      )}
     </div>
   );
 }

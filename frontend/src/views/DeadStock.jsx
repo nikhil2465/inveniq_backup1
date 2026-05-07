@@ -43,10 +43,19 @@ export default function DeadStock({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Dead Stock &amp; Ageing Analysis</div>
-        <div className="psub">
-          AI identifies cash locked in slow-moving inventory and recommends actions to free it
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Dead Stock &amp; Ageing Analysis</div>
+          <div className="psub">
+            AI identifies cash locked in slow-moving inventory and recommends actions to free it
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Create a complete 30-day dead stock recovery plan. List every ageing SKU, the cash locked in each, and the specific action I should take — discount, bundle, return to supplier, or liquidate.')}>
+              ✨ AI Recovery Plan
+            </button>
+          )}
         </div>
       </div>
 
@@ -94,8 +103,7 @@ export default function DeadStock({ onGoChat }) {
         <div className="card">
           <div className="ch"><div className="ctit">Cash Recovery AI Plan</div><span className="bdg bg">{d?.cash_recovery_potential ?? '₹6.1L'} Recoverable</span></div>
           <div style={{ height: '160px', position: 'relative', marginBottom: '14px' }}><canvas ref={agingRef}></canvas></div>
-          <div className="div"></div>
-          <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '10px' }}>AI-Suggested 30-Day Actions</div>
+          <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '10px', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>AI-Suggested 30-Day Actions</div>
           {[
             { num: 1, bg: 'var(--r3)', color: 'var(--r2)', t: 'Call top 5 contractors today about 6mm Gurjan deal',     m: 'Offer: Buy 30+ sheets → get 12% off · Expected: ₹84K recovered in 7 days' },
             { num: 2, bg: 'var(--a3)', color: 'var(--a2)', t: 'Bundle 4mm MR plain with 18mm BWP orders',               m: 'Auto-add 5 sheets 4mm to every order >50 sheets BWP · Expected: clears in 45 days' },
@@ -112,6 +120,12 @@ export default function DeadStock({ onGoChat }) {
           ))}
         </div>
       </div>
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Draft a WhatsApp message to my top 10 customers offering special deals on my slow-moving stock. Include product names, special price, and urgency.')}>
+          <span>✨</span>
+          <span>Ask AI: Draft customer outreach messages for slow-moving stock clearance →</span>
+        </div>
+      )}
     </div>
   );
 }

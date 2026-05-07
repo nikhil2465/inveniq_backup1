@@ -55,10 +55,19 @@ export default function Demand({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Demand Forecasting — What Will Sell Next?</div>
-        <div className="psub">
-          AI-powered demand signals · 30/60/90-day forecast · Seasonal patterns · Pre-order alerts
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Demand Forecasting — What Will Sell Next?</div>
+          <div className="psub">
+            AI-powered demand signals · 30/60/90-day forecast · Seasonal patterns · Pre-order alerts
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Which products show SURGE demand in the next 90 days? How much stock should I pre-order right now to avoid stockouts during the peak period?')}>
+              ✨ AI Demand Forecast
+            </button>
+          )}
         </div>
       </div>
 
@@ -127,6 +136,13 @@ export default function Demand({ onGoChat }) {
           </div>
         </div>
       </div>
+
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Based on the demand forecast and seasonal patterns, create a complete pre-order plan for the next 60 days — which products, how many sheets, from which suppliers, and when to order.')}>
+          <span>✨</span>
+          <span>Ask AI: Build 60-day pre-order plan based on demand forecast and seasonal data →</span>
+        </div>
+      )}
     </div>
   );
 }

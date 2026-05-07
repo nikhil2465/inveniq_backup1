@@ -201,7 +201,7 @@ export default function DiscountAIPanel({ isOpen, onClose, initialMessage }) {
       }
     } catch (e) {
       if (e.name !== 'AbortError') {
-        aiText = '⚠️ Could not reach AI. Make sure the backend is running on port 8001.';
+        aiText = '⚠️ Could not reach AI. Make sure the backend is running on port 8000.';
         setMessages(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = { role: 'assistant', content: aiText, streaming: false };
@@ -233,8 +233,6 @@ export default function DiscountAIPanel({ isOpen, onClose, initialMessage }) {
     setStreaming(false);
     sentRef.current = '';
   };
-
-  const lastIsStreaming = messages.length > 0 && messages[messages.length - 1].streaming;
 
   return (
     <>

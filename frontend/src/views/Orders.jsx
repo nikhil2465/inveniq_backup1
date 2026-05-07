@@ -48,10 +48,19 @@ export default function Orders({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Orders &amp; Fulfilment Intelligence</div>
-        <div className="psub">
-          Live order pipeline · Pending dispatch · SLA performance
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Orders &amp; Fulfilment Intelligence</div>
+          <div className="psub">
+            Live order pipeline · Pending dispatch · SLA performance
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('What is today\'s order status? Which pending orders are most at risk of delay and what should I do right now to fix them?')}>
+              ✨ AI Order Brief
+            </button>
+          )}
         </div>
       </div>
 
@@ -104,6 +113,12 @@ export default function Orders({ onGoChat }) {
           </table>
         </div>
       </div>
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Which orders are delayed today, what is causing the delays, and draft an update message for each affected customer?')}>
+          <span>✨</span>
+          <span>Ask AI: Draft delay notifications for pending orders and suggest fixes →</span>
+        </div>
+      )}
     </div>
   );
 }

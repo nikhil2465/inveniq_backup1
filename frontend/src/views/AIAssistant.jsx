@@ -49,7 +49,7 @@ const MODE_DESC = {
 
 const SUGGESTIONS = [
   {
-    category: '📦 Stock',
+    category: '📦 Stock & Inventory',
     color: '#3b82f6',
     items: [
       'Which SKUs need immediate reorder?',
@@ -67,25 +67,25 @@ const SUGGESTIONS = [
     ],
   },
   {
-    category: '💰 Finance',
+    category: '📈 Business Growth',
+    color: '#16a34a',
+    items: [
+      'How can I grow my revenue by 30% next quarter?',
+      'Which customers should I target to expand business?',
+      'What products have the highest growth potential?',
+    ],
+  },
+  {
+    category: '💰 Finance & Margins',
     color: '#d97706',
     items: [
       'What is my working capital situation?',
-      'Which invoices are overdue today?',
+      'Which products am I underpricing right now?',
       'Show gross margin by product category',
     ],
   },
   {
-    category: '🚚 Logistics',
-    color: '#06b6d4',
-    items: [
-      'Optimize my freight costs this week',
-      'Which supplier has the best lead time?',
-      'What is my dead stock value?',
-    ],
-  },
-  {
-    category: '📚 Learn',
+    category: '📚 Learn Inventory',
     color: '#0891b2',
     items: [
       'What is EOQ and how do I calculate it for my business?',
@@ -94,8 +94,17 @@ const SUGGESTIONS = [
     ],
   },
   {
+    category: '📄 Quotes & Projects',
+    color: '#be185d',
+    items: [
+      'What is my quotation win rate and how can I improve it?',
+      'Which quotes are expiring this week — give me the contact details and follow-up scripts',
+      'Analyse my pipeline — which deals am I most likely to win?',
+    ],
+  },
+  {
     category: '💡 Daily Insights',
-    color: '#16a34a',
+    color: '#059669',
     items: [
       'Show me today\'s business insights',
       'What are my top priorities for this week?',
@@ -110,6 +119,7 @@ const TOOL_CHIP_CLASS = {
   freight: 'tool-freight', email: 'tool-email', po_grn: 'tool-supplier',
   sales: 'tool-sales', inward: 'tool-inward',
   knowledge: 'tool-knowledge', insights: 'tool-insights',
+  quotes: 'tool-quotes', projects: 'tool-projects', catalog: 'tool-catalog',
 };
 
 const TOOL_EMOJI = {
@@ -117,6 +127,7 @@ const TOOL_EMOJI = {
   order: '📋', demand: '📈', freight: '🚚', email: '📧', po_grn: '📋',
   sales: '💹', inward: '🔄',
   knowledge: '📚', insights: '💡',
+  quotes: '📄', projects: '🏗️', catalog: '🗂️',
 };
 
 // ─── Markdown Renderer (Professional — tables, headings, inline formatting) ────
@@ -653,7 +664,7 @@ function AiMessage({ msg, isStreaming, onFollowUp, onConfirmPO, onCancelPO }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
+export default function AIAssistant({ pendingQuery, onPendingQueryConsumed, dbStatus }) {
   const [mode, setMode]           = useState('ask');
   const [messages, setMessages]   = useState([]);
   const [input, setInput]         = useState('');
@@ -661,16 +672,33 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
   const [streamingId, setStreamingId] = useState(null);
   const [error, setError]         = useState(null);
 
+  const [isListening, setIsListening] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+
   const messagesEndRef  = useRef(null);
   const textareaRef     = useRef(null);
   const abortRef        = useRef(null);
   const sendMessageRef  = useRef(null);  // stable ref so effects can call latest sendMessage
+  const recognitionRef  = useRef(null);
+  const isSendingRef    = useRef(false); // ref guard prevents StrictMode double-fire & concurrent sends
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+
+  // Load chat history from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('iq_chat_history') || '[]');
+      setChatHistory(saved);
+    } catch { /* ignore */ }
+  }, []);
+
+  // Stop any live recognition on unmount
+  useEffect(() => () => recognitionRef.current?.stop(), []);
 
   // Consume pending query from parent — auto-send to chatbot
   useEffect(() => {
@@ -756,10 +784,80 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
     }));
   }, []);
 
-  // ── Send message ─────────────────────────────────────────
+  // ── Voice Input ──────────────────────────────────────────
+  const toggleVoice = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setError('Voice input is not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+    const recog = new SR();
+    recog.continuous    = false;
+    recog.interimResults = true;
+    recog.lang          = 'en-IN';
+    recog.onstart  = () => setIsListening(true);
+    recog.onresult = (e) => {
+      const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+      setInput(transcript);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+      }
+    };
+    recog.onend   = () => setIsListening(false);
+    recog.onerror = () => setIsListening(false);
+    recognitionRef.current = recog;
+    recog.start();
+  }, [isListening]);
+
+  // ── Export Chat ───────────────────────────────────────────
+  const exportChat = useCallback(() => {
+    if (messages.length === 0) return;
+    const lines = messages
+      .filter(m => m.content)
+      .map(m => {
+        const role = m.role === 'user' ? 'YOU' : 'InvenIQ AI';
+        const ts   = m.timestamp ? new Date(m.timestamp).toLocaleString('en-IN') : '';
+        return `[${ts}] ${role}:\n${m.content}`;
+      });
+    const header = `InvenIQ AI Chat Export\nDate: ${new Date().toLocaleString('en-IN')}\nMode: ${mode.toUpperCase()}\n${'─'.repeat(50)}`;
+    const blob   = new Blob(
+      [`${header}\n\n${lines.join('\n\n─────────────────────\n\n')}`],
+      { type: 'text/plain;charset=utf-8' }
+    );
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `inveniq-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [messages, mode]);
+
+  // ── History helpers ───────────────────────────────────────
+  const loadHistoryEntry = useCallback((entry) => {
+    setMessages(entry.messages);
+    setMode(entry.mode || 'ask');
+    setShowHistory(false);
+  }, []);
+
+  const deleteHistoryEntry = useCallback((id, e) => {
+    e.stopPropagation();
+    setChatHistory(prev => {
+      const updated = prev.filter(h => h.id !== id);
+      try { localStorage.setItem('iq_chat_history', JSON.stringify(updated)); } catch { /* ignore */ }
+      return updated;
+    });
+  }, []);
+
+  // ── Send message ──────────────────────────────────────────
   const sendMessage = useCallback(async (query) => {
     const text = (query || input).trim();
-    if (!text || streaming) return;
+    if (!text || isSendingRef.current) return;
+    isSendingRef.current = true;
 
     setError(null);
     const userMsgId = `u-${Date.now()}`;
@@ -874,8 +972,9 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
     } finally {
       setStreaming(false);
       setStreamingId(null);
+      isSendingRef.current = false;
     }
-  }, [input, mode, streaming, messages]);
+  }, [input, mode, messages]);
 
   // Keep ref current so pendingQuery effect always calls the latest sendMessage
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
@@ -893,6 +992,22 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
 
   const handleNewChat = () => {
     abortRef.current?.abort();
+    // Persist non-trivial conversations to history
+    if (messages.length >= 2) {
+      const firstUser = messages.find(m => m.role === 'user');
+      const entry = {
+        id:      Date.now(),
+        ts:      new Date().toISOString(),
+        preview: (firstUser?.content || 'Conversation').slice(0, 72),
+        mode,
+        messages,
+      };
+      setChatHistory(prev => {
+        const updated = [entry, ...prev].slice(0, 10);
+        try { localStorage.setItem('iq_chat_history', JSON.stringify(updated)); } catch { /* ignore */ }
+        return updated;
+      });
+    }
     setMessages([]);
     setInput('');
     setStreaming(false);
@@ -916,13 +1031,28 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
         </div>
         <div className="iq-header-right">
           <div className="iq-badge">
-            <span className="iq-badge-dot live" />
-            Live
+            <span className={`iq-badge-dot ${dbStatus?.status === 'live' ? 'live' : 'model'}`} />
+            {dbStatus?.status === 'live' ? 'MySQL Live' : 'Demo Mode'}
           </div>
           <div className="iq-badge">
             <span className="iq-badge-dot model" />
             GPT-4o
           </div>
+          {messages.length > 0 && (
+            <button className="iq-icon-btn" onClick={exportChat} title="Export conversation as .txt">
+              ↓ Export
+            </button>
+          )}
+          <button
+            className={`iq-icon-btn${chatHistory.length > 0 ? ' iq-icon-btn--active' : ''}`}
+            onClick={() => setShowHistory(true)}
+            title={`Conversation history (${chatHistory.length} saved)`}
+          >
+            🕐 History
+            {chatHistory.length > 0 && (
+              <span className="iq-hist-badge">{chatHistory.length}</span>
+            )}
+          </button>
           <button className="iq-new-chat-btn" onClick={handleNewChat}>
             <IconPlus /> New chat
           </button>
@@ -956,9 +1086,9 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
                 <div className="iq-empty-icon"><IconSpark /></div>
                 <div className="iq-empty-title">Ask anything about your inventory</div>
                 <div className="iq-empty-sub">
-                  InvenIQ AI analyses real-time stock, orders, finance & logistics data to give you
-                  precise, actionable answers. Use <strong>Act</strong> mode to get RCA templates
-                  and create purchase orders directly from chat.
+                  InvenIQ AI analyses your real-time stock, orders, finance & customer data to give
+                  precise, actionable answers. Ask about growth strategies, pricing optimisation,
+                  collections, or root causes — use <strong>Act</strong> mode to create purchase orders directly from chat.
                 </div>
                 <div className="iq-empty-pills">
                   {[
@@ -1011,7 +1141,7 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : (msg.id === streamingId && msg.content === '') ? null : (
                 <AiMessage
                   key={msg.id}
                   msg={msg}
@@ -1079,6 +1209,15 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
               disabled={streaming}
             />
             <button
+              className={`iq-mic-btn${isListening ? ' iq-mic-btn--on' : ''}`}
+              onClick={toggleVoice}
+              type="button"
+              title={isListening ? 'Stop recording (click to stop)' : 'Voice input (click to speak)'}
+              disabled={streaming}
+            >
+              {isListening ? '⏹' : '🎤'}
+            </button>
+            <button
               className={`iq-send-btn ${mode}`}
               disabled={!canSend}
               onClick={() => sendMessage()}
@@ -1092,11 +1231,57 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed }) {
               <span><kbd>Enter</kbd> Send</span>
               <span><kbd>Shift+Enter</kbd> New line</span>
               <span><kbd>1/2/3</kbd> Switch mode</span>
+              <span><kbd>🎤</kbd> Voice</span>
             </div>
-            <span>Powered by GPT-4o · Knowledge Base · Proactive Insights · RCA Templates</span>
+            <span>Powered by GPT-4o · Knowledge Base · Proactive Insights · RCA Engine · Business Growth AI</span>
           </div>
         </div>
       </div>
+
+      {/* ── Conversation History Panel ── */}
+      {showHistory && (
+        <div className="iq-hist-overlay" onClick={() => setShowHistory(false)}>
+          <div className="iq-hist-panel" onClick={e => e.stopPropagation()}>
+            <div className="iq-hist-hdr">
+              <span>🕐 Conversation History</span>
+              <button className="iq-hist-close" onClick={() => setShowHistory(false)}>✕</button>
+            </div>
+            {chatHistory.length === 0 ? (
+              <div className="iq-hist-empty">
+                No saved conversations yet.<br />
+                Start chatting, then click <strong>New chat</strong> — it auto-saves here.
+              </div>
+            ) : (
+              <div className="iq-hist-list">
+                {chatHistory.map(entry => (
+                  <div
+                    key={entry.id}
+                    className="iq-hist-entry"
+                    onClick={() => loadHistoryEntry(entry)}
+                  >
+                    <div className="iq-hist-entry-top">
+                      <span className="iq-hist-mode">
+                        {MODES.find(m => m.id === entry.mode)?.icon || '💬'}{' '}
+                        {(entry.mode || 'ask').toUpperCase()}
+                      </span>
+                      <span className="iq-hist-date">
+                        {new Date(entry.ts).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </span>
+                      <button
+                        className="iq-hist-del"
+                        onClick={(e) => deleteHistoryEntry(entry.id, e)}
+                        title="Delete"
+                      >✕</button>
+                    </div>
+                    <div className="iq-hist-preview">{entry.preview}</div>
+                    <div className="iq-hist-meta">{entry.messages.length} messages</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

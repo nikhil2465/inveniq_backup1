@@ -567,6 +567,180 @@ async def louvers_tool(query: Optional[str] = None) -> dict:
         return {"error": str(exc)}
 
 
+async def quotes_tool(query: Optional[str] = None) -> dict:
+    """Quotation pipeline: quotes by status, win rate, pipeline value, expiring quotes."""
+    if _DB_LAYER_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                from app.db import quote_queries
+                import datetime
+                await quote_queries.ensure_tables(pool)
+                kpis   = await quote_queries.kpis_db(pool)
+                quotes = await quote_queries.list_quotes_db(pool)
+                today  = datetime.date.today()
+
+                # Build enriched quote list
+                enriched = []
+                by_status: dict = {}
+                for q in quotes[:20]:
+                    status = q.get("status", "DRAFT")
+                    by_status.setdefault(status, {"count": 0, "value": 0.0})
+                    by_status[status]["count"] += 1
+                    by_status[status]["value"] += float(q.get("grand_total", 0))
+                    try:
+                        vt = datetime.date.fromisoformat(str(q["valid_till"]))
+                        days_to_expiry = (vt - today).days
+                    except Exception:
+                        days_to_expiry = None
+                    enriched.append({
+                        "quote_number":   q["quote_number"],
+                        "customer":       q["customer_name"],
+                        "customer_type":  q.get("customer_type", ""),
+                        "contact_person": q.get("contact_person", ""),
+                        "contact_phone":  q.get("contact_phone", ""),
+                        "project":        q.get("project_name", ""),
+                        "site_location":  q.get("site_location", ""),
+                        "value_inr":      float(q.get("grand_total", 0)),
+                        "value_L":        round(float(q.get("grand_total", 0)) / 100000, 2),
+                        "status":         status,
+                        "created_at":     q.get("created_at", ""),
+                        "valid_till":     q.get("valid_till", ""),
+                        "days_to_expiry": days_to_expiry,
+                        "margin_pct":     float(q.get("avg_margin_pct", 0)),
+                        "payment_terms":  q.get("payment_terms", ""),
+                        "notes":          q.get("notes", ""),
+                        "remarks":        q.get("remarks", ""),
+                        "items_count":    len(q.get("line_items", [])),
+                    })
+
+                # Category breakdown from line items
+                cat_value: dict = {}
+                for q in quotes:
+                    for item in q.get("line_items", []):
+                        cat = item.get("category", "Other")
+                        cat_value[cat] = cat_value.get(cat, 0.0) + float(item.get("line_total", 0))
+                top_categories = sorted(
+                    [{"category": k, "value_L": round(v / 100000, 2)} for k, v in cat_value.items()],
+                    key=lambda x: -x["value_L"]
+                )[:6]
+
+                expiring_soon = [q for q in enriched if q["days_to_expiry"] is not None
+                                 and 0 <= q["days_to_expiry"] <= 7
+                                 and q["status"] in ("SENT", "NEGOTIATING")]
+
+                return {
+                    "kpis": kpis,
+                    "pipeline_by_status": by_status,
+                    "recent_quotes": enriched,
+                    "expiring_soon": expiring_soon,
+                    "top_categories_in_pipeline": top_categories,
+                    "data_source": "mysql",
+                }
+        except Exception as exc:
+            logger.warning("quotes_tool DB error: %s", exc)
+
+    return {
+        "kpis": {
+            "pipeline_value": 1307840,
+            "won_value": 377600,
+            "lost_value": 908200,
+            "win_rate_pct": 50.0,
+            "avg_margin_pct": 19.8,
+            "quotes_expiring": 2,
+            "total_quotes": 5,
+        },
+        "recent_quotes": [
+            {"quote_number": "QT-2026-0089", "customer": "Prestige Developers",
+             "project": "Prestige Skyrise — Tower A & B Facade", "value": 584400,
+             "status": "NEGOTIATING", "valid_till": "2026-05-14", "margin_pct": 20.1},
+            {"quote_number": "QT-2026-0088", "customer": "Sobha Builders",
+             "project": "Sobha Dream Series — Phase 2", "value": 377600,
+             "status": "WON", "valid_till": "2026-05-10", "margin_pct": 23.5},
+            {"quote_number": "QT-2026-0087", "customer": "Brigade Group",
+             "project": "Brigade Tech Park — Amenity Block", "value": 242100,
+             "status": "SENT", "valid_till": "2026-04-30", "margin_pct": 18.2},
+            {"quote_number": "QT-2026-0086", "customer": "Nambiar Builders",
+             "project": "Nambiar Millenia — Clubhouse", "value": 103840,
+             "status": "DRAFT", "valid_till": "2026-04-30", "margin_pct": 21.4},
+            {"quote_number": "QT-2026-0082", "customer": "Godrej Properties",
+             "project": "Godrej Horizon — External Cladding", "value": 908200,
+             "status": "LOST", "valid_till": "2026-04-18", "margin_pct": 15.8},
+        ],
+        "data_source": "mock",
+    }
+
+
+async def projects_tool(query: Optional[str] = None) -> dict:
+    """Project pipeline tracker: inquiry to invoice, deal values, at-risk projects."""
+    try:
+        from app.api.projects import _mock_projects
+        projects = _mock_projects()
+        by_stage: dict = {}
+        total_value = 0.0
+        for p in projects:
+            stage = p.get("stage", "INQUIRY")
+            by_stage[stage] = by_stage.get(stage, 0) + 1
+            total_value += p.get("estimated_value", 0)
+        return {
+            "pipeline_summary": {
+                "total_projects": len(projects),
+                "total_pipeline_value": f"₹{total_value/100000:.1f}L",
+                "by_stage": by_stage,
+            },
+            "projects": [
+                {
+                    "name":     p["project_name"],
+                    "customer": p["client_name"],
+                    "stage":    p["stage"],
+                    "value":    f"₹{p.get('estimated_value', 0)/100000:.2f}L",
+                    "priority": p.get("priority", "MEDIUM"),
+                    "close":    p.get("expected_close", ""),
+                    "margin":   f"{p.get('margin_pct', 0)}%",
+                }
+                for p in projects[:8]
+            ],
+            "data_source": "mock",
+        }
+    except Exception as exc:
+        logger.warning("projects_tool failed: %s", exc)
+        return {"error": str(exc), "data_source": "error"}
+
+
+async def catalog_tool(query: Optional[str] = None) -> dict:
+    """Product catalog: all products with sell/buy price, specs, and category."""
+    try:
+        from app.api.catalog import CATALOG
+        q = (query or "").lower()
+        filtered = (
+            [p for p in CATALOG if
+             q in p["name"].lower() or
+             q in p.get("category", "").lower() or
+             any(q in t.lower() for t in p.get("tags", []))]
+            if q else CATALOG
+        )
+        by_cat: dict = {}
+        for p in filtered:
+            cat = p["category"]
+            by_cat.setdefault(cat, []).append({
+                "id":         p["product_id"],
+                "name":       p["name"],
+                "sell_price": p["sell_price"],
+                "buy_price":  p["buy_price"],
+                "unit":       p["unit"],
+                "thickness":  p.get("thickness", ""),
+            })
+        return {
+            "categories":     list(by_cat.keys()),
+            "total_products": len(filtered),
+            "by_category":    by_cat,
+            "data_source":    "catalog",
+        }
+    except Exception as exc:
+        logger.warning("catalog_tool failed: %s", exc)
+        return {"error": str(exc), "data_source": "error"}
+
+
 TOOLS = {
     "stock":    stock_tool,
     "demand":   demand_tool,
@@ -581,4 +755,7 @@ TOOLS = {
     "inward":   inward_tool,
     "discount": discount_tool,
     "louvers":  louvers_tool,
+    "quotes":   quotes_tool,
+    "projects": projects_tool,
+    "catalog":  catalog_tool,
 }

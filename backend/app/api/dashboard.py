@@ -693,6 +693,177 @@ async def validate_ai():
     }
 
 
+# ── /api/alerts ────────────────────────────────────────────────────────────────
+@router.get("/alerts")
+async def get_alerts():
+    """
+    Returns prioritised business alerts for the Topbar notification bell.
+    DB-first with rich mock fallback. Sorted: critical first, then warning, info.
+    """
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                stock, fin, customer, supplier, po = await asyncio.gather(
+                    db_q.query_stock(pool, ""),
+                    db_q.query_finance(pool, ""),
+                    db_q.query_customer(pool, ""),
+                    db_q.query_supplier(pool, ""),
+                    db_q.query_po_grn(pool, ""),
+                    return_exceptions=True,
+                )
+                def _ok(r): return r if not isinstance(r, Exception) else {}
+                s, f, c, sup, p = _ok(stock), _ok(fin), _ok(customer), _ok(supplier), _ok(po)
+                alerts = _build_alerts_from_db(s, f, c, sup, p)
+                critical = sum(1 for a in alerts if a["severity"] == "critical")
+                warning  = sum(1 for a in alerts if a["severity"] == "warning")
+                info     = len(alerts) - critical - warning
+                return {
+                    "alerts": alerts[:8],
+                    "counts": {"critical": critical, "warning": warning, "info": info},
+                    "total": len(alerts),
+                    "data_source": "mysql",
+                }
+        except Exception as exc:
+            logger.warning("Alerts DB failed: %s", exc)
+    return _mock_alerts()
+
+
+def _build_alerts_from_db(stock, finance, customer, supplier, po_data):
+    alerts = []
+    for item in stock.get("critical_low", []):
+        days = item.get("days_cover", 999)
+        sev  = "critical" if days <= 10 else "warning" if days <= 20 else None
+        if sev:
+            alerts.append({
+                "id":       f"stock-{item['sku'].lower().replace(' ', '-')}",
+                "severity": sev,
+                "category": "stock",
+                "icon":     "📦",
+                "title":    f"{item['sku']} {'critically' if sev == 'critical' else ''} low stock",
+                "desc":     f"Only {days} days cover remaining. Reorder urgently.",
+                "impact":   "Revenue at risk",
+                "ai_query": f"{item['sku']} stock is at {days} days cover. What should I do? Give me an action plan.",
+            })
+    for rec in customer.get("overdue_receivables", [])[:3]:
+        days_od = rec.get("days_overdue", 0)
+        risk    = rec.get("risk", "LOW")
+        sev     = "critical" if risk == "HIGH" or days_od > 60 else "warning"
+        alerts.append({
+            "id":       f"recv-{rec['customer'].lower().replace(' ', '-')[:20]}",
+            "severity": sev,
+            "category": "receivables",
+            "icon":     "💰",
+            "title":    f"{rec['customer']}: {rec['amount']} overdue",
+            "desc":     f"{days_od} days past due. Follow up immediately.",
+            "impact":   rec["amount"],
+            "ai_query": f"How should I handle {rec['customer']} overdue payment of {rec['amount']}?",
+        })
+    for opo in supplier.get("overdue_pos", [])[:2]:
+        name = opo if isinstance(opo, str) else opo.get("po_number", "")
+        alerts.append({
+            "id":       f"po-{name.lower().replace(' ', '-')[:20]}",
+            "severity": "warning",
+            "category": "procurement",
+            "icon":     "🏭",
+            "title":    f"Overdue PO: {name}",
+            "desc":     "Supplier delivery delayed. Check status and escalate.",
+            "impact":   "",
+            "ai_query": f"What action should I take for overdue purchase order {name}?",
+        })
+    # Dead stock alert
+    dead = stock.get("dead_stock", [])
+    if len(dead) >= 2:
+        total = sum(
+            float(d["value"].replace("Rs.", "").replace("₹", "").replace("L", "")) * 100000
+            for d in dead if "L" in d.get("value", "")
+        )
+        alerts.append({
+            "id":       "dead-stock-bulk",
+            "severity": "warning",
+            "category": "stock",
+            "icon":     "📦",
+            "title":    f"Dead stock: ₹{total/100000:.1f}L locked in {len(dead)} SKUs",
+            "desc":     f"Oldest item: {dead[0].get('days_old', 0)} days. Clearance plan needed.",
+            "impact":   f"₹{total/100000:.1f}L",
+            "ai_query": "Show me a dead stock clearance plan. Which SKUs should I discount first?",
+        })
+    # GST alert from finance
+    gst = finance.get("gst", {})
+    if gst.get("gstr3b_status") == "PENDING":
+        alerts.append({
+            "id":       "gst-filing",
+            "severity": "info",
+            "category": "finance",
+            "icon":     "📊",
+            "title":    "GSTR-3B filing pending",
+            "desc":     f"Net payable {gst.get('net_payable', '')}. File before deadline.",
+            "impact":   gst.get("net_payable", ""),
+            "ai_query": "What is my GST status? How much is pending and what are the deadlines?",
+        })
+    severity_order = {"critical": 0, "warning": 1, "info": 2}
+    return sorted(alerts, key=lambda a: severity_order.get(a["severity"], 9))
+
+
+def _mock_alerts():
+    return {
+        "alerts": [
+            {
+                "id": "stock-18mm-bwp", "severity": "critical", "category": "stock", "icon": "📦",
+                "title": "18mm BWP critically low stock",
+                "desc": "Only 8 days cover remaining. Demand surge forecast +24%.",
+                "impact": "₹1.8L revenue at risk",
+                "ai_query": "18mm BWP stock is critically low — only 8 days cover. Give me an urgent action plan.",
+            },
+            {
+                "id": "recv-sharma", "severity": "critical", "category": "receivables", "icon": "💰",
+                "title": "Sharma Constructions: ₹3.4L overdue",
+                "desc": "78 days past due — HIGH risk. No recent contact.",
+                "impact": "₹3.4L at risk",
+                "ai_query": "How should I handle Sharma Constructions overdue payment of ₹3.4L (78 days overdue)?",
+            },
+            {
+                "id": "po-gauri-overdue", "severity": "warning", "category": "procurement", "icon": "🏭",
+                "title": "PO-7731 Gauri Laminates overdue +4 days",
+                "desc": "₹0.49L pending. GRN match rate 82% — quality concern.",
+                "impact": "₹0.49L delayed",
+                "ai_query": "PO-7731 from Gauri Laminates is 4 days overdue. What action should I take?",
+            },
+            {
+                "id": "dead-stock-bulk", "severity": "warning", "category": "stock", "icon": "📦",
+                "title": "Dead stock: ₹4.2L locked in 5 SKUs",
+                "desc": "6mm Gurjan BWP (118 days), 4mm MR Plain (97 days). Clearance needed.",
+                "impact": "₹3.6L recoverable",
+                "ai_query": "Show me a dead stock clearance plan. I have ₹4.2L locked. Which SKUs should I discount?",
+            },
+            {
+                "id": "grn-mismatch", "severity": "warning", "category": "procurement", "icon": "🔍",
+                "title": "GRN-4421: Wrong grade received from Gauri",
+                "desc": "Price discrepancy ₹3,200. 3-way match failed — credit note needed.",
+                "impact": "₹3,200 discrepancy",
+                "ai_query": "Explain GRN-4421 wrong grade discrepancy from Gauri Laminates and what I should do.",
+            },
+            {
+                "id": "recv-mehta", "severity": "warning", "category": "receivables", "icon": "💰",
+                "title": "Mehta Brothers: ₹2.1L overdue 52 days",
+                "desc": "MEDIUM risk. Working capital impact: +2.8 days on cash cycle.",
+                "impact": "₹2.1L outstanding",
+                "ai_query": "How should I handle Mehta Brothers overdue payment of ₹2.1L (52 days)?",
+            },
+            {
+                "id": "gst-pending", "severity": "info", "category": "finance", "icon": "📊",
+                "title": "GSTR-3B filing pending",
+                "desc": "Net GST payable ₹0.83L. File before the 20th to avoid penalty.",
+                "impact": "₹0.83L payable",
+                "ai_query": "What is my GST status? How much is pending and what are the filing deadlines?",
+            },
+        ],
+        "counts": {"critical": 2, "warning": 4, "info": 1},
+        "total": 7,
+        "data_source": "mock",
+    }
+
+
 # ── /api/data-status ───────────────────────────────────────────────────────────
 # Lightweight endpoint — shows which data sources are live vs demo.
 # Called by DataSourceBadge and any component wanting a quick status check.

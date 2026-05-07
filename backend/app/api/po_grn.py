@@ -332,7 +332,7 @@ def _mock_po_grn_data() -> dict:
     return {
         "kpis": {
             "open_pos": 8,
-            "open_po_value": "₹12.4L",
+            "open_po_value": "₹11.8L",
             "overdue_pos": 2,
             "overdue_po_list": "PO-7734 (Greenply +2d), PO-7731 (Gauri +4d)",
             "grn_match_rate": "96%",
@@ -371,6 +371,24 @@ def _mock_po_grn_data() -> dict:
                 "sku": "Laminates Teak", "qty_ordered": 100, "qty_received": 100,
                 "fill_pct": 100, "value": "₹0.34L", "eta": "Received",
                 "status": "RECEIVED", "overdue_days": 0,
+            },
+            {
+                "po_number": "PO-7729", "supplier": "Merino Industries",
+                "sku": "HPL 1mm Matte", "qty_ordered": 50, "qty_received": 0,
+                "fill_pct": 0, "value": "₹1.78L", "eta": "ETA 3d",
+                "status": "OPEN", "overdue_days": 0,
+            },
+            {
+                "po_number": "PO-7726", "supplier": "Greenlam Industries",
+                "sku": "Compact Laminate 6mm", "qty_ordered": 25, "qty_received": 10,
+                "fill_pct": 40, "value": "₹1.62L", "eta": "ETA 1d",
+                "status": "PARTIAL", "overdue_days": 0,
+            },
+            {
+                "po_number": "PO-7724", "supplier": "Action Tesa",
+                "sku": "Acrylic Laminate 1mm", "qty_ordered": 30, "qty_received": 12,
+                "fill_pct": 40, "value": "₹0.84L", "eta": "ETA 4d",
+                "status": "PARTIAL", "overdue_days": 0,
             },
         ],
         "grn_discrepancies": [

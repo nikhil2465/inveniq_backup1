@@ -59,10 +59,19 @@ export default function Inventory({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Stock Intelligence — AI-Powered Inventory View</div>
-        <div className="psub">
-          Live from your DMS · Reorder alerts · Overstock detection · Margin by SKU
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Stock Intelligence — AI-Powered Inventory View</div>
+          <div className="psub">
+            Live from your DMS · Reorder alerts · Overstock detection · Margin by SKU
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('What is the complete stock health report? Which items are critically low and need ordering today, and which are dead stock I should liquidate?')}>
+              ✨ AI Stock Report
+            </button>
+          )}
         </div>
       </div>
 
@@ -148,6 +157,12 @@ export default function Inventory({ onGoChat }) {
           </div>
         </div>
       </div>
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Calculate the EOQ and reorder point for my top 5 fast-moving SKUs. How much should I order from each supplier this week?')}>
+          <span>✨</span>
+          <span>Ask AI: Calculate EOQ and create this week's reorder plan →</span>
+        </div>
+      )}
     </div>
   );
 }

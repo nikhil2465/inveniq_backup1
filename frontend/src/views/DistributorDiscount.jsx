@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
 import ErrorState from '../components/ErrorState';
-import DiscountAIPanel from './DiscountAIPanel';
+import DiscountAIPanel from '../components/DiscountAIPanel';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -972,6 +972,13 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
         onClose={() => setAiOpen(false)}
         initialMessage={aiMessage}
       />
+
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Analyze my discount policy — where am I over-discounting? Show discount leakage, margin floors being breached, and which customer segments need repricing.')}>
+          <span>✨</span>
+          <span>Ask AI: Discount leakage, margin analysis & pricing optimisation →</span>
+        </div>
+      )}
     </div>
   );
 }

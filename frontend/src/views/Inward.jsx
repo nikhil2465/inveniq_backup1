@@ -29,10 +29,19 @@ export default function Inward({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Inward &amp; Outward — Stock Movement Intelligence</div>
-        <div className="psub">
-          AI tracks every unit entering and leaving your warehouse · Shrinkage detection · Dispatch velocity
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Inward &amp; Outward — Stock Movement Intelligence</div>
+          <div className="psub">
+            AI tracks every unit entering and leaving your warehouse · Shrinkage detection · Dispatch velocity
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Give me today\'s complete stock movement brief — what came in, what went out, any GRN mismatches, and is there any shrinkage or QC issue I should investigate?')}>
+              ✨ AI Movement Brief
+            </button>
+          )}
         </div>
       </div>
 
@@ -109,6 +118,12 @@ export default function Inward({ onGoChat }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Explain this GRN mismatch — what likely caused it, what is the financial impact, and what are the exact steps to resolve it with the supplier?')}>
+          <span>✨</span>
+          <span>Ask AI: Investigate GRN mismatch — root cause, impact, and resolution steps →</span>
         </div>
       )}
     </div>

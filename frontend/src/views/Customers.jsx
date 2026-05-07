@@ -41,10 +41,19 @@ export default function Customers({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Customer Intelligence — Know Every Account</div>
-        <div className="psub">
-          Payment behaviour · At-risk accounts · Margin by customer · Discount leakage
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Customer Intelligence — Know Every Account</div>
+          <div className="psub">
+            Payment behaviour · At-risk accounts · Margin by customer · Discount leakage
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Give me a full customer health report — who are my top accounts, who is at risk of churning, and who has overdue payments that need follow-up today?')}>
+              ✨ AI Customer Brief
+            </button>
+          )}
         </div>
       </div>
 
@@ -113,6 +122,13 @@ export default function Customers({ onGoChat }) {
           </tbody>
         </table>
       </div>
+
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Which customers should I call this week — overdue payments, at-risk of churning, and upsell opportunities?')}>
+          <span>✨</span>
+          <span>Ask AI: Customer priority list — who to call this week and why →</span>
+        </div>
+      )}
     </div>
   );
 }

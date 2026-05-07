@@ -27,10 +27,19 @@ export default function Procurement({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Supplier &amp; Procurement Intelligence</div>
-        <div className="psub">
-          Supplier scorecards · Performance analysis · Cost comparison · Risk flags
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Supplier &amp; Procurement Intelligence</div>
+          <div className="psub">
+            Supplier scorecards · Performance analysis · Cost comparison · Risk flags
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Give me a full supplier review — which suppliers are performing well, which need to be replaced, and how can I reduce my total procurement cost this month?')}>
+              ✨ AI Supplier Review
+            </button>
+          )}
         </div>
       </div>
 
@@ -92,6 +101,12 @@ export default function Procurement({ onGoChat }) {
           ))}
         </div>
       </div>
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Which supplier has the worst GRN match rate and highest true landed cost? Draft an escalation message and suggest the best alternative.')}>
+          <span>✨</span>
+          <span>Ask AI: Identify worst supplier and draft escalation + replacement plan →</span>
+        </div>
+      )}
     </div>
   );
 }

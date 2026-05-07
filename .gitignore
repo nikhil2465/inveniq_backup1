@@ -1,10 +1,9 @@
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -19,55 +18,74 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+pip-log.txt
+.python-version
 
-# Virtual Environment
+# ── Python test / coverage ────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+
+# ── Virtual Environments ──────────────────────────────────────────────────────
 venv/
 ENV/
 env/
+.venv/
 .venv
 
-# Node.js & npm
+# ── Node.js ───────────────────────────────────────────────────────────────────
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+# NOTE: package-lock.json is intentionally ignored here (demo project).
+# For production deployments, consider committing it for reproducible installs.
 yarn.lock
 
-# IDE
+# ── Build outputs ─────────────────────────────────────────────────────────────
+/frontend/build/
+/frontend/dist/
+# Generic Python build dir (never commit compiled Python dist)
+build/
+
+# ── Environment variables & Secrets — NEVER COMMIT ───────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+# SSL / credentials — never commit
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ── IDE & Editor ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# ── OS artifacts ──────────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
+desktop.ini
 
-# Environment variables (NEVER commit secrets!)
-.env
-.env.local
-.env.*.local
-
-# Build outputs
-/frontend/build
-/frontend/dist
-
-# Logs
+# ── Logs & temp ───────────────────────────────────────────────────────────────
 logs/
 *.log
-
-# OS
-Thumbs.db
-.DS_Store
-
-# Temp files
 *.tmp
+*.bak
+*.old
+# Test/scratch text files (e.g. test_wa.txt, tmp*.txt)
+test_*.txt
+tmp*.txt
+*tmptest*
+
+# ── Dev caches (auto-regenerated) ────────────────────────────────────────────
 .cache/
 
-# Claude Code local settings (not for version control)
+# ── Claude Code local settings (machine-specific, not tracked) ───────────────
 .claude/
-
-# Backend builds
-*.pyc
-.pytest_cache/
-.coverage
-htmlcov/

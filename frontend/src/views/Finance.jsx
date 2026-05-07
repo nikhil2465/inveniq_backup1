@@ -76,10 +76,19 @@ export default function Finance({ onGoChat }) {
   return (
     <div className="view">
       <div className="ph">
-        <div className="pg">Profitability &amp; Cash Intelligence — Owner View</div>
-        <div className="psub">
-          True profit by product · Cash flow · Receivables · What's actually in your pocket
-          {' '}<DataSourceBadge source={src} />
+        <div className="ph-left">
+          <div className="pg">Profitability &amp; Cash Intelligence — Owner View</div>
+          <div className="psub">
+            True profit by product · Cash flow · Receivables · What's actually in your pocket
+            {' '}<DataSourceBadge source={src} />
+          </div>
+        </div>
+        <div className="ph-actions">
+          {onGoChat && (
+            <button className="btn-primary" onClick={() => onGoChat('Give me an owner-level financial brief — true profit after all costs, cash position, overdue receivables, and the top 3 actions I should take today to improve cash flow.')}>
+              ✨ AI Finance Brief
+            </button>
+          )}
         </div>
       </div>
 
@@ -151,6 +160,12 @@ export default function Finance({ onGoChat }) {
           </table>
         </div>
       </div>
+      {onGoChat && (
+        <div className="ai-cta-bar" onClick={() => onGoChat('Which overdue receivables should I chase this week? Draft a payment reminder for the top 3 customers with outstanding amounts and suggest collection strategies.')}>
+          <span>✨</span>
+          <span>Ask AI: Draft payment reminders for overdue accounts + collection strategy →</span>
+        </div>
+      )}
     </div>
   );
 }
