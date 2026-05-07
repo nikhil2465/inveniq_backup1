@@ -310,6 +310,77 @@ You have live access to the full quotation pipeline data. When answering quotati
 4. WON quotes — confirm PO receipt, share production timeline
 """
 
+LOUVERS_SYSTEM_ADDENDUM = """
+
+## Sales Orders & Louvers Intelligence Mode
+You have live access to the sales orders pipeline including aluminium louvers, laminates, ACP, and operable systems. When answering sales order or louvers queries:
+
+### Order Status Workflow
+- **DRAFT** → Quotation stage, not yet confirmed
+- **CONFIRMED** → Customer confirmed, production/procurement starting
+- **IN_PRODUCTION** → Actively being fabricated or sourced
+- **DISPATCHED** → Left warehouse, tracking in progress
+- **DELIVERED** → Customer received goods
+- **CANCELLED** → Order cancelled — log the reason
+
+### What to Always Include in Sales Order Answers
+1. **Pipeline value**: Total active orders ₹ value + orders dispatched today vs pending
+2. **Delay alerts**: Any order past estimated delivery date — name the customer + amount at risk
+3. **Specific order details**: Order ID (SO-YYYY-XXXX), customer, SKU, quantity, ₹ value, status, expected delivery
+4. **Actionable follow-up**: Which order needs a status call TODAY — provide customer name + contact
+5. **Revenue recognition**: Dispatched orders that can be invoiced today
+
+### Product Intelligence (Louvers & Architectural Products)
+- **Aluminium Louvers**: Most margin-rich product (28-35%). Fabrication time 5-7 days.
+- **PVC Louvers**: Faster delivery (2-3 days), lower margin (22-26%). Good for urgent projects.
+- **HPL Laminates**: Competitive market, 16-22% margin. Price sensitivity high — protect floor.
+- **ACP Cladding**: Project-based, 22-28% margin. Long procurement — plan 10-14 days ahead.
+- **Operable Systems**: Premium product, 22-28% margin. Installation coordination needed.
+- **Toilet Cubicles**: Package deal product — include HPL + hardware + installation.
+
+### Claim & Rebate Tracking
+- Track volume-based claims: Monthly purchase vs claim threshold
+- Lumpsum claims: Fixed ₹ amount per quarter from supplier
+- Accrual tracking: Earned but not-yet-received rebates — follow up before quarter-end
+"""
+
+PROJECTS_SYSTEM_ADDENDUM = """
+
+## Project Tracker Intelligence Mode
+You have live access to the full project pipeline from initial inquiry to final invoice. When answering project-related queries:
+
+### Project Stage Pipeline
+- **INQUIRY** → Lead received, not yet qualified
+- **SITE_VISIT** → Measurement/survey scheduled or done
+- **QUOTE_SENT** → Quotation submitted to client
+- **NEGOTIATING** → Client negotiating price/terms (protect margin floor at 18%)
+- **WON** → PO received, project confirmed
+- **IN_PRODUCTION** → Materials ordered/fabrication in progress
+- **DISPATCHED** → Goods sent to site
+- **INSTALLED** → Installation complete, pending sign-off
+- **INVOICE_RAISED** → Invoice submitted, awaiting payment
+- **CLOSED** → Payment received, project complete
+
+### What to Always Include in Project Answers
+1. **Pipeline health**: Total pipeline ₹ value by stage + estimated close value this month
+2. **Conversion bottleneck**: Which stage has the most stuck projects → that's your key constraint
+3. **Specific project details**: Project ID, client name, project name, site location, ₹ value, stage, next action
+4. **Revenue forecast**: Projects expected to convert to invoice this month — list them with ₹ value
+5. **At-risk projects**: Projects NEGOTIATING > 14 days or QUOTE_SENT > 21 days without response — call today
+
+### Project Profitability Rules
+- **Minimum margin**: 18% (below this → escalate to MD for approval before accepting)
+- **Target margin**: 22-28% depending on product category
+- **High-margin project types**: Operable systems, premium ACP, full-toilet-cubicle packages
+- **Margin killers**: Rush orders (extra freight), design changes mid-production (rework cost), payment delays (working capital cost)
+
+### Stage Conversion Intelligence
+- INQUIRY → QUOTE: Should happen within 3 business days (max)
+- QUOTE → WON: Industry win rate 35-45%; if <30%, pricing or proposal quality needs review
+- WON → INVOICE: Track actual vs quoted margin — any gap >5pp needs a post-project review
+- Lost projects: Always capture loss reason (price/delivery/competitor) — feed into pricing strategy
+"""
+
 SYSTEM_BASE = """You are InvenIQ AI — an expert AI advisor for building-materials dealers and distributors in India.
 You are live-connected to a dealer's full business intelligence platform covering inventory, sales, procurement, projects, and quotations.
 
@@ -469,6 +540,10 @@ def _build_messages(
         system_prompt += DISCOUNT_SYSTEM_ADDENDUM
     if "quotes" in tool_data:
         system_prompt += QUOTES_SYSTEM_ADDENDUM
+    if "louvers" in tool_data:
+        system_prompt += LOUVERS_SYSTEM_ADDENDUM
+    if "projects" in tool_data:
+        system_prompt += PROJECTS_SYSTEM_ADDENDUM
     messages = [{"role": "system", "content": system_prompt}]
 
     if history:
@@ -578,7 +653,8 @@ async def process_query_stream(
                     yield {"type": "token", "content": token}
         except Exception as exc:
             yield {"type": "token", "content": f"Hi! I'm StockSense AI — your inventory advisor. Ask me about stock, margins, suppliers, or customers. *(Error: {str(exc)[:60]})*"}
-        yield {"type": "done", "follow_ups": [
+        follow_ups_g = await _generate_follow_ups(query, mode)
+        yield {"type": "done", "follow_ups": follow_ups_g or [
             "Which SKUs need urgent reorder?",
             "What's my current gross margin?",
             "Show me overdue customer payments",
@@ -603,7 +679,7 @@ async def process_query_stream(
         }
         messages_k = [{"role": "system", "content": SYSTEM_KNOWLEDGE}]
         if history:
-            for msg in history[-6:]:
+            for msg in history[-8:]:
                 if msg.get("role") in ("user", "assistant") and msg.get("content"):
                     messages_k.append({"role": msg["role"], "content": str(msg["content"])[:1200]})
         messages_k.append({
@@ -632,8 +708,8 @@ async def process_query_stream(
 
     # ── Insights / Business Intelligence fast-path — proactive briefing ───────
     if is_insights_query(query):
-        # Gather data from all tools for a comprehensive analysis
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects"]
+        # Gather data from ALL 14 tools for comprehensive analysis
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
@@ -653,9 +729,9 @@ async def process_query_stream(
         }
         messages_i = [{"role": "system", "content": SYSTEM_INSIGHTS}]
         if history:
-            for msg in history[-4:]:
+            for msg in history[-8:]:
                 if msg.get("role") in ("user", "assistant") and msg.get("content"):
-                    messages_i.append({"role": msg["role"], "content": str(msg["content"])[:800]})
+                    messages_i.append({"role": msg["role"], "content": str(msg["content"])[:1200]})
         messages_i.append({
             "role": "user",
             "content": (
@@ -682,7 +758,8 @@ async def process_query_stream(
             for word in fallback_text.split():
                 yield {"type": "token", "content": word + " "}
 
-        yield {"type": "done", "follow_ups": [
+        follow_ups_i = await _generate_follow_ups(query, mode)
+        yield {"type": "done", "follow_ups": follow_ups_i or [
             "Show me my dead stock recovery options",
             "What is my current working capital cycle?",
             "Which supplier needs immediate review?",
@@ -871,7 +948,7 @@ async def process_query(
         full_ctx = "\n\n".join([knowledge_ctx] + tool_ctx_parts)
         messages_k = [{"role": "system", "content": SYSTEM_KNOWLEDGE}]
         if history:
-            for msg in history[-6:]:
+            for msg in history[-8:]:
                 if msg.get("role") in ("user", "assistant") and msg.get("content"):
                     messages_k.append({"role": msg["role"], "content": str(msg["content"])[:1200]})
         messages_k.append({"role": "user", "content": f"**Question:** {query}\n\n--- Knowledge Base + Live Data ---\n{full_ctx}"})

@@ -101,18 +101,17 @@ def _build_ai_brief(s, f, c, o):
 
 
 _MOCK_MONTHLY_REVENUE = [
-    {"month": "Apr", "revenue": 19.2, "orders": 312},
-    {"month": "May", "revenue": 20.1, "orders": 328},
-    {"month": "Jun", "revenue": 21.4, "orders": 344},
-    {"month": "Jul", "revenue": 22.8, "orders": 369},
-    {"month": "Aug", "revenue": 21.6, "orders": 350},
-    {"month": "Sep", "revenue": 20.4, "orders": 336},
-    {"month": "Oct", "revenue": 22.1, "orders": 357},
-    {"month": "Nov", "revenue": 23.8, "orders": 384},
-    {"month": "Dec", "revenue": 24.4, "orders": 394},
-    {"month": "Jan", "revenue": 25.2, "orders": 406},
-    {"month": "Feb", "revenue": 26.0, "orders": 419},
-    {"month": "Mar", "revenue": 27.2, "orders": 438},
+    {"month": "May", "revenue": 19.2, "orders": 312},
+    {"month": "Jun", "revenue": 20.1, "orders": 328},
+    {"month": "Jul", "revenue": 21.4, "orders": 344},
+    {"month": "Aug", "revenue": 22.8, "orders": 369},
+    {"month": "Sep", "revenue": 21.6, "orders": 350},
+    {"month": "Oct", "revenue": 20.4, "orders": 336},
+    {"month": "Nov", "revenue": 22.1, "orders": 357},
+    {"month": "Dec", "revenue": 23.8, "orders": 384},
+    {"month": "Jan", "revenue": 24.4, "orders": 394},
+    {"month": "Feb", "revenue": 25.2, "orders": 406},
+    {"month": "Mar", "revenue": 26.0, "orders": 419},
     {"month": "Apr", "revenue": 28.4, "orders": 486},
 ]
 
@@ -146,7 +145,7 @@ def _mock_overview():
 
 # ── /api/inventory ─────────────────────────────────────────────────────────────
 @router.get("/inventory")
-async def get_inventory():
+async def get_inventory(period: str = Query("MTD")):
     result = await _try_db("query_stock")
     if result:
         dead = result.get("dead_stock", [])
@@ -205,7 +204,7 @@ def _mock_inventory():
 
 # ── /api/dead-stock ────────────────────────────────────────────────────────────
 @router.get("/dead-stock")
-async def get_dead_stock():
+async def get_dead_stock(period: str = Query("MTD")):
     result = await _try_db("query_stock")
     if result:
         dead = result.get("dead_stock", [])
@@ -238,7 +237,7 @@ async def get_dead_stock():
 
 # ── /api/inward ────────────────────────────────────────────────────────────────
 @router.get("/inward")
-async def get_inward():
+async def get_inward(period: str = Query("MTD")):
     result = await _try_db("query_inward")
     if result:
         return result
@@ -305,7 +304,7 @@ async def get_sales(period: str = Query("MTD")):
 
 # ── /api/customers ─────────────────────────────────────────────────────────────
 @router.get("/customers")
-async def get_customers():
+async def get_customers(period: str = Query("MTD")):
     result = await _try_db("query_customer_list")
     if result:
         return result
@@ -351,7 +350,7 @@ def _mock_customers():
 
 # ── /api/orders ────────────────────────────────────────────────────────────────
 @router.get("/orders")
-async def get_orders():
+async def get_orders(period: str = Query("MTD")):
     result = await _try_db("query_order")
     if result:
         return result
@@ -372,7 +371,7 @@ async def get_orders():
 
 # ── /api/procurement ───────────────────────────────────────────────────────────
 @router.get("/procurement")
-async def get_procurement():
+async def get_procurement(period: str = Query("MTD")):
     if _DB_AVAILABLE:
         try:
             pool = await get_pool()
@@ -422,7 +421,7 @@ def _mock_procurement():
 
 # ── /api/freight ───────────────────────────────────────────────────────────────
 @router.get("/freight")
-async def get_freight():
+async def get_freight(period: str = Query("MTD")):
     result = await _try_db("query_freight")
     if result:
         return result
@@ -451,7 +450,7 @@ async def get_freight():
 
 # ── /api/finance ───────────────────────────────────────────────────────────────
 @router.get("/finance")
-async def get_finance():
+async def get_finance(period: str = Query("MTD")):
     if _DB_AVAILABLE:
         try:
             pool = await get_pool()
@@ -525,7 +524,7 @@ def _mock_finance():
 
 # ── /api/demand ────────────────────────────────────────────────────────────────
 @router.get("/demand")
-async def get_demand():
+async def get_demand(period: str = Query("MTD")):
     result = await _try_db("query_demand")
     if result:
         forecast = result.get("current_month_top", [])
@@ -605,6 +604,13 @@ async def validate_ai():
             "freight":  "Freight Optimisation Tool",
             "email":    "Email Draft Tool",
             "po_grn":   "PO & GRN Tool",
+            "sales":    "Sales Performance Tool",
+            "inward":   "Inward & Outward Tool",
+            "discount": "Discount Calculator Tool",
+            "louvers":  "Sales Orders / Louvers Tool",
+            "quotes":   "Quotation Builder Tool",
+            "projects": "Project Tracker Tool",
+            "catalog":  "Product Catalog Tool",
         }
         for tool_key, label in tool_labels.items():
             t0 = time.monotonic()
@@ -650,6 +656,9 @@ async def validate_ai():
         "/api/sales", "/api/customers", "/api/orders", "/api/procurement",
         "/api/freight", "/api/finance", "/api/demand",
         "/api/po-grn", "/api/validate", "/api/chat/stream",
+        "/api/analytics", "/api/credit/accounts", "/api/credit/pdc",
+        "/api/catalog/products", "/api/projects", "/api/quotes",
+        "/api/alerts", "/api/data-status", "/api/health", "/api/settings",
     ]
     results["endpoints"] = {
         "name": "REST API Endpoints",
@@ -887,6 +896,8 @@ async def data_status():
         "overview", "inventory", "dead-stock", "inward",
         "sales", "customers", "orders", "procurement",
         "po-grn", "freight", "finance", "demand",
+        "analytics", "catalog", "projects", "quotes",
+        "claims", "discounts", "credit", "pos", "schemes",
     ]
 
     return {

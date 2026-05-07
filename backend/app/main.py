@@ -193,9 +193,9 @@ async def get_settings_info():
             "streaming": "SSE",
             "history_window": 16,
             "tools_count": 16,
-            "knowledge_topics": 13,
+            "knowledge_topics": 19,
             "insight_types": 10,
-            "rca_templates": 8,
+            "rca_templates": 14,
         },
         "modules": [
             "overview", "analytics", "demand", "inventory", "deadstock", "inward",
