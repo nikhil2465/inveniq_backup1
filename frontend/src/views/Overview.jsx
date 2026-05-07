@@ -22,13 +22,13 @@ const RECENT_ACTIVITY = [
   { icon: '📋', iconBg: '#fee2e2', title: 'Claim CLM-2026-0012 approved', meta: 'Bangalore Building Supplies · Price diff ₹18,500', time: '3h ago' },
 ];
 
-export default function Overview({ onGoChat, onNavigate, dbStatus }) {
+export default function Overview({ onGoChat, onNavigate, dbStatus, period = 'MTD' }) {
   const [d, setD] = useState(null);
   const revRef = useRef(null), donutRef = useRef(null), custTypeRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/overview').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+    fetch(`/api/overview?period=${encodeURIComponent(period)}`).then(r => r.json()).then(setD).catch(() => {});
+  }, [period]);
 
   const src = d?.data_source ?? 'demo';
 

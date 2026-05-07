@@ -532,6 +532,145 @@ KNOWLEDGE_BASE = {
         },
     },
 
+    "kanban": {
+        "title": "Kanban Inventory System — Visual Pull-Based Replenishment",
+        "principle": "A visual signalling system where empty containers or cards trigger replenishment. 'Pull' approach — you only produce/order when demand signals it. No excess inventory is built up.",
+        "how_it_works": {
+            "Two-Bin Kanban": "Bin 1 = working stock. Bin 2 = safety stock. When Bin 1 empties, flip the Kanban card → place order. Bin 2 covers demand during replenishment.",
+            "Card-Based": "Each item has a Kanban card showing: SKU, supplier, order quantity, reorder point. Card is sent to supplier when bin is empty.",
+            "Digital Kanban (your DMS)": "Stock level crosses ROP → auto alert or auto PO raised by system.",
+        },
+        "applied_to_your_data": {
+            "ideal_skus_for_kanban": ["18mm BWP", "12mm BWP", "12mm MR Plain"],
+            "bin_1_qty_18mm": "200 sheets (10 days × 17 sheets/day + 30 buffer) = working stock",
+            "bin_2_qty_18mm": "129 sheets = safety stock (reorder point from Century, 6-day lead time)",
+            "trigger": "When bin 1 falls below 129 sheets → Kanban card triggers → Century gets 201-sheet EOQ order",
+            "physical_setup": "Dedicate a section of HSR Layout WH for Kanban bins. Mark floor with tape. Train staff: 'When bin 1 is half-empty, move card.'",
+        },
+        "requirements": [
+            "Reliable supplier (Century Plyboards: 96% on-time ✅ — ideal)",
+            "Stable, predictable demand (18mm BWP: AX class ✅ — good fit)",
+            "Accurate physical counts (your 96.8% accuracy is marginal — target 99%)",
+            "NOT suitable for Gauri Laminates (68% on-time — Kanban fails with unreliable suppliers)",
+        ],
+        "benefits": ["Eliminates overordering (no Excel-guessing)", "Immediate visual signal — godown staff know when to order", "Reduces dead stock by preventing speculative buying"],
+        "benchmark": "Best-in-class hardware dealers use two-bin Kanban for top 5 A-class SKUs. Results: 20-30% less overstock, zero manual reorder tracking errors.",
+        "indian_context": "Print Kanban cards in Hindi + English for godown staff. WhatsApp the card photo to the supplier rep — practical, zero technology needed for the basic version.",
+    },
+
+    "vmi": {
+        "title": "VMI — Vendor Managed Inventory",
+        "definition": "Vendor Managed Inventory: the supplier takes responsibility for monitoring and replenishing your stock levels. You share inventory data; they decide when and how much to deliver.",
+        "how_it_works": [
+            "You share real-time stock levels with supplier (via shared portal, WhatsApp report, or API)",
+            "Supplier monitors your stock and proactively ships before you run out",
+            "Replenishment is based on agreed min/max levels, not on your manual PO",
+            "Risk transfers from you to supplier — they are responsible for stockouts",
+        ],
+        "vmi_applicability_your_suppliers": {
+            "Century Plyboards": "HIGH FEASIBILITY — Market leader with VMI programs for large dealers. Request 18mm + 12mm BWP VMI. Minimum monthly purchase ₹5L typically required.",
+            "Greenply Industries": "MEDIUM — Has dealer portal (GreenConnect). Can share weekly inventory via WhatsApp or email report.",
+            "Gauri Laminates": "LOW — Small supplier, no VMI capability. Better to switch sourcing for 8mm grades.",
+        },
+        "applied_to_your_data": {
+            "estimated_benefit": "₹4-6L reduction in carrying cost by lowering safety stock from 27 to 10 sheets (Century takes responsibility)",
+            "how_to_start": "Call Century regional manager. Request: 'We want to pilot VMI for 18mm BWP. Share weekly stock report — you trigger the delivery when we reach 150 sheets.'",
+            "data_to_share": "Current stock, ROP, min/max levels, avg daily consumption — all available in your DMS dashboard",
+        },
+        "risks": ["Data sharing exposes your sales velocity to supplier", "Supplier may push slow-moving SKUs during restocking", "Reduces your negotiating leverage on pricing"],
+        "benchmark": "Large organised dealers (₹2Cr+ annual) often have VMI with 1-2 primary suppliers. Reduces ordering effort 40-60% and stockout events by 70%.",
+        "indian_context": "Request consignment-VMI hybrid: Century stocks goods at your godown but you pay only when you sell (like SOR — Sale or Return). Common with Century for premium BWP grades in Bangalore.",
+    },
+
+    "cross_docking": {
+        "title": "Cross-Docking — Zero-Storage Direct Transfer",
+        "definition": "Goods arrive from supplier and are immediately transferred to outbound delivery without entering storage. Transit point only — no shelf storage.",
+        "how_it_works": "Supplier truck arrives → goods unloaded → immediately sorted and loaded onto customer delivery vehicles. Ideal when goods are already 'sold' before they arrive.",
+        "when_it_applies_for_you": {
+            "project_orders": "When you get a confirmed project order (e.g., Prestige Skyrise) → order from Century → receive → directly transfer to project site without godown storage",
+            "customer_direct": "Large contractor orders 200 sheets 18mm BWP → raise PO to Century → Century delivers to your yard → you load on your delivery truck same day",
+            "benefits": "No godown space used, no double-handling, faster delivery, zero holding cost on transit goods",
+        },
+        "applied_to_your_data": {
+            "best_use_case": "Metro Constructions Koramangala (₹9.5L project) → negotiate direct delivery from Century's Bangalore depot to Koramangala site → save 2-3 days + ₹8,000 freight",
+            "suitable_skus": "Large quantity orders of A-class SKUs where project or customer is confirmed",
+            "current_opportunity": "Check your next 3 project deliveries — any that need >100 sheets of same SKU? Apply cross-dock protocol.",
+        },
+        "limitations": ["Requires tight coordination between inbound (supplier) and outbound (delivery)", "Fails if supplier delivery is delayed — customer gets nothing", "Only viable for standard products, not mixed-SKU orders"],
+        "benchmark": "Modern building materials distributors cross-dock 15-25% of project volumes. Saves ₹25-40K per month in handling for dealers above ₹2Cr revenue.",
+        "indian_context": "Inform your Century sales rep in advance — request 'direct mill delivery' for large project orders. Century often accommodates for dealers above ₹5L/month. Save godown handling + freight.",
+    },
+
+    "fill_rate_otif": {
+        "title": "Fill Rate & OTIF — Order Fulfilment Quality KPIs",
+        "fill_rate": {
+            "definition": "Fill Rate = % of customer orders fulfilled completely on the first attempt (no partial deliveries, no substitutions)",
+            "formula": "Fill Rate = (Line Items Fully Fulfilled ÷ Total Line Items Ordered) × 100",
+            "types": {
+                "Line Fill Rate": "% of order lines shipped complete (most common)",
+                "Order Fill Rate": "% of complete orders filled (stricter — entire order must be complete)",
+                "Value Fill Rate": "₹ value of goods shipped ÷ ₹ value ordered × 100",
+            },
+            "your_current_data": {
+                "estimated_fill_rate": "~88-91% (based on 18mm BWP near-stockout + dispatch SLA at 87%)",
+                "target": ">95% for B2B building materials",
+                "impact_of_low_fill_rate": "Every partial delivery frustrates contractors — they call competitors next time",
+            },
+        },
+        "otif": {
+            "definition": "OTIF = On Time In Full — the most comprehensive fulfilment metric. An order is OTIF only if it was delivered on time AND with complete quantity AND correct items.",
+            "formula": "OTIF % = (Orders delivered on time AND in full ÷ Total orders) × 100",
+            "your_current_data": {
+                "on_time_component": "87% (dispatch SLA from your DMS)",
+                "in_full_component": "~91% estimated (partial fulfillments when 18mm BWP is low)",
+                "combined_otif": "~79% (87% × 91%) — significantly below 95% target",
+                "annual_impact": "21% of orders failing OTIF = ~₹5.9L/month revenue at risk from customer dissatisfaction",
+            },
+        },
+        "how_to_improve": [
+            "Fix 18mm BWP stockout risk → immediately improves OTIF by 5-7pp",
+            "Address Gauri delay (PO-7731) → improves on-time component",
+            "Set automatic customer alerts for partial deliveries (don't surprise them)",
+            "Reserve stock for confirmed project orders — don't sell project-allocated stock to walk-ins",
+        ],
+        "benchmark": {
+            "world_class": ">98% OTIF — automotive, FMCG supply chains",
+            "building_materials_target": ">92% OTIF for building materials dealers",
+            "your_gap": "79% OTIF → gap to target = 13pp → approx ₹3.7L/month in customer satisfaction impact",
+        },
+        "indian_context": "Track OTIF manually in Excel if your DMS doesn't compute it: every order → note if delivered on time + complete. Review weekly. Share metric with your delivery team — visibility drives accountability.",
+    },
+
+    "cycle_counting": {
+        "title": "Cycle Counting — Continuous Inventory Accuracy",
+        "definition": "Instead of one annual physical inventory count (disruptive), count a small subset of SKUs every day/week in rotation. All SKUs get counted multiple times per year.",
+        "vs_annual_count": {
+            "Annual Physical Count": "Count everything once. Requires godown shutdown 1-2 days. Errors found once a year. Accuracy decays throughout the year.",
+            "Cycle Counting": "Count 3-5 SKUs per day. Never shut down. Errors found within days. Accuracy maintained continuously.",
+        },
+        "cycle_counting_plan_for_you": {
+            "A_class_skus": "Count weekly (18mm BWP, 12mm BWP — high value, high risk) → 52 counts/year",
+            "B_class_skus": "Count monthly → 12 counts/year",
+            "C_class_skus": "Count quarterly → 4 counts/year",
+            "daily_time": "5-10 minutes per day for staff (count 3-4 SKUs, record in DMS or phone note)",
+            "trigger_priority": "Always count immediately after any discrepancy or theft suspicion",
+        },
+        "applied_to_your_data": {
+            "current_accuracy": "96.8% (from your DMS)",
+            "gap": "3.2% error rate = ~₹1.2L of inventory unaccounted at any time",
+            "target": ">99% accuracy (world-class: 99.5%)",
+            "your_top_count_priority": "18mm BWP (high movement, near stockout — count weekly), 6mm Gurjan BWP (dead stock, count monthly to verify no silent shrinkage)",
+        },
+        "discrepancy_handling": [
+            "If physical < system: investigate shrinkage, damage, or recording error",
+            "If physical > system: investigate GRN recording error or wrong SKU received",
+            "Any variance >2% → raise an investigation before adjusting the system",
+            "Track 'shrinkage rate' monthly — target <0.5% of inventory value",
+        ],
+        "benchmark": "Best-in-class dealers: 99.5%+ inventory accuracy via daily cycle counting. Your 96.8% loses ~₹1.2L annually to silent discrepancies.",
+        "indian_context": "Use WhatsApp to send count photos from godown to your DMS operator. Simple process: staff photographs bin + count on phone → operator updates Tally. No barcode scanner needed.",
+    },
+
     "min_max": {
         "title": "Min-Max Inventory System",
         "definition": "Simple replenishment rule: set Minimum stock level (= Reorder Point + Safety Stock) and Maximum stock level (= what fits in space/budget). Order up to Max when stock hits Min.",
@@ -607,6 +746,21 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
 
     if any(w in q for w in ["min max", "min-max", "minimum stock", "maximum stock"]):
         relevant_keys.append("min_max")
+
+    if any(w in q for w in ["kanban", "kanban system", "kanban inventory", "two bin", "two-bin", "pull system"]):
+        relevant_keys.append("kanban")
+
+    if any(w in q for w in ["vmi", "vendor managed inventory", "consignment stock", "consignment inventory"]):
+        relevant_keys.append("vmi")
+
+    if any(w in q for w in ["cross docking", "cross-docking", "cross dock", "transit point"]):
+        relevant_keys.append("cross_docking")
+
+    if any(w in q for w in ["fill rate", "otif", "on time in full", "order fulfilment", "order fulfillment"]):
+        relevant_keys.append("fill_rate_otif")
+
+    if any(w in q for w in ["cycle count", "cycle counting", "perpetual inventory", "inventory accuracy", "stock accuracy"]):
+        relevant_keys.append("cycle_counting")
 
     # ── Fallback: general best practices ─────────────────────────────────────
     if not relevant_keys:

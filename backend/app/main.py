@@ -9,6 +9,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    _RATE_LIMIT_AVAILABLE = True
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+except ImportError:
+    _RATE_LIMIT_AVAILABLE = False
+    limiter = None
+
 from app.api.chat import router as chat_router
 from app.api.po_grn import router as po_grn_router
 from app.api.dashboard import router as dashboard_router
@@ -19,6 +29,7 @@ from app.api.analytics import router as analytics_router
 from app.api.catalog import router as catalog_router
 from app.api.projects import router as projects_router
 from app.api.quotes import router as quotes_router
+from app.api.credit import router as credit_router
 from app.core.config import get_settings
 
 load_dotenv()
@@ -75,9 +86,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cfg.get_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
+
+if _RATE_LIMIT_AVAILABLE and limiter:
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.middleware("http")
@@ -108,6 +123,7 @@ app.include_router(analytics_router, prefix="/api")
 app.include_router(catalog_router,   prefix="/api")
 app.include_router(projects_router,  prefix="/api")
 app.include_router(quotes_router,    prefix="/api")
+app.include_router(credit_router,    prefix="/api")
 
 
 @app.exception_handler(Exception)
@@ -115,7 +131,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled error on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "detail": str(exc)},
+        content={"error": "Internal server error"},
     )
 
 

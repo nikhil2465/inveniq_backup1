@@ -76,6 +76,10 @@ const NAV_ITEMS = [
     id: 'discounts', label: 'Discount Calculator', badge: 'NEW', badgeClass: 'nb-g',
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 5h2M9 5h2M5 8h2M9 8h2M5 11h2M9 11h2" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".8"/><path d="M10.5 10l3 3M10.5 13l3-3" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".9"/></svg>,
   },
+  {
+    id: 'schemes', label: 'Scheme Management', badge: 'NEW', badgeClass: 'nb-p',
+    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M8 1l1.8 3.8 4.2.6-3 2.9.7 4.2L8 10.4l-3.7 2.1.7-4.2-3-2.9 4.2-.6z" stroke="white" strokeWidth="1.3" strokeLinejoin="round" opacity=".9"/></svg>,
+  },
 
   // ── Projects & Quotes ─────────────────────────────────────────────────────
   { section: 'Projects & Quotes' },
@@ -88,11 +92,19 @@ const NAV_ITEMS = [
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 5h6M5 8h6M5 11h3" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".7"/><path d="M10 10.5l1.5 1.5 3-3" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
   },
 
-  // ── Finance ───────────────────────────────────────────────────────────────
-  { section: 'Finance' },
+  // ── Finance & Credit ──────────────────────────────────────────────────────
+  { section: 'Finance & Credit' },
   {
     id: 'finance', label: 'Profitability & Cash', badge: '!', badgeClass: 'nb-a',
     icon: <svg viewBox="0 0 16 16" fill="none"><path d="M8 1v14M4 5h6a2 2 0 010 4H6a2 2 0 010 4h6" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".9"/></svg>,
+  },
+  {
+    id: 'credit', label: 'Credit Management', badge: 'NEW', badgeClass: 'nb-r',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="9" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M1 7h14" stroke="white" strokeWidth="1.3" opacity=".7"/><circle cx="4.5" cy="10.5" r="1" fill="white" opacity=".8"/><path d="M8 10.5h4" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".7"/></svg>,
+  },
+  {
+    id: 'pos', label: 'Counter POS', badge: 'NEW', badgeClass: 'nb-g',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="10" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 15h6M8 11v4" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".7"/><path d="M4 5h8M4 7.5h5" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".8"/></svg>,
   },
 
   // ── AI & Messaging ────────────────────────────────────────────────────────
@@ -147,9 +159,9 @@ function SidebarFooter({ dbStatus }) {
   );
 }
 
-export default function Sidebar({ activeView, onNavigate, dbStatus }) {
+export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen }) {
   return (
-    <nav className="sidebar">
+    <nav className={`sidebar${isOpen ? ' open' : ''}`}>
       {/* Logo */}
       <div className="logo-area">
         <div className="logo-row">

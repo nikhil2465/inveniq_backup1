@@ -7,13 +7,13 @@ const STATIC_PROF  = [4.1, 4.4, 4.6, 5.0, 4.8, 4.2, 4.8, 5.4, 5.5, 5.7, 5.8, 6.3
 const STATIC_MGN   = { labels: ['18mm BWP', '12mm BWP', '10mm Flexi', 'Laminates', '18mm MR', '12mm MR', 'Commercial'], data: [28.4, 25.6, 24.1, 22.8, 19.6, 17.4, 8.2] };
 const STATIC_DOW   = { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], data: [5.8, 4.2, 4.6, 4.4, 4.8, 3.2, 0.4] };
 
-export default function Sales({ onGoChat }) {
+export default function Sales({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
   const salesRef = useRef(null), marginRef = useRef(null), dowRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/sales').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+    fetch(`/api/sales?period=${encodeURIComponent(period)}`).then(r => r.json()).then(setD).catch(() => {});
+  }, [period]);
 
   const src = d?.data_source ?? 'demo';
 

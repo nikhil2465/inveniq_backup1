@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const PERIODS = ['Today', 'MTD', 'YTD'];
 
@@ -25,11 +25,12 @@ const QUICK_SEARCH_SUGGESTIONS = [
   { label: 'Business health check', view: null,          query: 'Give me a complete business health check and top priorities for this week.' },
 ];
 
-export default function Topbar({ title, period, onPeriodChange, alerts = [], onGoChat, onNavigate }) {
+export default function Topbar({ title, period, onPeriodChange, alerts = [], onGoChat, onNavigate, dbStatus, onToggleSidebar }) {
   const [alertOpen, setAlertOpen]   = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchVal, setSearchVal]   = useState('');
+  const [darkMode, setDarkMode]     = useState(() => document.documentElement.classList.contains('dark-mode'));
 
   const alertRef   = useRef(null);
   const profileRef = useRef(null);
@@ -64,6 +65,14 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  const toggleDark = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.classList.toggle('dark-mode', next);
+    document.documentElement.classList.toggle('light-mode', !next);
+    localStorage.setItem('inviq-theme', next ? 'dark' : 'light');
+  };
+
   const handleAskAI = (query, view) => {
     setAlertOpen(false);
     setSearchOpen(false);
@@ -86,6 +95,11 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
 
   return (
     <div className="topbar">
+      {/* Hamburger for mobile sidebar toggle */}
+      <button className="hamburger" onClick={onToggleSidebar} title="Toggle sidebar" aria-label="Toggle navigation">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+      </button>
+
       {/* Left: Title area */}
       <div className="tl">
         <div className="tc">InvenIQ · Enterprise Intelligence Platform · v3.0</div>
@@ -231,8 +245,21 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
         )}
       </div>
 
+      {/* Dark Mode Toggle */}
+      <button className="theme-toggle" onClick={toggleDark} title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} aria-label="Toggle dark mode">
+        {darkMode
+          ? <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="4.5" stroke="currentColor" strokeWidth="1.6"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          : <svg viewBox="0 0 20 20" fill="none"><path d="M17.5 11.5A7.5 7.5 0 018.5 2.5a7.5 7.5 0 100 15 7.5 7.5 0 009-6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+        }
+      </button>
+
       {/* Status badges */}
-      <div className="conn-badge"><span className="dot dg"></span>DMS Live</div>
+      {dbStatus?.status === 'live'
+        ? <div className="conn-badge"><span className="dot dg"></span>MySQL Live</div>
+        : dbStatus?.status === 'checking'
+          ? <div className="conn-badge" style={{opacity:.6}}><span className="dot" style={{background:'#9ca3af'}}></span>Checking…</div>
+          : <div className="conn-badge" style={{opacity:.75}}><span className="dot da"></span>Demo Mode</div>
+      }
       <div className="ai-badge"><span className="dot dg"></span>AI Active</div>
 
       {/* User Profile */}

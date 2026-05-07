@@ -7,7 +7,7 @@ import asyncio
 import logging
 from datetime import date, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Dashboard"])
@@ -37,7 +37,7 @@ async def _try_db(fn_name: str):
 
 # ── /api/overview ──────────────────────────────────────────────────────────────
 @router.get("/overview")
-async def get_overview():
+async def get_overview(period: str = Query("MTD")):
     if _DB_AVAILABLE:
         try:
             pool = await get_pool()
@@ -269,7 +269,7 @@ async def get_inward():
 
 # ── /api/sales ─────────────────────────────────────────────────────────────────
 @router.get("/sales")
-async def get_sales():
+async def get_sales(period: str = Query("MTD")):
     result = await _try_db("query_sales")
     if result:
         return result

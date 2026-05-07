@@ -472,7 +472,7 @@ def _build_messages(
     messages = [{"role": "system", "content": system_prompt}]
 
     if history:
-        for msg in history[-8:]:
+        for msg in history[-16:]:
             if msg.get("role") in ("user", "assistant") and msg.get("content"):
                 messages.append({"role": msg["role"], "content": str(msg["content"])[:2000]})
 
