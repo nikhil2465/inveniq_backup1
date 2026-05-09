@@ -118,6 +118,7 @@ button { font-family: var(--font); }
 .dr { background: #f87171; }
 .da { background: #fbbf24; }
 @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.8); } }
+@keyframes goModeIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    TOPBAR — Oracle Enterprise Header
@@ -158,6 +159,8 @@ button { font-family: var(--font); }
 .tb-ad-cnt { font-size: 10px; font-family: var(--mono); font-weight: 600; padding: 2px 8px; border-radius: 10px; }
 .tb-cnt-critical { background: var(--r3); color: var(--red); }
 .tb-cnt-total { background: var(--s4); color: var(--text3); }
+.tb-ad-mark-read { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 2px 8px; font-size: 10px; font-family: var(--mono); color: var(--green); cursor: pointer; transition: background .15s; }
+.tb-ad-mark-read:hover { background: var(--g3); }
 
 .tb-ad-list { max-height: 310px; overflow-y: auto; }
 .tb-ad-list::-webkit-scrollbar { width: 3px; } .tb-ad-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -1948,6 +1951,9 @@ textarea.qb-input { height: auto; padding: 8px 11px; }
 .pc-list-table tr:hover td { background: var(--s2); cursor: pointer; }
 
 .pc-modal { background: var(--surface); border-radius: var(--radius); width: 100%; max-width: 900px; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto; }
+.pc-add-modal { background: var(--surface); border-radius: var(--radius); width: 95%; max-width: 820px; max-height: 92vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.22); }
+.qb-close-secondary { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 8px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all .2s; }
+.qb-close-secondary:hover { border-color: var(--text2); color: var(--text1); }
 .pc-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .pc-modal-header h3 { font-size: 16px; font-weight: 800; color: var(--text); margin: 0; }
 .pc-modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
@@ -2250,6 +2256,21 @@ textarea.qb-input { height: auto; padding: 8px 11px; }
 
 /* Build quotation button */
 .scan-build-btn { width: 100%; margin-top: 8px; padding: 12px; font-size: 14px; }
+
+/* OR divider between file upload and text input */
+.scan-or-divider { display: flex; align-items: center; gap: 8px; color: var(--text3); font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; font-family: var(--mono); }
+.scan-or-divider::before, .scan-or-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Typed / pasted text input area */
+.scan-text-input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-size: 12px; line-height: 1.55; resize: vertical; min-height: 90px; font-family: inherit; transition: border-color .15s; box-sizing: border-box; }
+.scan-text-input:focus { outline: none; border-color: #25d366; }
+.scan-text-input::placeholder { color: var(--text3); white-space: pre-wrap; }
+
+/* None-confidence card styling */
+.scan-product-card.scan-card-none { border-color: var(--a4); background: var(--a5); }
+.scan-no-match-note { font-size: 11px; color: var(--a2); font-weight: 600; margin-bottom: 6px; padding: 5px 8px; background: rgba(255,168,0,.08); border-radius: 4px; }
+.scan-match-chip.chip-none { border-style: dashed; opacity: .85; }
+.scan-match-chip.chip-none:hover { opacity: 1; }
 
 @media (max-width: 860px) {
   .scan-body { grid-template-columns: 1fr; }

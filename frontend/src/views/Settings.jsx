@@ -21,6 +21,9 @@ const MODULE_LIST = [
   { icon: '🗺️',  id: 'projects',   label: 'Project Tracker',        section: 'Projects' },
   { icon: '📝', id: 'quotes',      label: 'Quotation Builder',      section: 'Projects' },
   { icon: '💰', id: 'finance',     label: 'Profitability & Cash',   section: 'Finance' },
+  { icon: '📈', id: 'credit',     label: 'Credit Management',      section: 'Finance' },
+  { icon: '🛒', id: 'pos',        label: 'Counter POS',            section: 'Finance' },
+  { icon: '⭐', id: 'schemes',    label: 'Scheme Management',      section: 'Sales' },
   { icon: '🤖', id: 'chatbot',     label: 'AI Assistant',           section: 'AI' },
   { icon: 'ℹ️',  id: 'about',      label: 'About InvenIQ',          section: 'Info' },
   { icon: '⚙️', id: 'settings',   label: 'Settings',               section: 'Info' },
@@ -167,7 +170,7 @@ export default function Settings({ onNavigate, dbStatus }) {
         {[
           { cls: dbOk ? 'sg' : 'sr',  l: 'Database',  v: dbOk ? 'MySQL Live'       : 'Demo Mode',      s: dbOk ? (dbDetail?.database || 'Connected') : 'Set MYSQL_HOST in .env' },
           { cls: aiOk ? 'sg' : 'sb',  l: 'AI Engine', v: aiOk ? 'GPT-4o Active'    : 'No API Key',     s: aiOk ? 'OpenAI configured'                 : 'Set OPENAI_API_KEY in .env' },
-          { cls: 'sg',                 l: 'Modules',   v: '22 Active',                                   s: 'All modules operational' },
+          { cls: 'sg',                 l: 'Modules',   v: '25 Active',                                   s: 'All modules operational' },
           { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.0',                                s: `May 2026 · Checked ${checkedAt || '…'}` },
         ].map(k => (
           <div key={k.l} className={`kc ${k.cls}`}>
@@ -204,7 +207,7 @@ export default function Settings({ onNavigate, dbStatus }) {
                   <Check ok={true}
                     label="FastAPI Backend"
                     value="Running on :8000"
-                    sub="API server healthy — all 22 modules connected · Request logging active" />
+                    sub="API server healthy — 25 modules · 13 routers · 75+ endpoints · Request logging active" />
                   <Check ok={true}
                     label="React Frontend"
                     value="Running on :3000"
@@ -266,7 +269,7 @@ export default function Settings({ onNavigate, dbStatus }) {
         {/* Right column — Module Registry */}
         <div className="card">
           <div className="ch">
-            <div><div className="ctit">Module Registry</div><div className="csub">All 22 active modules — click to navigate</div></div>
+            <div><div className="ctit">Module Registry</div><div className="csub">All 25 active modules — click to navigate</div></div>
             <span className="bdg bg">LIVE</span>
           </div>
           <div style={{ padding: '4px 0 8px' }}>
@@ -306,13 +309,62 @@ export default function Settings({ onNavigate, dbStatus }) {
         </div>
       </div>
 
+      {/* Keyboard Shortcuts */}
+      <div className="card" style={{ marginTop: 12 }}>
+        <div className="ch"><div className="ctit">Keyboard Shortcuts</div><div className="csub">Navigate InvenIQ at the speed of thought</div></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, padding: '4px 0 8px' }}>
+          {[
+            { title: 'Global', color: 'var(--b2)', shortcuts: [
+              { keys: ['Ctrl', 'K'], desc: 'Open global search / AI query' },
+              { keys: ['Escape'],    desc: 'Close search or any dropdown' },
+            ]},
+            { title: 'Navigation (press g then letter)', color: 'var(--green)', shortcuts: [
+              { keys: ['g', 'h'], desc: 'Business Overview' },
+              { keys: ['g', 'i'], desc: 'Stock Intelligence' },
+              { keys: ['g', 's'], desc: 'Sales Performance' },
+              { keys: ['g', 'c'], desc: 'Customer Intelligence' },
+              { keys: ['g', 'o'], desc: 'Orders & Fulfilment' },
+              { keys: ['g', 'f'], desc: 'Finance & Cash' },
+              { keys: ['g', 'd'], desc: 'Demand Forecasting' },
+              { keys: ['g', 'p'], desc: 'Procurement & Suppliers' },
+              { keys: ['g', 'r'], desc: 'Freight Planning' },
+              { keys: ['g', 'w'], desc: 'Inward & Outward' },
+              { keys: ['g', 'z'], desc: 'Dead Stock & Ageing' },
+              { keys: ['g', 'a'], desc: 'Analytics & BI' },
+              { keys: ['g', 'q'], desc: 'Quotation Builder' },
+              { keys: ['g', 'x'], desc: 'AI Assistant (Chatbot)' },
+              { keys: ['g', 'e'], desc: 'Settings & Status' },
+              { keys: ['g', 'l'], desc: 'Sales Orders' },
+              { keys: ['g', 't'], desc: 'Project Tracker' },
+              { keys: ['g', 'm'], desc: 'Claims & Rebates' },
+              { keys: ['g', 'n'], desc: 'Discount Calculator' },
+              { keys: ['g', 'u'], desc: 'PO & GRN' },
+            ]},
+          ].map(group => (
+            <div key={group.title} style={{ padding: 14, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, borderTop: `3px solid ${group.color}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: group.color, textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 10, fontFamily: 'var(--mono)' }}>{group.title}</div>
+              {group.shortcuts.map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                    {s.keys.map((k, ki) => (
+                      <span key={ki} style={{ padding: '2px 7px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 5, fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--text)', boxShadow: '0 1px 0 var(--border2)' }}>{k}</span>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text2)' }}>{s.desc}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Quick Setup Guide */}
       <div className="card" style={{ marginTop: 12 }}>
         <div className="ch"><div className="ctit">Quick Setup Guide</div><div className="csub">Get InvenIQ running in under 5 minutes</div></div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, padding: '4px 0 8px' }}>
           {[
             { step: '1', title: 'Demo Mode — Zero Setup', color: 'var(--green)',
-              items: ['Double-click start.bat (Windows) to auto-start both servers', 'Or: cd backend && uvicorn app.main:app --reload', 'Open http://localhost:3000 — all 22 modules show demo data', 'No database or API key needed'] },
+              items: ['Double-click start.bat (Windows) to auto-start both servers', 'Or: cd backend && uvicorn app.main:app --reload', 'Open http://localhost:3000 — all 25 modules show demo data', 'No database or API key needed'] },
             { step: '2', title: 'Enable MySQL Live Data', color: 'var(--b2)',
               items: ['Copy backend/.env.example → backend/.env', 'Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB', 'Run database/seed_complete.sql on your MySQL instance', 'Restart backend — DB badge turns green automatically'] },
             { step: '3', title: 'Enable All AI Features', color: '#8b5cf6',

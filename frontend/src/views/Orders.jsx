@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createChart, baseOpts } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const STATIC_TREND = [18,22,19,24,20,14,8,21,25,28,22,19,16,11,6,23,26,24,20,18,15,9,22,28,30,24,21,17,12,24];
 const STATIC_PENDING = [
@@ -10,15 +13,21 @@ const STATIC_PENDING = [
   { order: 'ORD-2856', customer: 'Raj Carpentry',       value: '₹0.4L', delayed: '30 min',   reason: 'Driver route optimisation', action: 'Dispatch by 3PM' },
 ];
 
-export default function Orders({ onGoChat }) {
+export default function Orders({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
+  const [loading, setLoading] = useState(true);
   const ordRef    = useRef(null);
 
-  useEffect(() => {
-    fetch('/api/orders').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/orders?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 2 * 60_000);
 
   useEffect(() => {
+    if (!d) return;
     const trend = d?.order_trend_30d ?? STATIC_TREND;
     const days  = Array.from({ length: trend.length }, (_, i) => `${i + 1}`);
     return createChart(ordRef, {
@@ -38,6 +47,8 @@ export default function Orders({ onGoChat }) {
       }),
     });
   }, [d]);
+
+  if (loading) return <SkeletonView />;
 
   const pending  = d?.pending_details?.length ? d.pending_details : STATIC_PENDING;
   const src      = d?.data_source ?? 'demo';
@@ -90,7 +101,14 @@ export default function Orders({ onGoChat }) {
         <div className="card">
           <div className="ch">
             <div className="ctit">Pending Orders — Needs Action</div>
-            <span className="bdg br">{pendingCnt} Pending</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="bdg br">{pendingCnt} Pending</span>
+              <ExportButton rows={pending} filename="pending_orders" columns={[
+                { key: 'order', label: 'Order #' }, { key: 'customer', label: 'Customer' },
+                { key: 'value', label: 'Value' }, { key: 'delayed', label: 'Delayed' },
+                { key: 'reason', label: 'Reason' }, { key: 'action', label: 'Action' },
+              ]} />
+            </div>
           </div>
           <table className="tbl">
             <thead>

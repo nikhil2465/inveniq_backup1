@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createChart, baseOpts, gradientFill } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const MONTHS_SHORT = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
 const STATIC_SEASONAL = [88, 84, 90, 96, 100, 92, 76, 72, 94, 112, 128, 118];
@@ -24,13 +27,18 @@ const SIG_SC  = sig => {
   return 'bb';
 };
 
-export default function Demand({ onGoChat }) {
+export default function Demand({ onGoChat, period = 'MTD' }) {
   const [d, setD]  = useState(null);
+  const [loading, setLoading] = useState(true);
   const sRef = useRef(null);
 
-  useEffect(() => {
-    fetch('/api/demand').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/demand?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   const src        = d?.data_source ?? 'demo';
   const fdata      = d?.forecast?.length ? d.forecast : STATIC_FDATA;
@@ -38,6 +46,7 @@ export default function Demand({ onGoChat }) {
   const seasonText = d?.seasonal_insight ?? 'Oct–Dec is historically your strongest quarter (+28%). Start stocking up in September to avoid stockouts during the festive construction rush. Plan extra 400 sheets of BWP grades.';
 
   useEffect(() => {
+    if (!d) return;
     return createChart(sRef, {
       type: 'line',
       data: {
@@ -51,6 +60,8 @@ export default function Demand({ onGoChat }) {
       options: baseOpts({ scales: { x: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 9 } } }, y: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' } } } } }),
     });
   }, [d]);
+
+  if (loading) return <SkeletonView />;
 
   return (
     <div className="view">
@@ -74,7 +85,15 @@ export default function Demand({ onGoChat }) {
       <div className="card" style={{ marginBottom: '12px' }}>
         <div className="ch">
           <div><div className="ctit">30/60/90-Day Demand Forecast by SKU</div><div className="csub">AI prediction · Sheets/month</div></div>
-          <span className="bdg bg">AI FORECAST</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="bdg bg">AI FORECAST</span>
+            <ExportButton rows={fdata} filename="demand_forecast" columns={[
+              { key: 'sku', label: 'SKU' }, { key: 'curr', label: 'Current (sheets)' },
+              { key: 'f30', label: '30-Day Forecast' }, { key: 'f60', label: '60-Day Forecast' },
+              { key: 'f90', label: '90-Day Forecast' }, { key: 'signal', label: 'AI Signal' },
+              { key: 'action', label: 'Recommended Action' },
+            ]} />
+          </div>
         </div>
         <table className="tbl">
           <thead>

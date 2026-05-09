@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PageLoader from '../components/PageLoader';
 import ErrorState from '../components/ErrorState';
 import DataSourceBadge from '../components/DataSourceBadge';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import { ExportButton } from '../utils/exportUtils';
 
 // ── INDUSTRY CATALOGS ─────────────────────────────────────────────────────────
 
@@ -794,7 +796,7 @@ export default function POGRN({ onGoChat }) {
   const [poPreFill, setPoPreFill] = useState(null);   // { supplier, item, rate, industry }
 
   const fetchData = useCallback(async () => {
-    setLoading(true); setError(null);
+    setError(null);
     try {
       const res = await fetch('/api/po-grn');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -804,6 +806,7 @@ export default function POGRN({ onGoChat }) {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   const goChat = (q) => { if (onGoChat) onGoChat(q); };
 
@@ -1024,6 +1027,12 @@ export default function POGRN({ onGoChat }) {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span className="bdg ba">{openPOs.length} Open</span>
+            <ExportButton rows={openPOs} filename="open_purchase_orders" columns={[
+              { key: 'po_number', label: 'PO #' }, { key: 'supplier', label: 'Supplier' },
+              { key: 'sku', label: 'SKU' }, { key: 'qty_ordered', label: 'Qty Ordered' },
+              { key: 'qty_received', label: 'Qty Received' }, { key: 'fill_pct', label: 'Fill %' },
+              { key: 'value', label: 'Value' }, { key: 'eta', label: 'ETA' }, { key: 'status', label: 'Status' },
+            ]} />
             <button onClick={() => setModal('po')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--b2)', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
               + New PO
@@ -1083,6 +1092,12 @@ export default function POGRN({ onGoChat }) {
             <span className={`bdg ${discrepancies.length > 0 ? 'br' : 'bg'}`}>
               {discrepancies.length} {discrepancies.length === 1 ? 'Mismatch' : 'Mismatches'}
             </span>
+            <ExportButton rows={discrepancies} filename="grn_discrepancies" columns={[
+              { key: 'grn_number', label: 'GRN #' }, { key: 'po_number', label: 'PO #' },
+              { key: 'supplier', label: 'Supplier' }, { key: 'invoice_number', label: 'Invoice' },
+              { key: 'grn_value', label: 'GRN Value' }, { key: 'variance_amount', label: 'Variance' },
+              { key: 'issue_type', label: 'Issue' },
+            ]} />
             <button onClick={() => setModal('grn')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--green)', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
               + Record GRN

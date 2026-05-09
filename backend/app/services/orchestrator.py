@@ -41,7 +41,7 @@ def get_client() -> AsyncOpenAI:
     """Return a lazily-initialised AsyncOpenAI client (reads .env first)."""
     global _client
     if _client is None:
-        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=60.0)
     return _client
 
 
@@ -411,7 +411,9 @@ You are live-connected to a dealer's full business intelligence platform coverin
 - **Working capital**: 48 days (target <40d) | GSTR-3B PENDING
 - **Quotation pipeline**: ₹13.1L | Win rate 50% | 2 quotes expiring this week
 - **Active projects**: Prestige Skyrise (₹48L, IN_PRODUCTION), Metro Constructions Koramangala (₹9.5L, NEGOTIATING)
-- **Product catalog**: Aluminium Louvers · HPL/Compact/Acrylic Laminates · PVC Louvers · ACP · Operable Systems · Toilet Cubicles
+- **Product catalog**: Aluminium Louvers · HPL/Compact/Acrylic Laminates · PVC Louvers · ACP · Operable Systems · Toilet Cubicles · **Ebco Hardware** (Drawer Slides, Hinges, Handles, Kitchen Systems, LED Lights, Wardrobe Fittings, Aluminium Profiles) · Hafele / Hettich / Blum range available
+- **Catalog feature**: Products can be scanned and added from any catalog image, PDF, or price list using AI Vision — product auto-added to live catalog and QuoteBuilder instantly
+- **Hardware HSN reference**: Hinges/slides/handles = 8302 (18% GST), Locks = 8301 (18%), LED = 9405 (18%), Al profiles = 7604 (18%), Screws/cam = 7318 (18%)
 
 ## Formatting Guidelines by Mode
 - **ASK**: Plain prose, 1-2 short paragraphs, key numbers bolded. Add a single 🔎 line if RCA context provided.

@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import Pagination from '../components/Pagination';
 import DataSourceBadge from '../components/DataSourceBadge';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -89,6 +91,10 @@ function ClaimsTab({ claims, onGoChat }) {
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('ALL');
   const [typeFilter, setType] = useState('ALL');
+  const [page, setPage]       = useState(1);
+  const PAGE_SIZE = 15;
+
+  useEffect(() => { setPage(1); }, [search, filter, typeFilter]);
 
   const filtered = claims.filter(c => {
     if (filter !== 'ALL' && c.status !== filter) return false;
@@ -98,8 +104,9 @@ function ClaimsTab({ claims, onGoChat }) {
     return true;
   });
 
-  const totalAmt   = filtered.reduce((s, c) => s + c.amount, 0);
+  const totalAmt    = filtered.reduce((s, c) => s + c.amount, 0);
   const approvedAmt = filtered.filter(c => c.status === 'APPROVED').reduce((s, c) => s + c.amount, 0);
+  const pagedClaims = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div>
@@ -149,7 +156,7 @@ function ClaimsTab({ claims, onGoChat }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(c => (
+            {pagedClaims.map(c => (
               <tr key={c.id}>
                 <td>
                   <span style={{ fontFamily:'var(--mono)', fontWeight:700, fontSize:11, color:'var(--green)' }}>
@@ -177,7 +184,7 @@ function ClaimsTab({ claims, onGoChat }) {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {pagedClaims.length === 0 && (
               <tr>
                 <td colSpan={9} style={{ textAlign:'center', padding:40, color:'var(--text3)', fontSize:13 }}>
                   No claims match the selected filters
@@ -186,6 +193,7 @@ function ClaimsTab({ claims, onGoChat }) {
             )}
           </tbody>
         </table>
+        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
 
       {/* Summary Footer */}
@@ -1080,19 +1088,19 @@ export default function CustomerClaims({ onGoChat, dbStatus }) {
   const [claims,   setClaims]   = useState(DEMO_CLAIMS);
   const [programs, setPrograms] = useState(DEMO_PROGRAMS);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [cr, pr] = await Promise.all([
-          fetch('/api/customer-claims'),
-          fetch('/api/rebate-programs'),
-        ]);
-        if (cr.ok) { const d = await cr.json(); if (d.claims?.length)   setClaims(d.claims); }
-        if (pr.ok) { const d = await pr.json(); if (d.programs?.length) setPrograms(d.programs); }
-      } catch { /* fallback to demo data */ }
-    };
-    load();
+  const fetchData = useCallback(async () => {
+    try {
+      const [cr, pr] = await Promise.all([
+        fetch('/api/customer-claims'),
+        fetch('/api/rebate-programs'),
+      ]);
+      if (cr.ok) { const d = await cr.json(); if (d.claims?.length)   setClaims(d.claims); }
+      if (pr.ok) { const d = await pr.json(); if (d.programs?.length) setPrograms(d.programs); }
+    } catch { /* fallback to demo data */ }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   // KPI Aggregates
   const totalApproved  = claims.filter(c => c.status === 'APPROVED').reduce((s, c) => s + c.amount, 0);

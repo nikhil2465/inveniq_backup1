@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MONTHS, baseOpts, scaleXY, createChart, gradientFill } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const STATIC_REV   = [19.2, 20.1, 21.4, 22.8, 21.6, 20.4, 22.1, 23.8, 24.4, 25.2, 26.0, 28.4];
 const STATIC_PROF  = [4.1, 4.4, 4.6, 5.0, 4.8, 4.2, 4.8, 5.4, 5.5, 5.7, 5.8, 6.36];
@@ -9,11 +11,16 @@ const STATIC_DOW   = { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export default function Sales({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
+  const [loading, setLoading] = useState(true);
   const salesRef = useRef(null), marginRef = useRef(null), dowRef = useRef(null);
 
-  useEffect(() => {
-    fetch(`/api/sales?period=${encodeURIComponent(period)}`).then(r => r.json()).then(setD).catch(() => {});
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/sales?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
   }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   const src = d?.data_source ?? 'demo';
 
@@ -25,6 +32,7 @@ export default function Sales({ onGoChat, period = 'MTD' }) {
   const chartLabels = d?.monthly_revenue?.length ? d.monthly_revenue.map(m => m.month)  : MONTHS;
 
   useEffect(() => {
+    if (!d) return;
     const d1 = createChart(salesRef, {
       type: 'line',
       data: {
@@ -54,6 +62,8 @@ export default function Sales({ onGoChat, period = 'MTD' }) {
     });
     return () => { d1(); d2(); d3(); };
   }, [d]);
+
+  if (loading) return <SkeletonView />;
 
   return (
     <div className="view">

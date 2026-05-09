@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import Pagination from '../components/Pagination';
 
 const STATIC_CUSTS = [
   { name: 'Mehta Constructions',  segment: 'Contractor',    monthly_value: '₹3.8L', score: 92, outstanding: '₹0',    days_since_order: 2,  risk: 'LOW' },
@@ -19,22 +23,36 @@ function riskStatus(c) {
   return 'ok';
 }
 
-export default function Customers({ onGoChat }) {
+export default function Customers({ onGoChat, period = 'MTD' }) {
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage]     = useState(1);
+  const PAGE_SIZE = 20;
   const [d, setD]           = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch('/api/customers').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/customers?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
+  useEffect(() => { setPage(1); }, [filter, search]);
+
+  if (loading) return <SkeletonView />;
 
   const allCustomers = (d?.customers?.length ? d.customers : STATIC_CUSTS).map(c => ({
     ...c, _st: riskStatus(c),
   }));
 
-  const list = filter === 'all'     ? allCustomers
-             : filter === 'top'     ? allCustomers.filter(c => c._st === 'top')
-             : filter === 'risk'    ? allCustomers.filter(c => c._st === 'risk')
-             : allCustomers.filter(c => c._st === 'overdue');
+  const byFilter = filter === 'all'     ? allCustomers
+                 : filter === 'top'     ? allCustomers.filter(c => c._st === 'top')
+                 : filter === 'risk'    ? allCustomers.filter(c => c._st === 'risk')
+                 : allCustomers.filter(c => c._st === 'overdue');
+  const q = search.trim().toLowerCase();
+  const filtered = q ? byFilter.filter(c => (c.name ?? '').toLowerCase().includes(q) || (c.segment ?? '').toLowerCase().includes(q)) : byFilter;
+  const list = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const src = d?.data_source ?? 'demo';
 
@@ -77,10 +95,25 @@ export default function Customers({ onGoChat }) {
       <div className="card">
         <div className="ch">
           <div><div className="ctit">Customer Health — All Accounts</div></div>
-          <div className="chip-row">
-            {[['all', 'All'], ['top', 'Top Accounts'], ['risk', 'At Risk'], ['overdue', 'Overdue']].map(([f, l]) => (
-              <div key={f} className={`chip${filter === f ? ' sel' : ''}`} onClick={() => setFilter(f)}>{l}</div>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div className="chip-row">
+              {[['all', 'All'], ['top', 'Top Accounts'], ['risk', 'At Risk'], ['overdue', 'Overdue']].map(([f, l]) => (
+                <div key={f} className={`chip${filter === f ? ' sel' : ''}`} onClick={() => setFilter(f)}>{l}</div>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder="Search customer…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)', outline: 'none', width: 160 }}
+            />
+            <ExportButton rows={allCustomers} filename="customers" columns={[
+              { key: 'name', label: 'Customer' }, { key: 'segment', label: 'Segment' },
+              { key: 'monthly_value', label: 'Monthly Revenue' }, { key: 'score', label: 'AI Score' },
+              { key: 'days_since_order', label: 'Days Silent' }, { key: 'outstanding', label: 'Outstanding' },
+              { key: 'risk', label: 'Risk' },
+            ]} />
           </div>
         </div>
         <table className="tbl">
@@ -121,6 +154,7 @@ export default function Customers({ onGoChat }) {
             })}
           </tbody>
         </table>
+        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
 
       {onGoChat && (

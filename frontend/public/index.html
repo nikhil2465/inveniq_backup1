@@ -26,6 +26,14 @@
 
     <!-- Premium font stack: Inter for UI, JetBrains Mono for numbers/code -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Restore dark/light mode preference before React renders (prevents flash) -->
+    <script>
+      (function(){
+        var t = localStorage.getItem('inviq-theme');
+        if (t === 'dark') { document.documentElement.classList.add('dark-mode'); }
+        else if (t === 'light') { document.documentElement.classList.add('light-mode'); }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run InvenIQ.</noscript>

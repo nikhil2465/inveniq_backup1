@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MONTHS, baseOpts, scaleXY, createChart, gradientFill } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const TODAY = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const TIME   = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -26,9 +27,12 @@ export default function Overview({ onGoChat, onNavigate, dbStatus, period = 'MTD
   const [d, setD] = useState(null);
   const revRef = useRef(null), donutRef = useRef(null), custTypeRef = useRef(null);
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     fetch(`/api/overview?period=${encodeURIComponent(period)}`).then(r => r.json()).then(setD).catch(() => {});
   }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   const src = d?.data_source ?? 'demo';
 

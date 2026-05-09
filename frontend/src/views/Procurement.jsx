@@ -1,13 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const VERDICT_CLS = { PREFERRED: 'bg', GOOD: 'bb', REVIEW: 'br', AVOID: 'br' };
 
-export default function Procurement({ onGoChat }) {
+export default function Procurement({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
-  useEffect(() => {
-    fetch('/api/procurement').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/procurement?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
+
+  if (loading) return <SkeletonView />;
 
   const suppliers = d?.suppliers ?? [
     { name: 'Century Plyboards',   on_time_pct: 96, avg_delay_days: 0.4, grn_match_rate: '100%', recommendation: 'PREFERRED', open_pos: 2, overdue_pos: 0, lead_time: '5-6 days', freight_cost: '₹8.4/sheet', price_vs_market: '-3% below' },
@@ -61,7 +72,17 @@ export default function Procurement({ onGoChat }) {
       </div>
 
       <div className="card">
-        <div className="ch"><div className="ctit">Supplier Scorecards — AI Evaluation</div><span className="bdg bg">AI Ranked</span></div>
+        <div className="ch"><div className="ctit">Supplier Scorecards — AI Evaluation</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="bdg bg">AI Ranked</span>
+            <ExportButton rows={suppliers} filename="supplier_scorecards" columns={[
+              { key: 'name', label: 'Supplier' }, { key: 'on_time_pct', label: 'On-Time %' },
+              { key: 'avg_delay_days', label: 'Avg Delay (days)' }, { key: 'price_vs_market', label: 'Price vs Market' },
+              { key: 'lead_time', label: 'Lead Time' }, { key: 'freight_cost', label: 'Freight/Sheet' },
+              { key: 'grn_match_rate', label: 'GRN Match %' }, { key: 'recommendation', label: 'AI Verdict' },
+            ]} />
+          </div>
+        </div>
         <table className="tbl">
           <thead>
             <tr><th>Supplier</th><th>On-Time %</th><th>Avg Delay</th><th>Price vs Market</th><th>Lead Time</th><th>Freight/Sheet</th><th>GRN Match</th><th>Open POs</th><th>AI Verdict</th></tr>

@@ -656,8 +656,9 @@ async def validate_ai():
         "/api/sales", "/api/customers", "/api/orders", "/api/procurement",
         "/api/freight", "/api/finance", "/api/demand",
         "/api/po-grn", "/api/validate", "/api/chat/stream",
-        "/api/analytics", "/api/credit/accounts", "/api/credit/pdc",
+        "/api/analytics", "/api/credit/accounts", "/api/credit/pdc", "/api/credit/aging",
         "/api/catalog/products", "/api/projects", "/api/quotes",
+        "/api/pos/products", "/api/pos/summary", "/api/schemes",
         "/api/alerts", "/api/data-status", "/api/health", "/api/settings",
     ]
     results["endpoints"] = {

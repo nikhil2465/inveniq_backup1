@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import { ExportButton } from '../utils/exportUtils';
+import Pagination from '../components/Pagination';
 
 const fmt  = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 const fmtL = (n) => { const v = Number(n); return v >= 100000 ? `₹${(v / 100000).toFixed(2)}L` : fmt(v); };
@@ -240,10 +243,16 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
   const [view, setView]       = useState('kanban');
   const [selected, setSelected] = useState(null);
   const [stageFilter, setStageFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     fetch('/api/projects').then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
+  useEffect(() => { setPage(1); }, [stageFilter, view]);
 
   if (loading) return <PageLoader />;
 
@@ -253,6 +262,7 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
   const filteredProjects = stageFilter === 'ALL' ? projects.filter(p => p.stage !== 'LOST')
     : stageFilter === 'LOST' ? projects.filter(p => p.stage === 'LOST')
     : projects.filter(p => p.stage === stageFilter);
+  const pagedProjects = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const kanbanCols = ACTIVE_STAGES.map(stage => ({
     stage,
@@ -322,14 +332,23 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
           <button className={`vswitch-btn${view === 'list' ? ' active' : ''}`} onClick={() => setView('list')}>☰ List</button>
         </div>
         {view === 'list' && (
-          <div className="stabs">
-            {['ALL', ...ACTIVE_STAGES, 'LOST'].map(s => (
-              <button key={s} className={`stab${stageFilter === s ? ' active' : ''}`} onClick={() => setStageFilter(s)}>
-                {s === 'ALL' ? 'All' : STAGE_CONFIG[s]?.label || s}
-                {s !== 'ALL' && <span className="stab-cnt">{projects.filter(p => p.stage === s).length}</span>}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="stabs">
+              {['ALL', ...ACTIVE_STAGES, 'LOST'].map(s => (
+                <button key={s} className={`stab${stageFilter === s ? ' active' : ''}`} onClick={() => setStageFilter(s)}>
+                  {s === 'ALL' ? 'All' : STAGE_CONFIG[s]?.label || s}
+                  {s !== 'ALL' && <span className="stab-cnt">{projects.filter(p => p.stage === s).length}</span>}
+                </button>
+              ))}
+            </div>
+            <ExportButton rows={filteredProjects} filename="projects" columns={[
+              { key: 'project_id', label: 'ID' }, { key: 'project_name', label: 'Project' },
+              { key: 'client_name', label: 'Client' }, { key: 'category', label: 'Category' },
+              { key: 'estimated_value', label: 'Value (₹)' }, { key: 'margin_pct', label: 'Margin %' },
+              { key: 'stage', label: 'Stage' }, { key: 'priority', label: 'Priority' },
+              { key: 'expected_close_date', label: 'Close Date' },
+            ]} />
+          </>
         )}
       </div>
 
@@ -363,6 +382,7 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
 
       {/* List view */}
       {view === 'list' && (
+        <>
         <div className="card-table">
           <table className="tbl">
             <thead>
@@ -373,7 +393,7 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
               </tr>
             </thead>
             <tbody>
-              {filteredProjects.map(p => {
+              {pagedProjects.map(p => {
                 const isOverdue = p.expected_close && p.stage !== 'INVOICED' && p.stage !== 'LOST' && new Date(p.expected_close) < new Date();
                 return (
                   <tr key={p.project_id} style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>
@@ -400,6 +420,8 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} total={filteredProjects.length} pageSize={PAGE_SIZE} onChange={setPage} />
+        </>
       )}
 
       {/* Project detail */}

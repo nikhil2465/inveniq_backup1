@@ -708,27 +708,35 @@ async def projects_tool(query: Optional[str] = None) -> dict:
 
 
 async def catalog_tool(query: Optional[str] = None) -> dict:
-    """Product catalog: all products with sell/buy price, specs, and category."""
+    """Product catalog: all products with sell/buy price, specs, and category. Includes runtime-added products."""
     try:
-        from app.api.catalog import CATALOG
+        from app.api.catalog import _get_all_products
+        all_products = _get_all_products()
         q = (query or "").lower()
         filtered = (
-            [p for p in CATALOG if
+            [p for p in all_products if
              q in p["name"].lower() or
              q in p.get("category", "").lower() or
+             q in p.get("brand", "").lower() or
              any(q in t.lower() for t in p.get("tags", []))]
-            if q else CATALOG
+            if q else all_products
         )
         by_cat: dict = {}
         for p in filtered:
             cat = p["category"]
             by_cat.setdefault(cat, []).append({
-                "id":         p["product_id"],
-                "name":       p["name"],
-                "sell_price": p["sell_price"],
-                "buy_price":  p["buy_price"],
-                "unit":       p["unit"],
-                "thickness":  p.get("thickness", ""),
+                "id":           p["product_id"],
+                "name":         p["name"],
+                "brand":        p.get("brand", ""),
+                "sell_price":   p["sell_price"],
+                "buy_price":    p["buy_price"],
+                "margin_pct":   p.get("margin_pct", 0),
+                "unit":         p["unit"],
+                "size":         p.get("size", ""),
+                "thickness":    p.get("thickness", ""),
+                "finish":       p.get("finish", ""),
+                "stock_status": p.get("stock_status", "in_stock"),
+                "applications": p.get("applications", [])[:3],
             })
         return {
             "categories":     list(by_cat.keys()),

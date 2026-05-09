@@ -11,6 +11,7 @@
 import React, {
   useState, useEffect, useRef, useCallback, useMemo,
 } from 'react';
+import DOMPurify from 'dompurify';
 import './AIAssistant.css';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -221,7 +222,7 @@ function MarkdownRenderer({ text }) {
   return (
     <div
       className="iq-md"
-      dangerouslySetInnerHTML={{ __html: rendered }}  // eslint-disable-line react/no-danger
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } }) }}
     />
   );
 }

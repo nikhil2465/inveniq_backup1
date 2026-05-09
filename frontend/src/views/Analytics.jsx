@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { baseOpts, scaleXY, createChart, gradientFill } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import { ExportButton } from '../utils/exportUtils';
 
 const fmtL   = (n) => { const v = Number(n); return v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : `₹${v}`; };
 const fmtPct = (n) => `${Number(n).toFixed(1)}%`;
@@ -15,7 +17,7 @@ function TrendArrow({ pct }) {
 const CTYPE_COLORS = { Developer: '#0f766e', Contractor: '#2563eb', 'Interior Firm': '#d97706', Architect: '#7c3aed', Retailer: '#9ca3af' };
 const SUP_STATUS   = { preferred: 'bg', good: 'bb', review: 'br' };
 
-export default function Analytics({ onGoChat, dbStatus }) {
+export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
   const [d, setD]             = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState('overview');
@@ -24,9 +26,12 @@ export default function Analytics({ onGoChat, dbStatus }) {
   const custRef = useRef(null);
   const margRef = useRef(null);
 
-  useEffect(() => {
-    fetch('/api/analytics').then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  const fetchData = useCallback(() => {
+    fetch(`/api/analytics?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { setLoading(true); fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   useEffect(() => {
     if (!d || tab !== 'overview') return;
@@ -206,6 +211,12 @@ export default function Analytics({ onGoChat, dbStatus }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
             <div className="ch" style={{ padding: '12px 15px', marginBottom: 0, borderBottom: '1px solid var(--s4)' }}>
               <div className="ctit">Top Products by Margin Contribution (MTD)</div>
+              <ExportButton rows={d?.top_products || []} filename="top_products_margin" columns={[
+                { key: 'rank', label: 'Rank' }, { key: 'name', label: 'Product' },
+                { key: 'category', label: 'Category' }, { key: 'revenue_L', label: 'Revenue (L)' },
+                { key: 'margin_L', label: 'Margin (L)' }, { key: 'margin_pct', label: 'Margin %' },
+                { key: 'units_sold', label: 'Units Sold' }, { key: 'trend_pct', label: 'YoY %' },
+              ]} />
             </div>
             <table className="tbl">
               <thead>
@@ -230,6 +241,11 @@ export default function Analytics({ onGoChat, dbStatus }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div className="ch" style={{ padding: '12px 15px', marginBottom: 0, borderBottom: '1px solid var(--s4)' }}>
               <div className="ctit">Category Performance (MTD)</div>
+              <ExportButton rows={d?.category_revenue || []} filename="category_performance" columns={[
+                { key: 'category', label: 'Category' }, { key: 'revenue_L', label: 'Revenue (L)' },
+                { key: 'orders', label: 'Orders' }, { key: 'margin_pct', label: 'Avg Margin %' },
+                { key: 'yoy_growth', label: 'YoY Growth %' },
+              ]} />
             </div>
             <table className="tbl">
               <thead>
@@ -257,6 +273,13 @@ export default function Analytics({ onGoChat, dbStatus }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div className="ch" style={{ padding: '12px 15px', marginBottom: 0, borderBottom: '1px solid var(--s4)' }}>
               <div className="ctit">Top Customers by Revenue (MTD)</div>
+              <ExportButton rows={d?.top_customers || []} filename="top_customers_revenue" columns={[
+                { key: 'rank', label: 'Rank' }, { key: 'name', label: 'Customer' },
+                { key: 'type', label: 'Type' }, { key: 'revenue_L', label: 'Revenue (L)' },
+                { key: 'orders', label: 'Orders' }, { key: 'margin_pct', label: 'Margin %' },
+                { key: 'outstanding_L', label: 'Outstanding (L)' }, { key: 'yoy_growth', label: 'YoY %' },
+                { key: 'status', label: 'Status' },
+              ]} />
             </div>
             <table className="tbl">
               <thead>
@@ -297,6 +320,12 @@ export default function Analytics({ onGoChat, dbStatus }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div className="ch" style={{ padding: '12px 15px', marginBottom: 0, borderBottom: '1px solid var(--s4)' }}>
               <div className="ctit">Supplier Performance Scorecard</div>
+              <ExportButton rows={d?.supplier_performance || []} filename="supplier_performance" columns={[
+                { key: 'name', label: 'Supplier' }, { key: 'category', label: 'Category' },
+                { key: 'orders', label: 'Orders' }, { key: 'value_L', label: 'Value (L)' },
+                { key: 'ontime_pct', label: 'On-Time %' }, { key: 'price_vs_market', label: 'Price vs Mkt %' },
+                { key: 'quality_score', label: 'Quality Score' }, { key: 'overall_rating', label: 'Rating' },
+              ]} />
             </div>
             <table className="tbl">
               <thead>

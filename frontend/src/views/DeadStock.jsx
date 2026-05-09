@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createChart, baseOpts } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const STATIC_AGING = [
   { sku: '6mm Gurjan BWP',  days_old: 118, stock: 186, value: '₹1.79L', action: 'Discount 12% + call 3 contractors',  recovery: '₹1.57L' },
@@ -10,13 +13,18 @@ const STATIC_AGING = [
   { sku: '16mm MR Teak',    days_old: 62,  stock: 44,  value: '₹0.42L', action: 'Price okay · Promote to carpenters', recovery: '₹0.42L' },
 ];
 
-export default function DeadStock({ onGoChat }) {
+export default function DeadStock({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
+  const [loading, setLoading] = useState(true);
   const agingRef = useRef(null);
 
-  useEffect(() => {
-    fetch('/api/dead-stock').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/dead-stock?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   const src = d?.data_source ?? 'demo';
   const items = d?.items?.length ? d.items : STATIC_AGING;
@@ -27,6 +35,7 @@ export default function DeadStock({ onGoChat }) {
   });
 
   useEffect(() => {
+    if (!d) return;
     return createChart(agingRef, {
       type: 'bar', indexAxis: 'y',
       data: {
@@ -39,6 +48,8 @@ export default function DeadStock({ onGoChat }) {
       }}),
     });
   }, [d]);
+
+  if (loading) return <SkeletonView />;
 
   return (
     <div className="view">
@@ -76,7 +87,13 @@ export default function DeadStock({ onGoChat }) {
 
       <div className="gl g57">
         <div className="card">
-          <div className="ch"><div><div className="ctit">Ageing Inventory — AI Action Plan</div></div></div>
+          <div className="ch"><div><div className="ctit">Ageing Inventory — AI Action Plan</div></div>
+            <ExportButton rows={items} filename="dead_stock" columns={[
+              { key: 'sku', label: 'SKU' }, { key: 'stock', label: 'Stock' },
+              { key: 'days_old', label: 'Days Old' }, { key: 'value', label: 'Value Locked' },
+              { key: 'action', label: 'AI Recommendation' }, { key: 'recovery', label: 'Expected Recovery' },
+            ]} />
+          </div>
           <table className="tbl">
             <thead><tr><th>Product / SKU</th><th>Stock</th><th>Days Old</th><th>Value Locked</th><th>AI Recommendation</th><th>Exp. Recovery</th></tr></thead>
             <tbody>

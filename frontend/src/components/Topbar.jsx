@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const PERIODS = ['Today', 'MTD', 'YTD'];
+const PERIODS = ['Today', 'MTD', 'QTD', 'YTD'];
 
 const SEVERITY_COLOR = {
   critical: { left: '#dc2626', bg: '#fef2f2', badge: '#dc2626' },
@@ -31,14 +31,25 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchVal, setSearchVal]   = useState('');
   const [darkMode, setDarkMode]     = useState(() => document.documentElement.classList.contains('dark-mode'));
+  const [readIds, setReadIds]       = useState(() => {
+    try { return JSON.parse(localStorage.getItem('inviq-read-alerts') || '[]'); }
+    catch { return []; }
+  });
 
   const alertRef   = useRef(null);
   const profileRef = useRef(null);
   const searchRef  = useRef(null);
   const searchInputRef = useRef(null);
 
-  const criticalCount = alerts.filter(a => a.severity === 'critical').length;
-  const totalCount    = alerts.length;
+  const unreadAlerts   = alerts.filter(a => !readIds.includes(a.id));
+  const criticalCount  = unreadAlerts.filter(a => a.severity === 'critical').length;
+  const totalCount     = unreadAlerts.length;
+
+  const markAllRead = () => {
+    const ids = alerts.map(a => a.id);
+    setReadIds(ids);
+    localStorage.setItem('inviq-read-alerts', JSON.stringify(ids));
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -191,7 +202,10 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
                 {criticalCount > 0 && (
                   <span className="tb-ad-cnt tb-cnt-critical">{criticalCount} critical</span>
                 )}
-                <span className="tb-ad-cnt tb-cnt-total">{totalCount} total</span>
+                <span className="tb-ad-cnt tb-cnt-total">{totalCount} unread</span>
+                {alerts.length > 0 && totalCount > 0 && (
+                  <button className="tb-ad-mark-read" onClick={markAllRead} title="Mark all as read">✓ All read</button>
+                )}
               </div>
             </div>
             <div className="tb-ad-list">

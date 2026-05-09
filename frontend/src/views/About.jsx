@@ -41,7 +41,7 @@ export default function About({ onGoChat }) {
           A complete AI intelligence layer for dealers and distributors. Turn raw inventory, sales, and procurement data into clear decisions — instantly.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-          {[['22 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['GPT-4o Powered','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
+          {[['25 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['GPT-4o Powered','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
             <span key={t} style={{ padding:'8px 16px', borderRadius:20, fontSize:12, fontWeight:700, background:c+'22', border:`1px solid ${c}55`, color:c }}>{t}</span>
           ))}
         </div>
@@ -50,11 +50,11 @@ export default function About({ onGoChat }) {
       {/* ── STATS ── */}
       <div className="card" style={{ marginBottom:16 }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', borderBottom:'1px solid var(--border)' }}>
-          <Stat value="22" label="Intelligence Modules" color="var(--b2)" />
+          <Stat value="25" label="Intelligence Modules" color="var(--b2)" />
           <Stat value="16" label="AI Data Tools" color="#10b981" />
           <Stat value="3" label="Chat Modes (Ask/Explain/Act)" color="#8b5cf6" />
-          <Stat value="67+" label="API Endpoints" color="#0ea5e9" />
-          <Stat value="13" label="Knowledge Base Topics" color="#f59e0b" />
+          <Stat value="75+" label="API Endpoints" color="#0ea5e9" />
+          <Stat value="19" label="Knowledge Base Topics" color="#f59e0b" />
           <Stat value="0" label="Setup Time (Demo Mode)" color="#10b981" />
         </div>
         <div style={{ padding:'12px 16px', textAlign:'center', fontSize:12, color:'var(--text3)' }}>
@@ -90,7 +90,7 @@ export default function About({ onGoChat }) {
 
       {/* ── FEATURES ── */}
       <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.8px', fontFamily:'var(--mono)', marginBottom:10 }}>
-        22 Intelligence Modules
+        25 Intelligence Modules
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:10, marginBottom:16 }}>
         {[

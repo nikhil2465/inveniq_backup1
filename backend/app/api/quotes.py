@@ -11,7 +11,7 @@ import os
 import re
 from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -313,37 +313,49 @@ def _compute_kpis(quotes):
 
 # ── WhatsApp Scanner helpers ───────────────────────────────────────────────────
 
-_EXTRACTION_SYSTEM = """You are an expert at extracting building material product requirements from WhatsApp messages, BOQ documents, architect requirement sheets and construction requirement screenshots.
+_EXTRACTION_SYSTEM = """You are an expert at extracting building material product requirements from ANY type of input — WhatsApp chats, voice note transcriptions, Material Requisition Forms, BOQ spreadsheets, architect briefs, typed notes, purchase indent forms, or any unstructured/informal text.
 
-Extract ALL information present and return a JSON object with EXACTLY this structure:
+CRITICAL RULES — follow every one without exception:
+1. Extract EVERY item mentioned, no matter how vague, partial, abbreviated, or informally written. Never skip an item.
+2. For incomplete descriptions use your best inference — e.g. "5 white sheets" → description "White laminate sheets", specifications "white finish".
+3. Handle typos, abbreviations, mixed languages (English/Hindi/Kannada), shorthand (e.g. "HPL 1mm matt teak 80nos").
+4. Model numbers and product codes (e.g. "Model 111 Black", "Highway G PVD", "PHBL-HD") must go into description verbatim; any size/spec goes into specifications.
+5. For organized tables or forms: each row is a separate product item — extract every row including the last ones.
+6. Infer customer_type from context: "interior studio / designer / ID firm" → Interior Firm; "builder / developer / project" → Developer; "site engineer / contractor / execution" → Contractor; "architect / design firm" → Architect; default → Retailer.
+7. Extract company/org name from form headers, letterheads, or signatures as customer_name.
+8. If quantity appears anywhere near the item (column, inline, bracket) always capture it.
+9. For hardware items (handles, knobs, hinges, channels, profiles, locks) — keep full model name + finish (PVD, chrome, SS, gold, black) in description.
+10. "Nos" / "nos" / "pcs" / "pieces" are all valid units — use "Nos".
+
+Return a JSON object with EXACTLY this structure:
 {
-  "customer_name": "company or person name, or empty string if not found",
+  "customer_name": "company or person name, or empty string",
   "customer_type": "one of: Developer, Architect, Contractor, Interior Firm, Retailer",
-  "contact_person": "person's name if mentioned, else empty string",
+  "contact_person": "person name if present, else empty string",
   "contact_phone": "phone number if present, else empty string",
   "contact_email": "email if present, else empty string",
   "project_name": "project or site name, else empty string",
-  "site_location": "delivery or site location, else empty string",
+  "site_location": "delivery or site address, else empty string",
   "required_products": [
     {
-      "description": "exact product description as mentioned",
-      "quantity": 100,
-      "unit": "sheet, RM, SQM, nos, etc.",
-      "specifications": "thickness, color, finish, grade, size etc.",
-      "notes": "any special requirements for this item"
+      "description": "full product description — model, type, color, finish — exactly as mentioned",
+      "quantity": 0,
+      "unit": "Nos, sheet, RM, SQM, pcs, etc.",
+      "specifications": "all sizes (mm/cm/ft/inch), finish, color, grade, thickness, material type",
+      "notes": "delivery date, remarks, special instructions for this item"
     }
   ],
-  "special_requirements": "overall special notes or conditions",
-  "delivery_notes": "any delivery or timeline requirements",
+  "special_requirements": "urgency, IS certification needs, overall delivery conditions",
+  "delivery_notes": "timeline or delivery location details",
   "budget_indication": "any budget or price range mentioned"
 }
 
-If a field is not found use empty string. If quantity is not mentioned use 0. Return ONLY valid JSON — no markdown fences."""
+Empty string for missing text fields. 0 for missing quantities. Return ONLY valid JSON — no markdown fences, no extra keys."""
 
 
 def _get_catalog_for_matching():
-    from app.api.catalog import CATALOG
-    return CATALOG
+    from app.api.catalog import _get_all_products
+    return _get_all_products()
 
 
 def _score_match(desc: str, specs: str, product: dict) -> int:
@@ -379,21 +391,55 @@ def _score_match(desc: str, specs: str, product: dict) -> int:
             score += 3
 
     keyword_map = {
-        "laminate":  ["laminate", "hpl", "compact", "laminates"],
-        "louver":    ["louver", "louvre", "louvers", "louvres", "jalousie"],
-        "pvc":       ["pvc", "plastic"],
-        "aluminium": ["aluminium", "aluminum", "alum", "alu"],
-        "acrylic":   ["acrylic", "glossy", "high gloss"],
-        "cladding":  ["cladding", "facade", "exterior", "external"],
-        "acp":       ["acp", "composite", "aluminium composite"],
-        "toilet":    ["toilet", "cubicle", "partition", "washroom", "wc"],
-        "kitchen":   ["kitchen", "modular", "cabinet"],
-        "operable":  ["operable", "motorised", "motorized", "pergola", "automated"],
+        "laminate":      ["laminate", "hpl", "compact", "laminates", "formica", "sunmica"],
+        "louver":        ["louver", "louvre", "louvers", "louvres", "jalousie", "blade"],
+        "pvc":           ["pvc", "plastic", "upvc"],
+        "aluminium":     ["aluminium", "aluminum", "alum", "alu"],
+        "acrylic":       ["acrylic", "glossy", "high gloss", "gloss"],
+        "cladding":      ["cladding", "facade", "exterior", "external", "wall panel"],
+        "acp":           ["acp", "composite", "aluminium composite"],
+        "toilet":        ["toilet", "cubicle", "partition", "washroom", "wc", "restroom"],
+        "kitchen":       ["kitchen", "modular", "cabinet", "wardrobe", "pull-out", "basket"],
+        "operable":      ["operable", "motorised", "motorized", "pergola", "automated"],
+        "drawer":        ["drawer", "drawer slide", "slide", "telescopic", "full extension",
+                          "soft close drawer", "under mount", "tandem"],
+        "hinge":         ["hinge", "hinges", "concealed hinge", "clip top", "soft close hinge",
+                          "glass hinge", "flap hinge", "piano hinge"],
+        "handle":        ["handle", "handles", "knob", "knobs", "pull", "push",
+                          "pvd", "chrome", "ss handle", "aluminium handle", "bar handle",
+                          "profile handle", "stainless", "brass", "gold", "black handle"],
+        "lock":          ["lock", "latch", "cam lock", "minifix", "furniture lock",
+                          "drawer lock", "wardrobe lock"],
+        "led":           ["led", "light", "lighting", "strip light", "cabinet light",
+                          "furniture light", "wardrobe light", "under cabinet"],
+        "profile":       ["profile", "section", "extrusion", "trim", "edge", "beading",
+                          "aluminium profile", "t-trim", "edge profile"],
+        "glass":         ["glass", "glazing", "tempered", "toughened", "frosted"],
+        "wood":          ["plywood", "mdf", "particle board", "block board", "timber"],
+        "flooring":      ["flooring", "floor", "tile", "tiles", "vinyl", "carpet"],
+        "ebco":          ["ebco"],
+        "hafele":        ["hafele", "häfele"],
+        "hettich":       ["hettich"],
+        "blum":          ["blum", "blumotion", "aventos", "tandem"],
+        "hardware":      ["hardware", "fitting", "fittings", "furniture fitting"],
     }
     for p_word, synonyms in keyword_map.items():
         if p_word in product["name"].lower() or p_word in product["category"].lower():
             if any(s in combined for s in synonyms):
                 score += 8
+
+    # Partial word match bonus — catch abbreviated/shorthand product names
+    desc_words = [w for w in combined.split() if len(w) >= 3]
+    p_name_words = product["name"].lower().split()
+    partial_hits = sum(
+        1 for dw in desc_words
+        for pw in p_name_words
+        if len(pw) >= 4 and (dw in pw or pw in dw)
+    )
+    if partial_hits >= 2:
+        score += 5
+    elif partial_hits == 1:
+        score += 2
 
     return score
 
@@ -404,19 +450,36 @@ def _match_to_catalog(required_products: list) -> list:
     for req in required_products:
         desc  = req.get("description", "")
         specs = req.get("specifications", "")
+        notes = req.get("notes", "")
         scored = []
         for p in catalog:
-            s = _score_match(desc, specs, p)
-            if s > 0:
-                scored.append({"product": p, "score": s})
+            s = _score_match(desc, specs + " " + notes, p)
+            scored.append({"product": p, "score": s})
         scored.sort(key=lambda x: x["score"], reverse=True)
-        top   = scored[:3]
+
+        # Always return top 3 — even if score is 0, show nearest available products
+        top    = scored[:3]
         score0 = top[0]["score"] if top else 0
+
+        # Include all products that scored > 0; if none did, include top 3 anyway
+        positive = [x for x in top if x["score"] > 0]
+        matches  = [x["product"] for x in (positive if positive else top)]
+
+        if score0 >= 15:
+            conf = "high"
+        elif score0 >= 8:
+            conf = "medium"
+        elif score0 >= 3:
+            conf = "low"
+        else:
+            conf = "none"  # No catalog category match — nearest shown as suggestion
+
         results.append({
-            "required":    req,
-            "matches":     [x["product"] for x in top],
-            "best_match":  top[0]["product"] if top else None,
-            "confidence":  "high" if score0 >= 15 else "medium" if score0 >= 8 else "low",
+            "required":   req,
+            "matches":    matches,
+            # Only auto-select a product when there is a real catalog signal (score >= 3)
+            "best_match": top[0]["product"] if (top and score0 >= 3) else None,
+            "confidence": conf,
         })
     return results
 
@@ -782,70 +845,186 @@ async def ai_price_recommendation(req: AIPriceRequest):
     }
 
 
+def _extract_file_content(file_bytes: bytes, content_type: str, filename: str):
+    """
+    Universal file content extractor.
+    Returns (text_content: str, is_image: bool, image_b64: str, image_ct: str).
+    is_image=True means caller should use Vision API with image_b64/image_ct.
+    """
+    import io as _io
+
+    IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".heic", ".heif")
+    is_image = content_type.startswith("image/") or filename.endswith(IMAGE_EXTS)
+    if is_image:
+        b64 = base64.b64encode(file_bytes).decode()
+        ct  = content_type if content_type.startswith("image/") else "image/jpeg"
+        return "", True, b64, ct
+
+    # PDF
+    if content_type == "application/pdf" or filename.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(_io.BytesIO(file_bytes))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            if text.strip():
+                return text[:14000], False, "", ""
+            # Empty text = scanned/image-based PDF — stop here, don't decode as binary
+            return "__scanned_pdf__", False, "", ""
+        except Exception as e:
+            logger.warning("pypdf failed: %s", e)
+            return "", False, "", ""
+
+    # DOCX / DOC
+    if filename.endswith((".docx", ".doc")) or "wordprocessingml" in content_type:
+        try:
+            from docx import Document
+            doc = Document(_io.BytesIO(file_bytes))
+            parts = [p.text for p in doc.paragraphs if p.text.strip()]
+            for table in doc.tables:
+                for row in table.rows:
+                    parts.append("\t".join(c.text.strip() for c in row.cells if c.text.strip()))
+            return "\n".join(parts)[:14000], False, "", ""
+        except Exception as e:
+            logger.warning("python-docx failed: %s", e)
+
+    # XLSX / XLS
+    if filename.endswith((".xlsx", ".xls")) or "spreadsheetml" in content_type or "ms-excel" in content_type:
+        try:
+            from openpyxl import load_workbook
+            wb = load_workbook(_io.BytesIO(file_bytes), read_only=True, data_only=True)
+            lines = []
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(values_only=True):
+                    row_str = "\t".join(str(c) for c in row if c is not None)
+                    if row_str.strip():
+                        lines.append(row_str)
+            return "\n".join(lines)[:14000], False, "", ""
+        except Exception as e:
+            logger.warning("openpyxl failed: %s", e)
+
+    # CSV
+    if filename.endswith(".csv") or content_type in ("text/csv", "application/csv"):
+        try:
+            import csv
+            decoded = file_bytes.decode("utf-8", errors="ignore")
+            reader = csv.reader(_io.StringIO(decoded))
+            rows = [", ".join(r) for r in reader if any(c.strip() for c in r)]
+            return "\n".join(rows)[:14000], False, "", ""
+        except Exception as e:
+            logger.warning("csv parse failed: %s", e)
+
+    # Fallback: any text-based file (TXT, JSON, XML, HTML, RTF, etc.)
+    for enc in ("utf-8", "utf-16", "latin-1"):
+        try:
+            text = file_bytes.decode(enc, errors="ignore")
+            if text.strip():
+                return text[:14000], False, "", ""
+        except Exception:
+            continue
+
+    return "", False, "", ""
+
+
 @router.post("/quotes/scan-whatsapp")
-async def scan_whatsapp_requirement(file: UploadFile = File(...)):
+async def scan_whatsapp_requirement(
+    file: Optional[UploadFile] = File(None),
+    text_input: str = Form(""),
+):
     """
-    Scan a WhatsApp screenshot, exported chat (.txt) or BOQ document.
-    Uses GPT-4o Vision for images; text extraction for .txt/.pdf.
-    Returns extracted requirements + catalog product matches + pre-filled quote lines.
+    Universal requirement scanner: accepts any file type + optional typed/pasted text.
+    Supports images (Vision API), PDF, DOCX, XLSX, CSV, TXT and any text-decodable file.
+    Always returns top catalog matches even for unrecognized/partial items.
     """
+    # Demo trigger — sent by the "Try Demo" button, no real input needed
+    if text_input.strip() == "__demo__":
+        return _demo_scan_result()
+
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         return _demo_scan_result("No OPENAI_API_KEY configured — showing demo extraction.")
 
-    file_bytes = await file.read()
-    content_type = file.content_type or ""
-    filename     = (file.filename or "").lower()
+    has_file  = file is not None and file.filename
+    has_text  = bool(text_input.strip())
+    if not has_file and not has_text:
+        return _demo_scan_result("No input provided — showing demo extraction.")
 
-    is_image = content_type.startswith("image/") or filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif"))
+    file_bytes, content_type, filename = b"", "", ""
+    if has_file:
+        file_bytes   = await file.read()
+        content_type = file.content_type or ""
+        filename     = (file.filename or "").lower()
+
+    text_content, is_image, image_b64, image_ct = _extract_file_content(
+        file_bytes, content_type, filename
+    ) if has_file else ("", False, "", "")
+
+    # Scanned PDF guard — pypdf returned sentinel, no text layer present
+    if text_content == "__scanned_pdf__":
+        return {
+            "extracted":        {"customer_name": "", "customer_type": "Retailer", "contact_person": "", "contact_phone": "", "contact_email": "", "project_name": "", "site_location": "", "required_products": [], "special_requirements": "", "delivery_notes": "", "budget_indication": ""},
+            "matched_products": [],
+            "suggested_lines":  [],
+            "data_source":      "error",
+            "demo_note":        "This PDF appears to be scanned (image-based) — no text layer found. Please take a screenshot of the page and upload the image instead.",
+        }
+
+    # Merge typed text with extracted file text
+    combined_text = "\n\n".join(filter(None, [text_input.strip(), text_content]))
 
     try:
         from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key)
+        client = AsyncOpenAI(api_key=api_key, timeout=60.0)
 
-        if is_image:
-            b64 = base64.b64encode(file_bytes).decode()
-            ct  = content_type if content_type.startswith("image/") else "image/jpeg"
-            response = await client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": _EXTRACTION_SYSTEM},
-                    {"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:{ct};base64,{b64}", "detail": "high"}},
-                        {"type": "text",      "text": "Extract all product requirements from this WhatsApp screenshot or BOQ image. Return ONLY valid JSON as specified."},
-                    ]},
-                ],
-                max_tokens=2000,
-                response_format={"type": "json_object"},
-            )
+        if is_image and not has_text:
+            # Pure image — use Vision only
+            user_content = [
+                {"type": "image_url", "image_url": {"url": f"data:{image_ct};base64,{image_b64}", "detail": "high"}},
+                {"type": "text", "text": "Extract ALL product requirements from this image. Return ONLY valid JSON as specified."},
+            ]
+        elif is_image and has_text:
+            # Image + typed context text — send both
+            user_content = [
+                {"type": "image_url", "image_url": {"url": f"data:{image_ct};base64,{image_b64}", "detail": "high"}},
+                {"type": "text", "text": f"Extract ALL product requirements from this image AND the following typed context:\n\n{text_input.strip()}\n\nReturn ONLY valid JSON as specified."},
+            ]
         else:
-            # Text: WhatsApp .txt export or PDF text layer
-            text_content = file_bytes.decode("utf-8", errors="ignore")[:10000]
-            response = await client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": _EXTRACTION_SYSTEM},
-                    {"role": "user", "content": f"Extract all product requirements from this message/document. Return ONLY valid JSON as specified.\n\n---\n{text_content}\n---"},
-                ],
-                max_tokens=2000,
-                response_format={"type": "json_object"},
+            # Text only (file text + optional typed text)
+            user_content = (
+                f"Extract ALL product requirements from the following input. "
+                f"It may be a WhatsApp message, typed note, requisition form, or any requirement document. "
+                f"Return ONLY valid JSON as specified.\n\n---\n{combined_text}\n---"
             )
+
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _EXTRACTION_SYSTEM},
+                {"role": "user",   "content": user_content},
+            ],
+            max_tokens=3000,
+            response_format={"type": "json_object"},
+        )
 
         raw = response.choices[0].message.content
         extracted = json.loads(raw)
 
     except Exception as exc:
-        logger.exception("scan-whatsapp OpenAI error: %s", exc)
+        logger.exception("scan-whatsapp error: %s", exc)
         return _demo_scan_result(f"AI extraction failed ({type(exc).__name__}) — showing demo result.")
 
     required_products = extracted.get("required_products", [])
     matched = _match_to_catalog(required_products)
+
+    note = ""
+    if not required_products:
+        note = "No product requirements found in this input. Try adding more detail — e.g. product names, quantities, specifications."
 
     return {
         "extracted":        extracted,
         "matched_products": matched,
         "suggested_lines":  _build_suggested_lines(matched),
         "data_source":      "openai",
+        **({"demo_note": note} if note else {}),
     }
 
 

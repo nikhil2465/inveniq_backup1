@@ -3,6 +3,9 @@ import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
 import ErrorState from '../components/ErrorState';
 import DiscountAIPanel from '../components/DiscountAIPanel';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import { ExportButton } from '../utils/exportUtils';
+import Pagination from '../components/Pagination';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt    = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -703,8 +706,11 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
   const [filter, setFilter]         = useState('ALL');
   const [showWizard, setShowWizard] = useState(false);
   const [wizardInit, setWizardInit] = useState(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   useEffect(() => { setOrders(data?.orders || []); }, [data]);
+  useEffect(() => { setPage(1); }, [filter]);
 
   const handleAdvanceStatus = async (orderId, newStatus) => {
     try {
@@ -719,6 +725,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
   const filteredOrders = useMemo(() =>
     filter === 'ALL' ? orders : orders.filter(o => o.status === filter),
   [orders, filter]);
+  const pagedOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div>
@@ -843,6 +850,12 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
                 {f.replace('_',' ')}
               </button>
             ))}
+            <ExportButton rows={filteredOrders} filename="sales_orders" columns={[
+              { key: 'so_number', label: 'Order #' }, { key: 'customer_name', label: 'Customer' },
+              { key: 'order_type', label: 'Type' }, { key: 'total_value', label: 'Value (₹)' },
+              { key: 'margin_pct', label: 'Margin %' }, { key: 'status', label: 'Status' },
+              { key: 'order_date', label: 'Date' },
+            ]} />
           </div>
         </div>
         <div style={{ overflowX:'auto' }}>
@@ -854,7 +867,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
               <th>Delivery</th><th>Status</th><th>Action</th>
             </tr></thead>
             <tbody>
-              {filteredOrders.map(o => {
+              {pagedOrders.map(o => {
                 const sc   = ORDER_STATUS[o.status] || ORDER_STATUS.DRAFT;
                 const past = o.delivery_date && new Date(o.delivery_date) < new Date();
                 return (
@@ -902,6 +915,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} total={filteredOrders.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
     </div>
   );
@@ -1471,7 +1485,7 @@ export default function SalesOrders({ onGoChat, dbStatus }) {
   const openAI = useCallback((msg) => { setAiMessage(msg); setAiOpen(true); }, []);
 
   const fetchData = useCallback(async () => {
-    setLoading(true); setError(null);
+    setError(null);
     try {
       const res = await fetch('/api/louvers');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1481,6 +1495,7 @@ export default function SalesOrders({ onGoChat, dbStatus }) {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   if (loading) return <PageLoader />;
   if (error)   return <ErrorState message={error} onRetry={fetchData} />;

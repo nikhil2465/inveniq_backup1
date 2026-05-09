@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import { ExportButton } from '../utils/exportUtils';
+import Pagination from '../components/Pagination';
 import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
 
@@ -11,6 +14,9 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
   const [error,            setError]           = useState(null);
   const [selectedProducts, setSelectedProducts] = useState({});
   const [dragOver,         setDragOver]        = useState(false);
+  const [textInput,        setTextInput]       = useState('');
+
+  const canScan = !scanning && (file || textInput.trim());
 
   const handleFile = (f) => {
     if (!f) return;
@@ -33,12 +39,13 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
   };
 
   const handleScan = async () => {
-    if (!file) return;
+    if (!canScan) return;
     setScanning(true);
     setError(null);
     try {
       const form = new FormData();
-      form.append('file', file);
+      if (file) form.append('file', file);
+      if (textInput.trim()) form.append('text_input', textInput.trim());
       const r = await fetch('/api/quotes/scan-whatsapp', { method: 'POST', body: form });
       if (!r.ok) throw new Error(`Server error ${r.status}`);
       const d = await r.json();
@@ -59,9 +66,8 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
     setScanning(true);
     setError(null);
     try {
-      const dummy = new Blob(['demo'], { type: 'text/plain' });
       const form = new FormData();
-      form.append('file', dummy, 'demo.txt');
+      form.append('text_input', '__demo__');
       const r = await fetch('/api/quotes/scan-whatsapp', { method: 'POST', body: form });
       const d = await r.json();
       setResult(d);
@@ -93,23 +99,72 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
     const initialLines = (result.matched_products || []).map((mp, i) => {
       const pid  = selectedProducts[i];
       const prod = (mp.matches || []).find(p => String(p.product_id) === String(pid)) || mp.best_match;
-      if (!prod) return null;
-      return {
-        product_id:     String(prod.product_id),
-        product_name:   prod.name,
-        category:       prod.category,
-        quantity:       mp.required?.quantity || 1,
-        unit:           prod.unit,
-        unit_price:     prod.sell_price,
-        buy_price:      prod.buy_price,
-        discount_pct:   0,
-        specifications: mp.required?.specifications || '',
-      };
+      if (prod) {
+        return {
+          product_id:     String(prod.product_id),
+          product_name:   prod.name,
+          category:       prod.category,
+          quantity:       mp.required?.quantity || 1,
+          unit:           prod.unit,
+          unit_price:     prod.sell_price,
+          buy_price:      prod.buy_price,
+          discount_pct:   0,
+          specifications: mp.required?.specifications || '',
+        };
+      }
+      // No catalog match — add a placeholder so the item still appears in the quote
+      if (mp.required?.description) {
+        return {
+          product_id:     '',
+          product_name:   mp.required.description,
+          category:       '',
+          quantity:       mp.required?.quantity || 1,
+          unit:           mp.required?.unit || 'Nos',
+          unit_price:     0,
+          buy_price:      0,
+          discount_pct:   0,
+          specifications: mp.required?.specifications || '',
+        };
+      }
+      return null;
     }).filter(Boolean);
     onBuildQuote(initialData, initialLines.length > 0 ? initialLines : [{ ...BLANK_LINE }]);
   };
 
-  const CONF_COLOR = { high: 'var(--green)', medium: 'var(--amber)', low: 'var(--r2)' };
+  const [savedToCatalog, setSavedToCatalog] = useState(new Set());
+  const [savingCatalog,  setSavingCatalog]  = useState(null);
+
+  const handleSaveToCatalog = async (mp, i) => {
+    setSavingCatalog(i);
+    const req = mp.required || {};
+    const product = {
+      name:         req.description || 'Unknown Product',
+      brand:        '',
+      category:     '',
+      sub_category: '',
+      unit:         req.unit || 'Nos',
+      size:         req.specifications || '',
+      finish:       '',
+      buy_price:    0,
+      sell_price:   0,
+      gst_rate:     18,
+      hsn_code:     '8302',
+      applications: req.notes ? [req.notes] : [],
+      features:     [],
+      tags:         [],
+      stock_status: 'in_stock',
+      lead_time:    '3-5 days',
+      moq:          1,
+    };
+    try {
+      await fetch('/api/catalog/add-product', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(product) });
+      setSavedToCatalog(s => new Set([...s, i]));
+    } catch (e) { /* silent */ }
+    setSavingCatalog(null);
+  };
+
+  const CONF_COLOR  = { high: 'var(--green)', medium: 'var(--amber)', low: 'var(--r2)', none: 'var(--text3)' };
+  const CONF_LABEL  = { high: 'high match', medium: 'medium match', low: 'low match', none: 'nearest available' };
 
   return (
     <div className="qb-modal-overlay" onClick={onClose}>
@@ -119,7 +174,7 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
           <div>
             <div className="qb-modal-title" style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>📱 WhatsApp Requirement Scanner</div>
             <div className="qb-modal-sub" style={{ color: 'rgba(255,255,255,.75)', fontSize: 12, marginTop: 3 }}>
-              Upload a screenshot or exported chat — AI reads product requirements and builds your quotation
+              Upload any file or paste text — AI extracts all requirements and matches your catalog
             </div>
           </div>
           <button className="qb-close-btn" onClick={onClose} style={{ color: '#fff', opacity: .8 }}>×</button>
@@ -139,28 +194,40 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
                 <img src={preview} alt="preview" className="scan-preview-img" />
               ) : (
                 <>
-                  <div className="scan-drop-icon">📱</div>
+                  <div className="scan-drop-icon">📎</div>
                   <div className="scan-drop-label">
-                    {file ? `📄 ${file.name}` : 'Drop WhatsApp screenshot here'}
+                    {file ? `📄 ${file.name}` : 'Drop any file here'}
                   </div>
-                  <div className="scan-drop-sub">Click to select · JPG · PNG · PDF · TXT accepted</div>
+                  <div className="scan-drop-sub">JPG · PNG · PDF · DOCX · XLSX · CSV · TXT · any file</div>
                 </>
               )}
             </div>
 
             <input
-              id="scan-file-input" type="file" accept="image/*,.pdf,.txt"
+              id="scan-file-input" type="file" accept="*/*"
               style={{ display: 'none' }}
               onChange={e => handleFile(e.target.files[0])}
             />
 
+            {/* OR divider */}
+            <div className="scan-or-divider"><span>OR</span></div>
+
+            {/* Typed / pasted text input */}
+            <textarea
+              className="scan-text-input"
+              placeholder={'Paste or type requirement here…\n\nExamples:\n• "Need 10 HPL sheets 1mm matte teak"\n• WhatsApp message text\n• Any unformatted list of items'}
+              value={textInput}
+              onChange={e => { setTextInput(e.target.value); setResult(null); setError(null); }}
+              rows={5}
+            />
+
             <div className="scan-actions">
-              {file && !scanning && (
+              {canScan && (
                 <button className="btn-primary" onClick={handleScan}>
                   ✨ Scan & Extract Requirements
                 </button>
               )}
-              {!file && !scanning && !result && (
+              {!canScan && !result && (
                 <button className="scan-demo-btn" onClick={handleDemoScan}>
                   ▶ Try with Demo WhatsApp Message
                 </button>
@@ -168,7 +235,7 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
               {scanning && (
                 <div className="scan-loading">
                   <span className="scan-spinner"></span>
-                  AI is reading your requirement…
+                  AI is analysing your requirement…
                 </div>
               )}
             </div>
@@ -178,10 +245,10 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
             {/* Tips */}
             <div className="scan-tips">
               <div className="scan-tip-title">What works best</div>
-              <div className="scan-tip">📸 Screenshot of WhatsApp chat with product list</div>
-              <div className="scan-tip">📋 BOQ photo or architect requirement image</div>
-              <div className="scan-tip">📄 Exported WhatsApp chat (.txt) with specs</div>
-              <div className="scan-tip">📑 PDF requirement document (text-based)</div>
+              <div className="scan-tip">📸 WhatsApp screenshot or BOQ photo</div>
+              <div className="scan-tip">📑 PDF / DOCX / Excel requisition form</div>
+              <div className="scan-tip">💬 Paste typed or copied WhatsApp text</div>
+              <div className="scan-tip">📋 Any unorganized list — AI handles it</div>
             </div>
           </div>
 
@@ -221,7 +288,7 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
               </div>
 
               {(result.matched_products || []).map((mp, i) => (
-                <div key={i} className="scan-product-card">
+                <div key={i} className={`scan-product-card${mp.confidence === 'none' ? ' scan-card-none' : ''}`}>
                   <div className="scan-req-row">
                     <span className="bdg ba">REQUIRED</span>
                     <span className="scan-req-desc">{mp.required?.description}</span>
@@ -229,17 +296,37 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
                       <span className="scan-req-qty">{mp.required.quantity} {mp.required.unit || 'units'}</span>
                     )}
                     <span className="scan-conf" style={{ color: CONF_COLOR[mp.confidence] || 'var(--text3)' }}>
-                      {mp.confidence} match
+                      {CONF_LABEL[mp.confidence] || mp.confidence}
                     </span>
+                    {savedToCatalog.has(i) ? (
+                      <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 700 }}>✓ Saved to Catalog</span>
+                    ) : (
+                      <button
+                        disabled={savingCatalog === i}
+                        onClick={() => handleSaveToCatalog(mp, i)}
+                        style={{ fontSize: 11, padding: '2px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', cursor: 'pointer', color: 'var(--text2)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {savingCatalog === i ? '⏳' : '➕ Catalog'}
+                      </button>
+                    )}
                   </div>
                   {mp.required?.specifications && (
                     <div className="scan-req-specs">{mp.required.specifications}</div>
+                  )}
+                  {mp.required?.notes && (
+                    <div className="scan-req-specs" style={{ fontStyle: 'normal', color: 'var(--text2)' }}>
+                      📝 {mp.required.notes}
+                    </div>
+                  )}
+                  {mp.confidence === 'none' && (
+                    <div className="scan-no-match-note">
+                      ⚠ Not in catalog — showing nearest available products. Select one or skip.
+                    </div>
                   )}
                   <div className="scan-match-row">
                     {mp.matches?.length > 0 ? mp.matches.map(match => (
                       <div
                         key={match.product_id}
-                        className={`scan-match-chip${String(selectedProducts[i]) === String(match.product_id) ? ' selected' : ''}`}
+                        className={`scan-match-chip${String(selectedProducts[i]) === String(match.product_id) ? ' selected' : ''}${mp.confidence === 'none' ? ' chip-none' : ''}`}
                         onClick={() => setSelectedProducts(p => ({ ...p, [i]: match.product_id }))}
                       >
                         <div className="scan-chip-name">{match.name}</div>
@@ -248,7 +335,7 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
                         </div>
                       </div>
                     )) : (
-                      <div className="scan-no-match">No catalog match — will skip this item</div>
+                      <div className="scan-no-match">No products in catalog — item will be skipped</div>
                     )}
                   </div>
                 </div>
@@ -1520,7 +1607,19 @@ export default function QuoteBuilder({ onGoChat, dbStatus }) {
   const [editQuote, setEditQuote]   = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [search, setSearch]         = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const silentFetch = useCallback(() => {
+    Promise.all([
+      fetch('/api/quotes').then(r => r.json()),
+      fetch('/api/catalog').then(r => r.json()),
+    ]).then(([qd, cd]) => {
+      setData(qd);
+      setProducts(cd.products || []);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -1533,6 +1632,8 @@ export default function QuoteBuilder({ onGoChat, dbStatus }) {
       setLoading(false);
     }).catch(e => { setError(e.message); setLoading(false); });
   }, [refreshKey]);
+
+  useAutoRefresh(silentFetch, 5 * 60_000);
 
   const handleEdit = (q) => {
     setEditQuote(q);
@@ -1547,6 +1648,8 @@ export default function QuoteBuilder({ onGoChat, dbStatus }) {
       || (q.project_name || '').toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
+  useEffect(() => { setPage(1); }, [statusFilter, search]);
+  const pagedQuotes = filteredQuotes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const kpis = data?.kpis || {};
 
@@ -1650,6 +1753,12 @@ export default function QuoteBuilder({ onGoChat, dbStatus }) {
             </button>
           ))}
         </div>
+        <ExportButton rows={filteredQuotes} filename="quotations" columns={[
+          { key: 'quote_number', label: 'Quote #' }, { key: 'customer_name', label: 'Customer' },
+          { key: 'project_name', label: 'Project' }, { key: 'total_value', label: 'Value (₹)' },
+          { key: 'status', label: 'Status' }, { key: 'valid_until', label: 'Valid Until' },
+          { key: 'created_at', label: 'Created' },
+        ]} />
       </div>
 
       {/* Quotes table */}
@@ -1692,7 +1801,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus }) {
                   )}
                 </div>
               </td></tr>
-            ) : filteredQuotes.map(q => (
+            ) : pagedQuotes.map(q => (
               <QuoteRow key={q.quote_id} q={q} onView={setActiveQ} onEdit={handleEdit}
                 onAskAI={onGoChat ? (q) => onGoChat(`Analyse quotation ${q.quote_number} for ${q.customer_name} — value: ${fmtL(q.total)}, margin: ${q.avg_margin_pct || 0}%, status: ${q.status}, valid till: ${q.valid_till}. What is my win probability, what negotiation strategy should I use, and what follow-up should I do today?`) : null}
               />
@@ -1700,6 +1809,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus }) {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} total={filteredQuotes.length} pageSize={PAGE_SIZE} onChange={setPage} />
 
       {/* AI assistant prompt */}
       {onGoChat && (

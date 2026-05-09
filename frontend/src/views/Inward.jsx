@@ -1,11 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import { ExportButton } from '../utils/exportUtils';
 
-export default function Inward({ onGoChat }) {
+export default function Inward({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
-  useEffect(() => {
-    fetch('/api/inward').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/inward?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 3 * 60_000);
+
+  if (loading) return <SkeletonView />;
 
   const src = d?.data_source ?? 'demo';
   const inwardQty  = d?.inward_qty  ?? 14;
@@ -100,9 +111,16 @@ export default function Inward({ onGoChat }) {
         <div className="card" style={{ marginTop: 12 }}>
           <div className="ch">
             <div className="ctit">Recent GRN Entries</div>
-            <span className={`bdg ${recentGrn.some(g => g.status === 'MISMATCH') ? 'ba' : 'bg'}`}>
-              {recentGrn.filter(g => g.status === 'MISMATCH').length} mismatch
-            </span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className={`bdg ${recentGrn.some(g => g.status === 'MISMATCH') ? 'ba' : 'bg'}`}>
+                {recentGrn.filter(g => g.status === 'MISMATCH').length} mismatch
+              </span>
+              <ExportButton rows={recentGrn} filename="grn_entries" columns={[
+                { key: 'grn', label: 'GRN #' }, { key: 'supplier', label: 'Supplier' },
+                { key: 'value', label: 'Value' }, { key: 'status', label: 'Status' },
+                { key: 'date', label: 'Date' },
+              ]} />
+            </div>
           </div>
           <table className="tbl">
             <thead><tr><th>GRN #</th><th>Supplier</th><th>Value</th><th>Status</th><th>Date</th></tr></thead>

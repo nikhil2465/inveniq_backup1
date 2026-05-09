@@ -1,5 +1,5 @@
 import json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -44,7 +44,7 @@ async def chat(req: ChatRequest):
 
 # ── Streaming SSE endpoint ─────────────────────────────────────────────────────
 @router.post("/chat/stream")
-async def chat_stream(req: ChatRequest):
+async def chat_stream(req: ChatRequest, request: Request):
     if not req.message or not req.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     if req.mode not in ("ask", "explain", "act"):
@@ -59,6 +59,8 @@ async def chat_stream(req: ChatRequest):
                 mode=req.mode,
                 history=history,
             ):
+                if await request.is_disconnected():
+                    break
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"

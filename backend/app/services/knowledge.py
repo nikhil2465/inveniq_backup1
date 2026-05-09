@@ -79,6 +79,23 @@ _KNOWLEDGE_KEYWORDS = [
     "kanban inventory", "kanban system",
     "lean inventory", "lean manufacturing inventory",
     "service level inventory", "service level formula",
+    # Product knowledge — hardware & building materials
+    "ebco", "hafele", "hettich", "blum", "dorset", "ozone handles",
+    "drawer slide", "telescopic drawer", "soft-close drawer", "full extension drawer",
+    "concealed hinge", "soft close hinge", "clip top hinge", "glass hinge",
+    "handles", "knobs", "aluminium handle", "pvd handle", "ss handle",
+    "cam lock", "furniture lock", "minifix", "connector fittings",
+    "kitchen basket", "corner pull out", "tandem box", "kitchen system",
+    "led strip", "furniture light", "cabinet light", "wardrobe light",
+    "flap stay", "lift up mechanism", "wardrobe fitting", "bed fitting",
+    "aluminium profile furniture", "furniture trim profile",
+    "hpl laminate", "compact laminate", "acrylic laminate", "pvc laminate",
+    "aluminium louver", "pvc louver", "operable louver", "motorised louver",
+    "acp panel", "aluminium composite", "exterior cladding", "hpl facade",
+    "product catalog", "product catalogue", "what products do we sell",
+    "which products should i stock", "best selling hardware",
+    "hsn code hinge", "hsn code handle", "hsn code drawer", "hsn code lock",
+    "gst on hardware", "gst on furniture fittings", "gst on hinges",
 ]
 
 _KNOWLEDGE_STARTS = (
@@ -100,6 +117,12 @@ _KNOWLEDGE_CONCEPTS = {
     "supply chain", "push pull", "consignment", "cross dock",
     "kanban", "lean inventory", "min max", "two bin", "service level",
     "vendor scorecard", "supplier scorecard", "drop ship",
+    # Product catalog concepts
+    "ebco", "hafele", "hettich", "blum", "drawer slide", "concealed hinge",
+    "soft close hinge", "glass hinge", "aluminium handle", "pvd handle",
+    "cam lock", "minifix", "kitchen basket", "tandem box", "led strip",
+    "flap stay", "wardrobe fitting", "aluminium profile furniture",
+    "product catalog", "hsn code", "gst hardware", "furniture hardware",
 }
 
 
@@ -686,6 +709,92 @@ KNOWLEDGE_BASE = {
         "advantage": "Simpler than full EOQ system. Works in Tally ERP out of the box with min/max stock levels per item.",
         "indian_context": "Most small plywood dealers use informal min-max mentally — formalise it in Tally. Set Min = ROP and Max = ROP + 2-3 weeks of demand for A-class SKUs.",
     },
+
+    "product_catalog": {
+        "title": "Product Catalog — Hardware, Laminates & Building Materials",
+        "overview": "The catalog covers hardware fittings, laminates, louvers, cladding and more from brands including Ebco, Hafele, Hettich, Blum, Greenlam, Merino, Century, Alucobond and others.",
+        "hardware_brands": {
+            "Ebco": "Indian brand (HQ Mumbai). Strong mid-range hardware covering drawer slides, hinges, handles, locks, kitchen baskets, LED lights, aluminium profiles, wardrobe fittings. Standard in most Indian modular kitchen and furniture projects. Trade discount ~25-28% from MRP.",
+            "Hafele": "German premium brand with India operations. Premium pricing but strong architect/designer preference. Full range from slides to kitchen systems. Typical margin 28-32%.",
+            "Hettich": "German brand, strong in soft-close slides (Arena Plus, InnoTech) and Sensys hinges. Premium segment. Used in high-end residential and hospitality.",
+            "Blum": "Austrian premium brand. Best-in-class Blumotion soft-close, Tandem drawer systems, Aventos lift systems. Specified by top architects. Highest price point.",
+            "Dorset": "Indian brand. Budget-to-mid range handles, SS hardware. Good value for large-volume residential projects.",
+        },
+        "product_segments": {
+            "Drawer Slides": {
+                "types": "Telescopic (3/4 ext, 30kg), Full-Extension Soft-Close (45kg), Under-mount (concealed), Tandem Box (integrated steel box)",
+                "key_sizes": "300mm, 350mm, 400mm, 450mm, 500mm, 550mm",
+                "hsn": "8302", "gst": "18%",
+                "pricing": "Telescopic pair: ₹100-180 (budget) to ₹350-600 (Blum Tandem). Soft-close pair: ₹250-500 (Ebco/Hafele) to ₹800+ (Blum).",
+                "ebco_range": "DS-350 telescopic ₹165/pair; DS-SC400 soft-close full-ext ₹400/pair",
+            },
+            "Hinges": {
+                "types": "Concealed 35mm (full overlay, half overlay, inset), Soft-Close Concealed, Glass Door Hinge (hydraulic, clamp-on), Piano Hinge, Flap Hinge",
+                "key_sizes": "35mm cup diameter (universal standard)",
+                "hsn": "8302", "gst": "18%",
+                "pricing": "Standard 10-pack: ₹180-280 (Ebco) to ₹500+ (Blum). Soft-close 10-pack: ₹350-550 (Ebco/Hafele) to ₹900+ (Blum Blumotion).",
+                "installation": "35mm Forstner bit, 13mm deep cup. 3mm edge distance. Mounting plate on cabinet.",
+                "ebco_range": "HNG-35STD pack-10 ₹245; HNG-35SC soft-close pack-10 ₹480",
+            },
+            "Handles & Knobs": {
+                "types": "Aluminium profile handles, SS bar handles, PVD-coated, Zamak die-cast, Knobs",
+                "finish_options": "Matt Silver, Matt Black, Champagne Gold, Rose Gold, Gunmetal, PVD (scratch-resistant)",
+                "common_cc": "96mm, 128mm, 160mm, 192mm, 224mm, 256mm, 320mm, 448mm (for 480mm profile handles)",
+                "hsn": "8302", "gst": "18%",
+                "pricing": "Aluminium profile handle 480mm: ₹90-180. SS bar 128mm: ₹110-200. PVD premium: +30-50% over standard.",
+                "tip": "Aluminium profile handles are the most popular for modular kitchen shutters in India — offer all 5 finish options.",
+                "ebco_range": "HDL-ALU480 ₹118/Nos; HDL-SS128 ₹140/Nos",
+            },
+            "Furniture Locks": {
+                "types": "Cam Lock (minifix), Drawer Lock, Wardrobe Lock, Glass Door Lock",
+                "hsn": "8301", "gst": "18%",
+                "pricing": "Cam lock 50-pack: ₹200-350. Single locks: ₹80-350.",
+                "note": "HSN 8301 for locks (not 8302 like other fittings). Important for GST invoicing.",
+            },
+            "Kitchen Systems": {
+                "types": "Corner pull-out basket (magic corner, carousel), Tandem drawer box, Under-sink basket, Cutlery dividers, Tall unit baskets",
+                "brands": "Ebco, Hafele, Hettich, Blum SpaceCorner",
+                "hsn": "8302 (systems) / 7323 (wire baskets)",
+                "pricing": "Corner basket set: ₹2500-5000 (Ebco/Hafele). Tandem box: ₹1500-3500.",
+                "ebco_range": "KB-CORNER900 ₹2800/set; TANDEM-400 ₹1780/set",
+            },
+            "Furniture LED Lights": {
+                "types": "LED strip (aluminium channel + diffuser), Puck lights, Sensor lights, Profile lights",
+                "specs": "12V DC, IP20 (indoor). Warm white 3000K / Cool white 6000K / Neutral 4000K",
+                "hsn": "9405", "gst": "18%",
+                "pricing": "Strip 1000mm: ₹200-400 (Ebco/Hafele). Sensor variant: +₹150-200 premium.",
+                "ebco_range": "LED-STRIP1M ₹250/Nos",
+            },
+            "Aluminium Profiles & Handles": {
+                "types": "T-trim edge profiles, Glass door frame profiles, Handle profiles (bar type), Wardrobe top channel",
+                "finish": "Anodized Silver, Gold, Black. Lengths: 2000mm, 2400mm, 3000mm",
+                "hsn": "7604", "gst": "18%",
+                "pricing": "Trim profile 2m: ₹80-150/piece. Handle profiles: ₹150-400/piece.",
+                "ebco_range": "ALU-TRIM2M ₹95/Nos",
+            },
+        },
+        "laminate_brands": {
+            "HPL": "Greenlam, Merino, Century, Stylam. Standard 1mm: ₹950-1300/sheet. Post-form 1.5mm: ₹1250-1680/sheet.",
+            "Compact": "Greenlam Compact, Stylam. 6mm: ₹2980-3600/sheet. 12mm: ₹5800-7200/sheet. For toilet cubicles and structural use.",
+            "Acrylic": "Durian, Merino Acrylic. High-gloss 1mm: ₹1720-2100/sheet. For premium kitchen shutters.",
+        },
+        "hsn_gst_quick_ref": {
+            "8302": "Hinges, drawer slides, handles, stays, shelf supports — GST 18%",
+            "8301": "Locks (cam lock, drawer lock, wardrobe lock) — GST 18%",
+            "9405": "LED lights, luminaires — GST 18%",
+            "7604": "Aluminium profiles/extrusions — GST 18%",
+            "7318": "Screws, bolts, minifix connectors — GST 18%",
+            "4814": "HPL laminates — GST 18%",
+            "3921": "PVC laminates/sheets — GST 18%",
+            "7606": "ACP aluminium composite — GST 18%",
+        },
+        "selling_tips": {
+            "hardware_upsell": "Sell complete hardware sets per kitchen/wardrobe: hinges + handles + drawer slides. Package deals improve average order value 40-60%.",
+            "soft_close_upgrade": "Always upsell soft-close variants — premium is ₹200-400 per door but customer satisfaction increases dramatically. Easy win.",
+            "brand_positioning": "Ebco: value (budget & mid-range residential). Hafele/Hettich: premium (architects & developers). Blum: super-premium (luxury projects).",
+            "target_customers": "Modular kitchen fabricators, furniture manufacturers, carpenters, interior designers — all need hardware regularly. Monthly account relationships are ideal.",
+        },
+    },
 }
 
 
@@ -746,6 +855,20 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
 
     if any(w in q for w in ["min max", "min-max", "minimum stock", "maximum stock"]):
         relevant_keys.append("min_max")
+
+    if any(w in q for w in [
+        "ebco", "hafele", "hettich", "blum", "dorset",
+        "drawer slide", "concealed hinge", "soft close hinge", "glass hinge",
+        "aluminium handle", "pvd handle", "ss handle", "handles", "knobs",
+        "cam lock", "minifix", "furniture lock", "kitchen basket", "corner pull",
+        "tandem box", "kitchen system", "led strip", "furniture light", "cabinet light",
+        "flap stay", "wardrobe fitting", "aluminium profile furniture", "trim profile",
+        "product catalog", "hsn code hinge", "hsn code handle", "hsn code drawer",
+        "gst on hardware", "gst furniture", "furniture hardware",
+        "what products do we sell", "which products", "product range",
+        "hpl laminate", "compact laminate", "acrylic laminate", "pvc laminate",
+    ]):
+        relevant_keys.append("product_catalog")
 
     if any(w in q for w in ["kanban", "kanban system", "kanban inventory", "two bin", "two-bin", "pull system"]):
         relevant_keys.append("kanban")

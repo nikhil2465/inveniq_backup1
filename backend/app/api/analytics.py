@@ -6,7 +6,7 @@ DB-first / mock-fallback pattern.
 import asyncio
 import datetime
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Analytics"])
@@ -29,7 +29,7 @@ def _months_back(n: int):
 
 
 @router.get("/analytics")
-async def get_analytics():
+async def get_analytics(period: str = Query("MTD")):
     # Try DB for live revenue + margin data to enrich the analytics response
     live_sales = None
     live_finance = None

@@ -3,6 +3,9 @@ import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
 import ErrorState from '../components/ErrorState';
 import DiscountAIPanel from '../components/DiscountAIPanel';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import { ExportButton } from '../utils/exportUtils';
+import Pagination from '../components/Pagination';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -278,6 +281,8 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
   // Quote history filter
   const [quoteFilter,  setQuoteFilter]  = useState('ALL');
   const [rulesSegTab,  setRulesSegTab]  = useState('Contractor');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   // AI panel
   const [aiOpen,    setAiOpen]    = useState(false);
@@ -289,7 +294,7 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
   }, []);
 
   const fetchData = useCallback(async () => {
-    setLoading(true); setError(null);
+    setError(null);
     try {
       const res = await fetch('/api/discounts');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -304,6 +309,7 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 10 * 60_000);
 
   const result = useMemo(() => {
     if (!data?.products || !productId) return null;
@@ -371,6 +377,8 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
     if (quoteFilter === 'ALL') return data.quotes;
     return data.quotes.filter(q => q.status === quoteFilter);
   }, [data, quoteFilter]);
+  useEffect(() => { setPage(1); }, [quoteFilter]);
+  const pagedQuotes = filteredQuotes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const productsByCategory = useMemo(() => {
     if (!data?.products) return {};
@@ -850,6 +858,13 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
                 {f}
               </button>
             ))}
+            <ExportButton rows={filteredQuotes} filename="discount_quotes" columns={[
+              { key: 'quote_number', label: 'Quote #' }, { key: 'customer', label: 'Customer' },
+              { key: 'segment', label: 'Segment' }, { key: 'product', label: 'Product' },
+              { key: 'quantity', label: 'Qty' }, { key: 'discount_pct', label: 'Discount %' },
+              { key: 'net_value', label: 'Net Value (₹)' }, { key: 'margin_pct', label: 'Margin %' },
+              { key: 'valid_till', label: 'Valid Till' }, { key: 'status', label: 'Status' },
+            ]} />
           </div>
         </div>
 
@@ -877,7 +892,7 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuotes.map(q => {
+                {pagedQuotes.map(q => {
                   const sm       = STATUS_META[q.status] || STATUS_META.DRAFT;
                   const segM     = SEG_META[q.segment]   || SEG_META['Contractor'];
                   const isExpired = q.valid_till && new Date(q.valid_till) < new Date();
@@ -964,6 +979,7 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
             </table>
           </div>
         )}
+        <Pagination page={page} total={filteredQuotes.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
 
       {/* ── AI Panel ──────────────────────────────────────────────────────────── */}

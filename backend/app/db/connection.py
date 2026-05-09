@@ -11,6 +11,10 @@ _pool: Optional[aiomysql.Pool] = None
 
 async def get_pool() -> Optional[aiomysql.Pool]:
     global _pool
+    # Reset if the pool was closed (e.g. MySQL restarted)
+    if _pool is not None and _pool.closed:
+        logger.warning("Pool is closed — resetting for reconnection")
+        _pool = None
     if _pool is not None:
         return _pool
     cfg = get_settings()
@@ -24,7 +28,7 @@ async def get_pool() -> Optional[aiomysql.Pool]:
             password=cfg.mysql_password,
             db=cfg.mysql_db,
             charset="utf8mb4",
-            minsize=2,
+            minsize=1,
             maxsize=10,
             autocommit=True,
             connect_timeout=10,
@@ -45,6 +49,7 @@ async def close_pool() -> None:
 
 
 async def is_db_available() -> bool:
+    global _pool
     pool = await get_pool()
     if not pool:
         return False
@@ -54,4 +59,6 @@ async def is_db_available() -> bool:
                 await cur.execute("SELECT 1")
         return True
     except Exception:
+        # Mark pool for recreation on next get_pool() call
+        _pool = None
         return False

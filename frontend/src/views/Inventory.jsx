@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { baseOpts, createChart } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
+import Pagination from '../components/Pagination';
 
 const STATIC_SKUS = [
   { n: '18mm BWP (8×4)',  b: 'Century',  stk: 140, buy: 1420, sell: 1920, d: 8,   s30: 480, st: 'critical' },
@@ -15,14 +19,23 @@ const STATIC_SKUS = [
   { n: 'Laminate Teak',   b: 'Supreme', stk: 165, buy: 340,  sell: 460,  d: 32,  s30: 128, st: 'ok' },
 ];
 
-export default function Inventory({ onGoChat }) {
+export default function Inventory({ onGoChat, period = 'MTD' }) {
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage]     = useState(1);
+  const PAGE_SIZE = 15;
   const [d, setD] = useState(null);
+  const [loading, setLoading] = useState(true);
   const mvRef = useRef(null);
 
-  useEffect(() => {
-    fetch('/api/inventory').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/inventory?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
+  useEffect(() => { setPage(1); }, [filter, search]);
 
   const src = d?.data_source ?? 'demo';
 
@@ -42,6 +55,7 @@ export default function Inventory({ onGoChat }) {
   const chartLabels = allSkus.slice(0, 8).map(s => s.n ?? 'SKU');
 
   useEffect(() => {
+    if (!d) return;
     return createChart(mvRef, {
       type: 'bar',
       data: {
@@ -52,7 +66,12 @@ export default function Inventory({ onGoChat }) {
     });
   }, [d]);
 
-  const list = filter === 'all' ? allSkus : allSkus.filter(s => s.st === filter);
+  if (loading) return <SkeletonView />;
+
+  const byStatus = filter === 'all' ? allSkus : allSkus.filter(s => s.st === filter);
+  const q = search.trim().toLowerCase();
+  const filtered = q ? byStatus.filter(s => (s.n ?? '').toLowerCase().includes(q) || (s.b ?? '').toLowerCase().includes(q)) : byStatus;
+  const list = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const deadVal = d?.dead_stock_value ? (typeof d.dead_stock_value === 'number' ? `₹${d.dead_stock_value.toFixed(1)}L` : String(d.dead_stock_value)) : '₹4.2L';
 
@@ -96,12 +115,27 @@ export default function Inventory({ onGoChat }) {
       <div className="card" style={{ marginBottom: '12px' }}>
         <div className="ch">
           <div><div className="ctit">SKU-wise Stock Health — AI Classification</div></div>
-          <div className="chip-row">
-            {['all', 'critical', 'dead', 'over', 'ok'].map(f => (
-              <div key={f} className={`chip${filter === f ? ' sel' : ''}`} onClick={() => setFilter(f)}>
-                {f === 'all' ? 'All SKUs' : f === 'critical' ? 'Critical' : f === 'dead' ? 'Dead Stock' : f === 'over' ? 'Overstock' : 'Healthy'}
-              </div>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div className="chip-row">
+              {['all', 'critical', 'dead', 'over', 'ok'].map(f => (
+                <div key={f} className={`chip${filter === f ? ' sel' : ''}`} onClick={() => setFilter(f)}>
+                  {f === 'all' ? 'All SKUs' : f === 'critical' ? 'Critical' : f === 'dead' ? 'Dead Stock' : f === 'over' ? 'Overstock' : 'Healthy'}
+                </div>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder="Search SKU or brand…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)', outline: 'none', width: 180 }}
+            />
+            <ExportButton rows={allSkus} filename="inventory" columns={[
+              { key: 'n', label: 'SKU' }, { key: 'b', label: 'Brand' },
+              { key: 'stk', label: 'Stock (sheets)' }, { key: 'buy', label: 'Buy Price' },
+              { key: 'sell', label: 'Sell Price' }, { key: 'd', label: 'Days Cover' },
+              { key: 's30', label: '30d Sales' }, { key: 'st', label: 'Status' },
+            ]} />
           </div>
         </div>
         <table className="tbl">
@@ -109,6 +143,9 @@ export default function Inventory({ onGoChat }) {
             <tr><th>SKU / Product</th><th>Brand</th><th>In Stock</th><th>Buy Price</th><th>Sell Price</th><th>Margin</th><th>Days Cover</th><th>30d Sales</th><th>AI Status</th><th>Action</th></tr>
           </thead>
           <tbody>
+            {list.length === 0 && (
+              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>No SKUs match the selected filters</td></tr>
+            )}
             {list.map(s => {
               const mg = s.sell > 0 ? Math.round((s.sell - s.buy) / s.sell * 100) : 0;
               const sc = s.st === 'ok' ? 'bg' : s.st === 'critical' ? 'br' : s.st === 'dead' ? 'br' : 'ba';
@@ -132,6 +169,7 @@ export default function Inventory({ onGoChat }) {
             })}
           </tbody>
         </table>
+        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
 
       <div className="gl g55">

@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createChart, baseOpts, gradientFill } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const STATIC_LANES = [
   { lane: 'Whitefield',      cost_per_sheet: 14, fill_pct: 78, status: 'BEST' },
@@ -16,13 +18,18 @@ const STATIC_INC   = [9, 11, 8, 10, 12, 0, 0, 9, 11, 10, 8, 12, 10, 0, 0, 11, 9,
 
 const LANE_SC = { BEST: 'bg', OK: 'bb', HIGH: 'ba', WORST: 'br' };
 
-export default function Freight({ onGoChat }) {
+export default function Freight({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
+  const [loading, setLoading] = useState(true);
   const ftRef = useRef(null);
 
-  useEffect(() => {
-    fetch('/api/freight').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/freight?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   const src   = d?.data_source ?? 'demo';
   const lanes = d?.outbound_lanes?.length ? d.outbound_lanes : STATIC_LANES;
@@ -30,6 +37,7 @@ export default function Freight({ onGoChat }) {
   const days  = Array.from({ length: trend.length }, (_, i) => `${i + 1}`);
 
   useEffect(() => {
+    if (!d) return;
     return createChart(ftRef, {
       type: 'line',
       data: {
@@ -49,6 +57,8 @@ export default function Freight({ onGoChat }) {
       }),
     });
   }, [d]);
+
+  if (loading) return <SkeletonView />;
 
   const bestLane  = lanes.find(l => l.status === 'BEST')  ?? lanes[0];
   const worstLane = lanes.find(l => l.status === 'WORST') ?? lanes[lanes.length - 1];

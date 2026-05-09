@@ -1,6 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, baseOpts } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
+import { useAutoRefresh } from '../utils/useAutoRefresh';
 
 const STATIC_MGN_LABELS = ['18mm BWP', '12mm BWP', '10mm Flexi', 'Laminates', '18mm MR', '12mm MR', 'Commercial', 'Dead Stock'];
 const STATIC_MGN_DATA   = [28.4, 25.6, 24.1, 22.8, 19.6, 17.4, 8.2, -12];
@@ -8,14 +11,19 @@ const STATIC_CF_LABELS  = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
 const STATIC_CF_COL     = [18.4, 21.2, 19.8, 22.4, 24.1, 26.8];
 const STATIC_CF_PUR     = [16.2, 19.4, 18.1, 20.8, 22.4, 24.2];
 
-export default function Finance({ onGoChat }) {
+export default function Finance({ onGoChat, period = 'MTD' }) {
   const mRef = useRef(null), cfRef = useRef(null);
   const [disc, setDisc] = useState(4.8);
   const [d, setD] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch('/api/finance').then(r => r.json()).then(setD).catch(() => {});
-  }, []);
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/finance?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
+  }, [period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData, 5 * 60_000);
 
   const src = d?.data_source ?? 'demo';
 
@@ -26,6 +34,7 @@ export default function Finance({ onGoChat }) {
   const cfPur     = d?.cash_flow_6m?.length  ? d.cash_flow_6m.map(m => m.purchases)   : STATIC_CF_PUR;
 
   useEffect(() => {
+    if (!d) return;
     const d1 = createChart(mRef, {
       type: 'bar',
       data: {
@@ -57,6 +66,8 @@ export default function Finance({ onGoChat }) {
     });
     return () => { d1(); d2(); };
   }, [d]);
+
+  if (loading) return <SkeletonView />;
 
   const baseRev = parseFloat(String(d?.revenue_mtd ?? '28.4').replace('₹', '').replace('L', '')) || 28.4;
   const baseProfit = parseFloat(String(d?.gross_profit_mtd ?? '6.36').replace('₹', '').replace('L', '')) || 6.36;
@@ -112,7 +123,12 @@ export default function Finance({ onGoChat }) {
 
       <div className="gl g55">
         <div className="card">
-          <div className="ch"><div><div className="ctit">Profit by Product Category</div><div className="csub">Which products actually make you money?</div></div></div>
+          <div className="ch">
+            <div><div className="ctit">Profit by Product Category</div><div className="csub">Which products actually make you money?</div></div>
+            <ExportButton rows={mgnLabels.map((sku, i) => ({ sku, margin_pct: mgnData[i] }))} filename="margin_by_sku" columns={[
+              { key: 'sku', label: 'SKU / Category' }, { key: 'margin_pct', label: 'Gross Margin %' },
+            ]} />
+          </div>
           <div style={{ height: '200px', position: 'relative' }}><canvas ref={mRef}></canvas></div>
         </div>
         <div className="card">
@@ -138,7 +154,15 @@ export default function Finance({ onGoChat }) {
           </div>
         </div>
         <div className="card">
-          <div className="ch"><div className="ctit">Overdue Receivables — Action Required</div><span className="bdg br">{d?.outstanding_receivables ?? '₹12.8L'} Outstanding</span></div>
+          <div className="ch"><div className="ctit">Overdue Receivables — Action Required</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="bdg br">{d?.outstanding_receivables ?? '₹12.8L'} Outstanding</span>
+              <ExportButton rows={receivables} filename="receivables" columns={[
+                { key: 'customer', label: 'Customer' }, { key: 'amount', label: 'Amount Due' },
+                { key: 'days_overdue', label: 'Days Overdue' }, { key: 'risk', label: 'Risk' },
+              ]} />
+            </div>
+          </div>
           <table className="tbl">
             <thead><tr><th>Customer</th><th>Amount Due</th><th>Days Overdue</th><th>AI Risk</th><th>Action</th></tr></thead>
             <tbody>

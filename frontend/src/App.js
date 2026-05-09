@@ -69,6 +69,7 @@ export default function App() {
   const [dbStatus, setDbStatus]                 = useState({ status: 'checking', source: null, checkedAt: null });
   const [alerts, setAlerts]                     = useState([]);
   const [sidebarOpen, setSidebarOpen]           = useState(false);
+  const [goMode, setGoMode]                     = useState(false);
 
   // Restore saved theme preference on load
   useEffect(() => {
@@ -137,6 +138,45 @@ export default function App() {
     if (el) el.scrollTop = 0;
   }, [activeView]);
 
+  // GitHub-style keyboard navigation: press "g" then a letter
+  useEffect(() => {
+    const GO_MAP = {
+      h: 'overview',  i: 'inventory', s: 'sales',      c: 'customers',
+      o: 'orders',    f: 'finance',   d: 'demand',      p: 'procurement',
+      r: 'freight',   w: 'inward',    z: 'deadstock',   a: 'analytics',
+      q: 'quotes',    x: 'chatbot',   e: 'settings',    u: 'pogrn',
+      l: 'louvers',   n: 'discounts', t: 'projects',    m: 'claims',
+    };
+    let active = false;
+    let goTimer = null;
+    const exitGoMode = () => {
+      active = false;
+      setGoMode(false);
+      clearTimeout(goTimer);
+    };
+    const handler = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
+      if (e.target?.contentEditable === 'true') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'Escape') { exitGoMode(); return; }
+      if (e.key === 'g' && !active) {
+        active = true;
+        setGoMode(true);
+        clearTimeout(goTimer);
+        goTimer = setTimeout(exitGoMode, 2000);
+        return;
+      }
+      if (active) {
+        exitGoMode();
+        const view = GO_MAP[e.key];
+        if (view) { setActiveView(view); setSidebarOpen(false); }
+        return;
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => { document.removeEventListener('keydown', handler); clearTimeout(goTimer); };
+  }, []);
+
   const goChat = useCallback((query) => {
     setPendingChatQuery(query);
     setActiveView('chatbot');
@@ -156,6 +196,7 @@ export default function App() {
         onNavigate={(v) => { setActiveView(v); setSidebarOpen(false); }}
         dbStatus={dbStatus}
         isOpen={sidebarOpen}
+        alerts={alerts}
       />
       <Topbar
         title={VIEW_TITLES[activeView] || 'InvenIQ — Enterprise Inventory Intelligence'}
@@ -168,6 +209,19 @@ export default function App() {
         onToggleSidebar={() => setSidebarOpen(o => !o)}
       />
       <ToastContainer />
+      {goMode && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(15,23,42,.92)', color: '#e2e8f0', padding: '10px 20px',
+          borderRadius: 10, fontSize: 13, fontFamily: 'var(--mono)', fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 10, zIndex: 9999,
+          boxShadow: '0 8px 32px rgba(0,0,0,.4)', backdropFilter: 'blur(8px)',
+          animation: 'goModeIn .15s ease',
+        }}>
+          <span style={{ background: '#16a34a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#fff' }}>g</span>
+          Type a letter to navigate · h=home · i=inventory · s=sales · f=finance · x=AI · e=settings
+        </div>
+      )}
       <main className="main">
         <Suspense fallback={<PageLoader />}>
           <ErrorBoundary key={activeView} onReset={() => setActiveView('overview')}>

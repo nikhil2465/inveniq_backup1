@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 try:
@@ -30,6 +31,8 @@ from app.api.catalog import router as catalog_router
 from app.api.projects import router as projects_router
 from app.api.quotes import router as quotes_router
 from app.api.credit import router as credit_router
+from app.api.pos import router as pos_router
+from app.api.schemes import router as schemes_router
 from app.core.config import get_settings
 
 load_dotenv()
@@ -65,7 +68,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("  MySQL   : DEMO MODE  (set MYSQL_HOST in .env for live data)")
     logger.info("  OpenAI  : %s", "CONFIGURED" if cfg.openai_api_key else "NOT SET  (set OPENAI_API_KEY for AI features)")
-    logger.info("  Routers : 10  |  Endpoints : 67+")
+    logger.info("  Routers : 13  |  Endpoints : 75+")
     logger.info("  Docs    : http://127.0.0.1:8000/docs")
     logger.info("=" * 52)
     yield
@@ -89,6 +92,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 if _RATE_LIMIT_AVAILABLE and limiter:
     app.state.limiter = limiter
@@ -124,6 +129,8 @@ app.include_router(catalog_router,   prefix="/api")
 app.include_router(projects_router,  prefix="/api")
 app.include_router(quotes_router,    prefix="/api")
 app.include_router(credit_router,    prefix="/api")
+app.include_router(pos_router,       prefix="/api")
+app.include_router(schemes_router,   prefix="/api")
 
 
 @app.exception_handler(Exception)
@@ -201,8 +208,8 @@ async def get_settings_info():
             "overview", "analytics", "demand", "inventory", "deadstock", "inward",
             "procurement", "pogrn", "catalog", "customers", "louvers", "orders",
             "freight", "sales", "claims", "discounts", "projects", "quotes",
-            "finance", "chatbot", "about", "settings",
+            "finance", "credit", "pos", "schemes", "chatbot", "about", "settings",
         ],
-        "api_routers": 10,
-        "total_endpoints": 67,
+        "api_routers": 11,
+        "total_endpoints": 70,
     }
