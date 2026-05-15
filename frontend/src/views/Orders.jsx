@@ -105,28 +105,42 @@ export default function Orders({ onGoChat, period = 'MTD' }) {
               <span className="bdg br">{pendingCnt} Pending</span>
               <ExportButton rows={pending} filename="pending_orders" columns={[
                 { key: 'order', label: 'Order #' }, { key: 'customer', label: 'Customer' },
-                { key: 'value', label: 'Value' }, { key: 'delayed', label: 'Delayed' },
-                { key: 'reason', label: 'Reason' }, { key: 'action', label: 'Action' },
+                { key: 'value', label: 'Value' }, { key: 'status', label: 'Status' },
+                { key: 'delayed', label: 'Delayed' }, { key: 'reason', label: 'Reason' },
+                { key: 'action', label: 'Action' },
               ]} />
             </div>
           </div>
           <table className="tbl">
             <thead>
-              <tr><th>Order #</th><th>Customer</th><th>Value</th><th>Delayed</th><th>Reason</th><th>Action</th></tr>
+              <tr><th>Order #</th><th>Customer</th><th>Value</th><th>Status</th><th>Delayed</th><th>Reason</th><th>Action</th></tr>
             </thead>
             <tbody>
-              {pending.map((row) => (
+              {pending.map((row) => {
+                const status = row.status ?? '';
+                const statusBdg =
+                  status === 'DRAFT'         ? 'bdg' :
+                  status === 'CONFIRMED'     ? 'bdg bb' :
+                  status === 'IN_PRODUCTION' ? 'bdg ba' :
+                  status === 'DISPATCHED'    ? 'bdg bg' :
+                  status === 'DELIVERED'     ? 'bdg bg' :
+                  status === 'CANCELLED'     ? 'bdg br' : 'bdg';
+                const statusLabel =
+                  status === 'IN_PRODUCTION' ? 'In Production' : status || 'Unknown';
+                return (
                 <tr key={row.order ?? row.order_number}
                   style={{ cursor: onGoChat ? 'pointer' : 'default' }}
-                  onClick={() => onGoChat?.(`Order ${row.order ?? row.order_number} for ${row.customer ?? row.customer_name} — delayed ${row.delayed}`)}>
+                  onClick={() => onGoChat?.(`Order ${row.order ?? row.order_number} for ${row.customer ?? row.customer_name} — status ${status}, delayed ${row.delayed}`)}>
                   <td style={{ fontFamily: 'var(--mono)', color: 'var(--b2)', fontWeight: 600 }}>{row.order ?? row.order_number}</td>
                   <td style={{ fontWeight: 600 }}>{row.customer ?? row.customer_name}</td>
                   <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{row.value}</td>
+                  <td><span className={statusBdg} style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{statusLabel}</span></td>
                   <td><span className={`bdg ${String(row.delayed).includes('hour') && parseInt(row.delayed) >= 4 ? 'br' : 'ba'}`}>{row.delayed}</span></td>
                   <td style={{ fontSize: '11px', color: 'var(--text2)' }}>{row.reason}</td>
                   <td style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 600 }}>{row.action ?? 'Investigate'}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,296 +1,195 @@
 # InvenIQ — AI Inventory Intelligence Platform
 
-> **An AI-powered inventory intelligence layer for dealers and distributors.**  
-> 12 live dashboards + GPT-4o chatbot + real-time MySQL integration. Works in full Demo Mode with zero database setup.
+> **A complete AI intelligence layer for dealers and distributors.**
+> 26 modules · GPT-4o AI chat · JWT authentication · MySQL + Demo mode. Zero setup required.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat&logo=react)](https://reactjs.org)
 [![OpenAI](https://img.shields.io/badge/GPT--4o-Powered-10a37f?style=flat&logo=openai)](https://openai.com)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat&logo=mysql&logoColor=white)](https://mysql.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
 ## What Is InvenIQ?
 
-InvenIQ is a full-stack AI intelligence platform built for **building materials dealers and distributors** (plywood, laminates, hardware, electrical, etc.). It turns raw inventory, sales, procurement, and finance data into clear, actionable decisions — delivered through 12 specialised dashboards and a GPT-4o-powered AI assistant.
+InvenIQ v3.0 is a full-stack AI intelligence platform for **building materials dealers and distributors** (plywood, laminates, louvers, hardware, etc.). It turns raw inventory, sales, procurement, and finance data into clear decisions — delivered through **26 specialised modules** and a **GPT-4o-powered AI assistant**.
 
-**Core capabilities:**
-- Live dashboards for every business function (stock, sales, customers, procurement, freight, finance, demand)
-- AI chatbot with 3 modes: Ask (quick answers), Explain (deep RCA), Act (step-by-step plans)
-- Root Cause Analysis engine with 5-Why chains and fishbone diagrams
-- Proactive insights engine that ranks issues by ₹ impact
-- Inventory management knowledge base (EOQ, safety stock, ABC, GMROI)
-- Works 100% in Demo Mode — no database required
+**Works 100% without a database.** All 26 modules display rich demo data with zero configuration — only add your OpenAI API key to unlock AI features.
 
 ---
 
-## Screenshots & Demo
+## Key Capabilities
 
-| Business Overview | AI Assistant | PO & GRN |
-|:---:|:---:|:---:|
-| 12-month revenue chart | 3-mode chat with streaming | GRN discrepancy log |
+| Category | Features |
+|---|---|
+| **AI Chat** | GPT-4o streaming · 4 routing paths · 19 MCP tools · 14 RCA templates · 23 KB topics |
+| **Inventory** | Stock intelligence · Dead stock recovery · Demand forecasting · Inward/outward tracking |
+| **Sales & CRM** | Sales performance · Customer intelligence · Orders · Claims & rebates · Freight |
+| **Procurement** | PO & GRN lifecycle · Supplier management · Warehouse management |
+| **Finance** | Profitability · Cash flow · Credit management · Counter POS |
+| **Pricing** | Quotation builder · Discount calculator · Scheme management |
+| **Projects** | Project tracker · Pipeline management |
+| **Platform** | JWT auth · Module-level access control · PWA-ready · Dark mode · Keyboard nav |
 
-Open the app → **About InvenIQ** page for a full feature walkthrough.  
-Open **Developer Guide** for architecture details and API reference.
+---
+
+## All 26 Modules
+
+`overview` `analytics` `inventory` `catalog` `demand` `deadstock` `inward` `warehouse`
+`procurement` `pogrn` `sales` `customers` `louvers` `orders` `freight` `claims`
+`discounts` `projects` `quotes` `finance` `credit` `pos` `schemes` `chatbot` `about` `settings`
 
 ---
 
 ## Quick Start
 
-### Option A — Demo Mode (No Database Required)
+### Option A — Demo Mode (Zero Setup)
 
 ```bash
 # 1. Clone
-git clone https://github.com/nikhil2465/ai_chatbot_inventory1.git
-cd ai_chatbot_inventory1
+git clone https://github.com/nikhil2465/InvenIQ.git
+cd InvenIQ
 
-# 2. Backend setup
+# 2. Backend
 cd backend
 cp .env.example .env
-# Edit .env: add your OPENAI_API_KEY (only this is needed for demo mode)
+# (optional) add OPENAI_API_KEY to .env for AI features
 pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
-# 3. Frontend setup (new terminal)
+# 3. Frontend (new terminal)
 cd ../frontend
 npm install
 npm start
+# Opens at http://localhost:3000
 ```
 
-Open **http://localhost:3000** — all 12 dashboards load with rich demo data.
+**Login:** `admin` / `inveniq@2024`
 
----
+### Option B — Windows One-Click
 
-### Option B — Full Mode with MySQL
+```bat
+start.bat          # dev mode  (React :3000 + FastAPI :8000, hot-reload)
+start_prod.bat     # prod mode (FastAPI serves the React build on :8000)
+```
+
+### Option C — Docker
 
 ```bash
-# 1. Create MySQL database
-mysql -u root -p
-CREATE DATABASE stocksense_inventory CHARACTER SET utf8mb4;
-CREATE USER 'stocksense'@'localhost' IDENTIFIED BY 'StockPass123!';
-GRANT ALL PRIVILEGES ON stocksense_inventory.* TO 'stocksense'@'localhost';
-EXIT;
+# Demo mode (no MySQL)
+docker compose up -d
 
-# 2. Load schema and seed data
-mysql -u stocksense -p stocksense_inventory < database/schema.sql
-mysql -u stocksense -p stocksense_inventory < database/seed_complete.sql
-
-# 3. Configure .env
-OPENAI_API_KEY=sk-proj-...
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=stocksense
-MYSQL_PASSWORD=StockPass123!
-MYSQL_DB=stocksense_inventory
-
-# 4. Start backend + frontend (same as above)
+# Full stack with MySQL
+docker compose --profile mysql up -d
+# Open http://localhost
 ```
-
-The UI shows a **🟢 Live Data** badge when MySQL is connected, **🟡 Demo Mode** otherwise.
-
----
-
-## Project Structure
-
-```
-inveniq/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                  FastAPI entry, CORS, router registration
-│   │   ├── api/
-│   │   │   ├── dashboard.py         11 dashboard endpoints + health + data-status
-│   │   │   ├── chat.py              POST /api/chat + /api/chat/stream (SSE)
-│   │   │   └── po_grn.py            PO lifecycle + GRN endpoints
-│   │   ├── db/
-│   │   │   ├── connection.py        Async MySQL pool (aiomysql)
-│   │   │   ├── queries.py           9 query functions (stock, sales, finance…)
-│   │   │   └── po_grn_queries.py    PO/GRN specific SQL
-│   │   └── services/
-│   │       ├── orchestrator.py      Main LLM pipeline — 4 routing paths
-│   │       ├── selector.py          Keyword-based tool routing
-│   │       ├── tools.py             9 MCP-style data tools
-│   │       ├── rca.py               Root Cause Analysis engine
-│   │       ├── knowledge.py         Inventory management knowledge base
-│   │       └── insights_engine.py   Proactive insights — ranked by ₹ impact
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/
-│   └── src/
-│       ├── App.js                   State-based routing, health polling
-│       ├── views/                   12 dashboard pages + chat + docs
-│       │   ├── Overview.jsx
-│       │   ├── Inventory.jsx
-│       │   ├── Sales.jsx
-│       │   ├── Customers.jsx
-│       │   ├── Finance.jsx
-│       │   ├── Orders.jsx
-│       │   ├── Procurement.jsx
-│       │   ├── POGRN.jsx
-│       │   ├── Freight.jsx
-│       │   ├── Demand.jsx
-│       │   ├── DeadStock.jsx
-│       │   ├── Inward.jsx
-│       │   ├── AIAssistant.jsx      Chat UI with streaming + 3 modes
-│       │   ├── DevGuide.jsx         Developer documentation page
-│       │   └── About.jsx            Public showcase page
-│       └── components/
-│           ├── Sidebar.jsx
-│           ├── DataSourceBadge.jsx  Live/Demo indicator
-│           ├── PageLoader.jsx
-│           └── ErrorState.jsx
-└── database/
-    ├── schema.sql                   13 tables + 2 views
-    └── seed_complete.sql            12-month historical data
-```
-
----
-
-## API Reference
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check — DB + OpenAI status |
-| GET | `/api/data-status` | Per-page data source (mysql / mock) |
-| GET | `/api/overview` | Executive KPIs + 12-month revenue |
-| GET | `/api/inventory` | Stock intelligence + critical SKUs |
-| GET | `/api/sales` | Revenue trend, margin, day-of-week |
-| GET | `/api/customers` | Customer list + risk scores |
-| GET | `/api/orders` | Order pipeline + fulfilment SLA |
-| GET | `/api/procurement` | Supplier scorecards |
-| GET | `/api/finance` | Cash cycle, GST, working capital |
-| GET | `/api/freight` | Lane costs, vehicle utilization |
-| GET | `/api/demand` | 30/60/90-day demand forecasts |
-| GET | `/api/dead-stock` | Aged inventory + recovery plan |
-| GET | `/api/inward` | GRN pipeline + shrinkage |
-| GET | `/api/po-grn` | PO lifecycle + GRN discrepancies |
-| POST | `/api/po` | Create purchase order |
-| POST | `/api/chat` | Non-streaming chat |
-| POST | `/api/chat/stream` | SSE streaming chat |
-
-All dashboard endpoints follow **DB-first / mock-fallback pattern** — live data when MySQL is available, rich mock data otherwise.
-
----
-
-## AI Architecture
-
-```
-User Query
-    │
-    ├── is_generic_query()      → Conversational response (no tools)
-    ├── is_knowledge_query()    → Knowledge Base (EOQ, safety stock, ABC…)
-    ├── is_insights_query()     → All 8 tools → 10-type rule engine → ranked by ₹
-    └── Normal Query
-            │
-            ├── selector.py     → Pick 1-3 relevant tools from 9 available
-            ├── tools.py        → Fetch DB/mock data in parallel
-            ├── rca.py          → Inject RCA template (ask/explain/act mode)
-            └── GPT-4o          → Stream response with tool context
-```
-
-**Chat modes:**
-- `ask` — Quick, data-backed answers with specific ₹ figures
-- `explain` — Deep RCA with 5-Why chain and fishbone analysis  
-- `act` — Step-by-step executable plan with assigned owners and deadlines
-
----
-
-## Database Schema
-
-**13 tables covering the full distribution workflow:**
-
-| Category | Tables |
-|----------|--------|
-| Inventory | `products`, `godowns`, `stock_levels`, `stock_movements` |
-| Procurement | `suppliers`, `purchase_orders`, `po_items`, `grn` |
-| Sales | `customers`, `customer_orders`, `order_items`, `invoices` |
-| Logistics & Finance | `freight_lanes`, `freight_trips`, `demand_forecast`, `finance_monthly` |
-| Views | `v_stock_summary`, `v_overdue_invoices` |
-
-**Seed data** (`seed_complete.sql`):
-- 149 customer orders across 12 months (Apr 2025 – Apr 2026)
-- 17 GRN records with realistic MATCH/MISMATCH distribution
-- 35 freight trips covering last 30 days
-- 35 demand forecasts for all 18 SKUs (30/60/90 day)
-- 13 months of finance snapshots
 
 ---
 
 ## Environment Variables
 
-```env
-# Required for AI chat
-OPENAI_API_KEY=sk-proj-...
+Copy `backend/.env.example` → `backend/.env` and configure:
 
-# Optional — enables live MySQL data (omit for demo mode)
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=stocksense
-MYSQL_PASSWORD=StockPass123!
-MYSQL_DB=stocksense_inventory
+| Variable | Required | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | For AI | GPT-4o key from platform.openai.com |
+| `MYSQL_HOST` | Optional | Leave blank for demo mode |
+| `MYSQL_USER` | Optional | Database username |
+| `MYSQL_PASSWORD` | Optional | Database password |
+| `MYSQL_DB` | Optional | Database name (default: `stocksense_inventory`) |
+| `JWT_SECRET_KEY` | **Change in prod** | Random 32+ char string |
+| `AUTH_USERNAME` | Optional | Login username (default: `admin`) |
+| `AUTH_PASSWORD` | Optional | Login password (default: `inveniq@2024`) |
+
+---
+
+## Client Deployment
+
+To deploy for a client with restricted module access:
+
+1. Copy `deploy/client.env.example` → `backend/.env`
+2. Fill in `AUTH_USERNAME`, `AUTH_PASSWORD`, `AUTH_ALLOWED_MODULES`
+3. Set `OWNER_USERNAME` / `OWNER_PASSWORD` for your private admin backdoor
+4. Run `deploy/windows/install.bat` (first time) then `start_prod.bat`
+
+**Or use Docker:**
+```bash
+docker compose up -d
 ```
 
 ---
 
-## Dependencies
+## Architecture
 
-**Backend (Python)**
 ```
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-openai==1.51.0
-aiomysql==0.2.0
-python-dotenv==1.0.1
-pydantic-settings==2.5.2
+InvenIQ/
+├── backend/              # FastAPI + Python
+│   ├── app/
+│   │   ├── api/          # 15 API routers (auth, chat, dashboard, catalog, …)
+│   │   ├── core/         # Config, JWT auth, TTL cache
+│   │   ├── db/           # aiomysql pool, query modules
+│   │   └── services/     # AI orchestrator, RCA engine, tools, knowledge base
+│   └── requirements.txt
+├── frontend/             # React 18 SPA
+│   ├── src/
+│   │   ├── views/        # 26 lazy-loaded view components
+│   │   ├── components/   # Sidebar, Topbar, ErrorBoundary, Skeleton, Toast…
+│   │   └── utils/        # chartHelpers, exportUtils, useAutoRefresh, authUtils
+│   └── package.json
+├── database/             # MySQL schema + seed data
+├── deploy/               # Windows install/start/stop/update scripts
+├── scripts/              # Utility scripts (Ebco catalog builder, importer)
+├── docs/                 # Reference documents and quotation templates
+├── docker-compose.yml
+├── Dockerfile
+└── start.bat             # Windows one-click dev startup
 ```
 
-**Frontend (Node)**
-```
-react@18.3.1
-react-dom@18.3.1
-react-scripts@5.0.1
-chart.js@4.4.1
-```
+**AI Chat Pipeline (4-path routing in `orchestrator.py`):**
+1. `is_generic_query()` → greeting / small talk path
+2. `is_knowledge_query()` → 23-topic KB + live data (inventory concepts, best practices)
+3. `is_insights_query()` → 13 rule-based insight types + all 19 MCP tools
+4. Normal → tool selector → RCA engine → GPT-4o streaming
 
 ---
 
-## Architecture Recommendations (Next Steps)
+## Tech Stack
 
-For teams scaling this platform, here are the key improvements in priority order:
-
-1. **Docker + Compose** — Containerise all 3 services for reproducible deployments
-2. **JWT Authentication** — Add auth layer with `python-jose` + FastAPI `Depends()`
-3. **Redis Caching** — Cache dashboard responses (60s TTL) to reduce DB load
-4. **Alembic Migrations** — Version-controlled schema changes instead of manual SQL
-5. **TypeScript** — Migrate frontend for type safety and better DX
-6. **TanStack Query** — Replace manual `useEffect` fetching with smart server state
-7. **Testing** — pytest for API, React Testing Library for UI, Playwright for E2E
-8. **GitHub Actions CI** — Run tests + build on every pull request
-
-See the **Developer Guide** page inside the app for detailed recommendations.
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Chart.js 4, DOMPurify 3, PWA service worker |
+| Backend | FastAPI 0.115, Python 3.11+, uvicorn |
+| AI | OpenAI GPT-4o (chat + vision), GPT-4o-mini (analysis) |
+| Database | MySQL 8.0 via aiomysql (async pool with reconnection) |
+| Auth | JWT (python-jose), bcrypt, per-module access control |
+| Rate limiting | slowapi (200 req/min global) |
+| Compression | GZip middleware (automatic) |
+| Deployment | Docker + nginx, or Windows bat scripts |
 
 ---
 
-## Contributing
+## Database Setup (Optional)
 
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make changes + test locally
-4. Submit a pull request with a clear description
+```sql
+-- Run in your MySQL instance:
+SOURCE database/schema.sql;
+SOURCE database/seed_complete.sql;
+```
 
-**Code style:**
-- Python: Follow FastAPI async patterns. All DB operations must use `async/await`.
-- React: Functional components only. Inline styles using CSS variables (`var(--b2)`, etc.).
-- New dashboard pages: Follow the existing `DB-first / mock-fallback` pattern.
-- New AI tools: Add to `tools.py` + register in `selector.py` keyword map.
+Point `MYSQL_HOST` to your MySQL server in `backend/.env`. The backend auto-detects connection and switches from demo → live data with no restart needed for the frontend.
+
+---
+
+## Security Notes
+
+- Change `JWT_SECRET_KEY` before production deployment
+- Change default credentials (`AUTH_USERNAME` / `AUTH_PASSWORD`) before client delivery
+- The `AUTH_ROLE=client` setting enforces module-level API access at the middleware layer
+- HTTPS termination should be handled by nginx or a reverse proxy in front of the app
 
 ---
 
 ## License
 
-MIT License — free to use, modify, and distribute.
-
----
-
-*Built for India's 15 lakh+ building materials dealers. Adaptable to any distribution business worldwide.*
+MIT — see [LICENSE](LICENSE) for details.

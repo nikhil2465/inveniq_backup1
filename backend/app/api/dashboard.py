@@ -7,10 +7,14 @@ import asyncio
 import logging
 from datetime import date, timedelta
 
+import aiomysql
 from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Dashboard"])
+
+# Session-persistent imported customers (same pattern as catalog runtime products)
+_RUNTIME_CUSTOMERS: list = []
 
 try:
     from app.db.connection import get_pool
@@ -95,8 +99,8 @@ def _build_ai_brief(s, f, c, o):
     if overdue:
         parts.append(f"Outstanding receivables: {c.get('total_outstanding','')}")
     return ". ".join(parts) if parts else (
-        "Revenue up 9.2% this month — 18mm BWP and 12mm MR are your top movers. "
-        "Dead stock worth ₹4.2L sitting unsold for 90+ days — 3 SKUs identified for urgent action."
+        "Revenue up 11.8% this month — Ebco hinges and Jaquar CP fittings are your top movers. "
+        "Dead stock worth ₹3.8L sitting unsold for 75+ days — 3 SKUs identified for urgent action."
     )
 
 
@@ -118,26 +122,27 @@ _MOCK_MONTHLY_REVENUE = [
 
 def _mock_overview():
     return {
-        "revenue_mtd": "₹28.4L", "gross_margin": "22.4%",
-        "dead_stock_value": "₹4.2L", "outstanding_receivables": "₹12.8L",
+        "revenue_mtd": "₹28.4L", "gross_margin": "24.8%",
+        "dead_stock_value": "₹3.8L", "outstanding_receivables": "₹12.8L",
         "orders_today": 24, "orders_dispatched": 18, "orders_pending": 6,
-        "low_stock_skus": 7, "working_capital_days": 48,
-        "inventory_accuracy": "96.8%", "stock_turnover": "4.2x", "gmroi": "₹1.98",
-        "at_risk_customers": 8, "total_stock_value": "₹38.6L",
+        "low_stock_skus": 5, "working_capital_days": 44,
+        "inventory_accuracy": "97.2%", "stock_turnover": "5.2x", "gmroi": "₹2.14",
+        "at_risk_customers": 6, "total_stock_value": "₹42.6L",
         "critical_low": [
-            {"sku": "18mm BWP (8x4)", "days_cover": 8, "stock": 140},
-            {"sku": "12mm BWP (8x4)", "days_cover": 11, "stock": 220},
+            {"sku": "Ebco Soft-Close Hinge 35mm Pk-10", "days_cover": 6,  "stock": 48},
+            {"sku": "Jaquar Lyric Basin Mixer Chrome",   "days_cover": 9,  "stock": 12},
+            {"sku": "Hettich InnoTech Drawer 400mm",     "days_cover": 11, "stock": 21},
         ],
         "top_at_risk": [
-            {"name": "City Interiors", "days_silent": 47, "monthly_value": "Rs.2.4L"},
-            {"name": "Sharma Constructions", "days_silent": 34, "monthly_value": "Rs.1.8L"},
+            {"name": "Modern Kitchens Pvt Ltd",  "days_silent": 45, "monthly_value": "₹4.2L"},
+            {"name": "Green Valley Interiors",   "days_silent": 38, "monthly_value": "₹2.8L"},
         ],
         "monthly_revenue": _MOCK_MONTHLY_REVENUE,
         "ai_brief": (
-            "Revenue up 9.2% this month — 18mm BWP and 12mm MR are your top movers. "
-            "Dead stock worth ₹4.2L sitting unsold for 90+ days — 3 SKUs identified for urgent action. "
-            "Customer 'City Interiors' hasn't ordered in 47 days — at-risk account worth ₹1.8L/month. "
-            "Supplier 'Gauri Laminates' has delayed 2 deliveries this month."
+            "Revenue up 11.8% this month — Ebco soft-close hinges and Jaquar CP fittings are your top movers. "
+            "Dead stock worth ₹3.8L sitting unsold for 75+ days — Parryware sensor tap and Dorset lock need urgent action. "
+            "Customer 'Modern Kitchens Pvt Ltd' hasn't ordered in 45 days — at-risk account worth ₹4.2L/month. "
+            "Hindware delayed 3 deliveries this month — consider shifting volume to Jaquar."
         ),
         "data_source": "mock",
     }
@@ -181,22 +186,22 @@ async def get_inventory(period: str = Query("MTD")):
 
 def _mock_inventory():
     return {
-        "total_stock_value": "₹38.6L",
-        "critical_count": 7,
-        "dead_stock_value": 4.2,
-        "inventory_accuracy": "96.8%",
-        "stock_turnover": "4.2x",
+        "total_stock_value": "₹42.6L",
+        "critical_count": 5,
+        "dead_stock_value": 3.8,
+        "inventory_accuracy": "97.2%",
+        "stock_turnover": "5.2x",
         "skus": [
-            {"name": "18mm BWP (8×4)", "brand": "Century", "stock": 140, "buy": 1420, "sell": 1920, "days_cover": 8, "sales_30": 480, "status": "critical"},
-            {"name": "12mm BWP (8×4)", "brand": "Century", "stock": 220, "buy": 1080, "sell": 1480, "days_cover": 11, "sales_30": 380, "status": "critical"},
-            {"name": "12mm MR Plain",  "brand": "Greenply", "stock": 380, "buy": 720,  "sell": 940,  "days_cover": 18, "sales_30": 420, "status": "ok"},
-            {"name": "18mm MR Plain",  "brand": "Greenply", "stock": 290, "buy": 880,  "sell": 1120, "days_cover": 22, "sales_30": 258, "status": "ok"},
-            {"name": "8mm Flexi BWP",  "brand": "Gauri",   "stock": 110, "buy": 640,  "sell": 840,  "days_cover": 28, "sales_30": 72,  "status": "over"},
-            {"name": "6mm Gurjan BWP", "brand": "National","stock": 186, "buy": 960,  "sell": 0,    "days_cover": 118,"sales_30": 0,   "status": "dead"},
-            {"name": "4mm MR Plain",   "brand": "National","stock": 240, "buy": 580,  "sell": 0,    "days_cover": 97, "sales_30": 4,   "status": "dead"},
-            {"name": "19mm Commercial","brand": "National","stock": 102, "buy": 980,  "sell": 0,    "days_cover": 91, "sales_30": 2,   "status": "dead"},
-            {"name": "10mm Flexi BWP", "brand": "Gauri",   "stock": 88,  "buy": 1240, "sell": 1580, "days_cover": 74, "sales_30": 14,  "status": "over"},
-            {"name": "Laminate Teak",  "brand": "Supreme", "stock": 165, "buy": 340,  "sell": 460,  "days_cover": 32, "sales_30": 128, "status": "ok"},
+            {"name": "Ebco Soft-Close Hinge 35mm Pk-10",      "brand": "Ebco",     "stock": 48,   "buy": 365,  "sell": 485,  "days_cover": 6,  "sales_30": 240, "status": "critical"},
+            {"name": "Jaquar Lyric Basin Mixer Chrome",        "brand": "Jaquar",   "stock": 12,   "buy": 3200, "sell": 4850, "days_cover": 9,  "sales_30": 42,  "status": "critical"},
+            {"name": "Hettich InnoTech Drawer Sys 400mm",      "brand": "Hettich",  "stock": 21,   "buy": 880,  "sell": 1280, "days_cover": 11, "sales_30": 62,  "status": "critical"},
+            {"name": "Hafele Zinc D-Handle 128mm (pair)",      "brand": "Hafele",   "stock": 186,  "buy": 240,  "sell": 320,  "days_cover": 22, "sales_30": 264, "status": "ok"},
+            {"name": "Hindware Aura Stop Cock DN15",           "brand": "Hindware", "stock": 148,  "buy": 520,  "sell": 750,  "days_cover": 18, "sales_30": 240, "status": "ok"},
+            {"name": "Ebco LED Cam Lock 25mm",                 "brand": "Ebco",     "stock": 94,   "buy": 62,   "sell": 88,   "days_cover": 28, "sales_30": 82,  "status": "ok"},
+            {"name": "Parryware Pilot EV Sensor Tap",          "brand": "Parryware","stock": 44,   "buy": 3800, "sell": 0,    "days_cover": 95, "sales_30": 0,   "status": "dead"},
+            {"name": "Dorset Euro Cylinder Lock (old model)",  "brand": "Dorset",   "stock": 72,   "buy": 1480, "sell": 0,    "days_cover": 87, "sales_30": 2,   "status": "dead"},
+            {"name": "Ebco LED Cabinet Light (old model)",     "brand": "Ebco",     "stock": 58,   "buy": 1200, "sell": 0,    "days_cover": 76, "sales_30": 4,   "status": "dead"},
+            {"name": "Jaquar Allied Overhead Shower 200mm",    "brand": "Jaquar",   "stock": 68,   "buy": 1640, "sell": 2400, "days_cover": 32, "sales_30": 62,  "status": "ok"},
         ],
         "data_source": "mock",
     }
@@ -220,16 +225,14 @@ async def get_dead_stock(period: str = Query("MTD")):
             "data_source": "mysql",
         }
     return {
-        "total_value": "₹4.2L",
-        "skus_count": 5,
-        "oldest_days": 118,
-        "cash_recovery_potential": "₹3.6L",
+        "total_value": "₹3.8L",
+        "skus_count": 3,
+        "oldest_days": 95,
+        "cash_recovery_potential": "₹3.2L",
         "items": [
-            {"sku": "6mm Gurjan BWP",  "days_old": 118, "stock": 186, "value": "₹1.79L", "action": "12% discount to contractors"},
-            {"sku": "4mm MR Plain",    "days_old": 97,  "stock": 240, "value": "₹1.39L", "action": "Bundle with 18mm BWP orders"},
-            {"sku": "19mm Commercial", "days_old": 91,  "stock": 102, "value": "₹0.99L", "action": "Return to supplier if policy allows"},
-            {"sku": "10mm Flexi BWP",  "days_old": 74,  "stock": 88,  "value": "₹1.09L", "action": "Offer to liquidators at 20% discount"},
-            {"sku": "16mm MR Teak",    "days_old": 62,  "stock": 44,  "value": "₹0.42L", "action": "Bundle with Teak laminate promotions"},
+            {"sku": "Parryware Pilot EV Sensor Tap",         "days_old": 95, "stock": 44, "value": "₹1.84L", "action": "10% discount to plumbers + electricians, offer as project bundle"},
+            {"sku": "Dorset Euro Cylinder Lock (old model)", "days_old": 87, "stock": 72, "value": "₹1.21L", "action": "Offer at 15% discount to hardware retailers; return to Dorset if possible"},
+            {"sku": "Ebco LED Cabinet Light (old model)",    "days_old": 76, "stock": 58, "value": "₹0.78L", "action": "Bundle with new Ebco hinge sets; 12% combo discount to kitchen studios"},
         ],
         "data_source": "mock",
     }
@@ -258,9 +261,9 @@ async def get_inward(period: str = Query("MTD")):
             {"label": "Stock Updated", "count": 2, "value": "₹4.8L",  "status": "done"},
         ],
         "recent_grn": [
-            {"grn": "GRN-4424", "supplier": "Century Plyboards",  "value": "₹3.8L", "status": "MATCH",    "date": str(date.today())},
-            {"grn": "GRN-4423", "supplier": "Greenply Industries", "value": "₹1.6L", "status": "MATCH",    "date": str(date.today())},
-            {"grn": "GRN-4422", "supplier": "Gauri Laminates",    "value": "₹1.4L", "status": "MISMATCH", "date": str(date.today())},
+            {"grn": "GRN-4424", "supplier": "Ebco India",    "value": "₹3.8L", "status": "MATCH",    "date": str(date.today())},
+            {"grn": "GRN-4423", "supplier": "Jaquar India",  "value": "₹2.4L", "status": "MATCH",    "date": str(date.today())},
+            {"grn": "GRN-4422", "supplier": "Hindware",      "value": "₹1.6L", "status": "MISMATCH", "date": str(date.today())},
         ],
         "data_source": "mock",
     }
@@ -274,23 +277,23 @@ async def get_sales(period: str = Query("MTD")):
         return result
     return {
         "revenue_mtd": "₹28.4L",
-        "revenue_growth": "+9.2% MoM",
-        "orders_mtd": 486,
-        "avg_order_value": "₹58,400",
-        "gross_margin": "22.4%",
-        "top_sku": "18mm BWP",
+        "revenue_growth": "+11.8% MoM",
+        "orders_mtd": 512,
+        "avg_order_value": "₹55,470",
+        "gross_margin": "24.8%",
+        "top_sku": "Ebco Soft-Close Hinge 35mm",
         "monthly_revenue": [
-            {"month": "May",  "revenue": 19.2}, {"month": "Jun",  "revenue": 20.1},
-            {"month": "Jul",  "revenue": 21.4}, {"month": "Aug",  "revenue": 22.8},
-            {"month": "Sep",  "revenue": 21.6}, {"month": "Oct",  "revenue": 20.4},
-            {"month": "Nov",  "revenue": 22.1}, {"month": "Dec",  "revenue": 23.8},
-            {"month": "Jan",  "revenue": 24.4}, {"month": "Feb",  "revenue": 25.2},
-            {"month": "Mar",  "revenue": 26.0}, {"month": "Apr",  "revenue": 28.4},
+            {"month": "May",  "revenue": 18.6}, {"month": "Jun",  "revenue": 19.4},
+            {"month": "Jul",  "revenue": 20.2}, {"month": "Aug",  "revenue": 21.8},
+            {"month": "Sep",  "revenue": 20.8}, {"month": "Oct",  "revenue": 22.4},
+            {"month": "Nov",  "revenue": 23.6}, {"month": "Dec",  "revenue": 25.4},
+            {"month": "Jan",  "revenue": 24.8}, {"month": "Feb",  "revenue": 25.8},
+            {"month": "Mar",  "revenue": 26.4}, {"month": "Apr",  "revenue": 28.4},
         ],
         "margin_by_sku": [
-            {"sku": "18mm BWP",  "margin": 22.2}, {"sku": "12mm BWP",  "margin": 25.6},
-            {"sku": "12mm MR",   "margin": 15.4}, {"sku": "8mm Flexi", "margin": 6.7},
-            {"sku": "Laminates", "margin": 28.4}, {"sku": "Others",    "margin": 18.2},
+            {"sku": "Ebco Hinges",      "margin": 28.4}, {"sku": "Jaquar CP",       "margin": 34.2},
+            {"sku": "Hettich Drawers",  "margin": 31.1}, {"sku": "Hafele Handles",  "margin": 29.6},
+            {"sku": "Hindware Sanitary","margin": 27.8}, {"sku": "Door Hardware",   "margin": 24.2},
         ],
         "day_of_week": [
             {"day": "Mon", "avg": 42.0}, {"day": "Tue", "avg": 38.4},
@@ -323,48 +326,178 @@ async def get_customers(period: str = Query("MTD")):
 
 
 def _mock_customers():
+    base = [
+        {"name": "Modern Kitchens Pvt Ltd",     "segment": "Kitchen Studio",  "monthly_value": "₹4.2L", "outstanding": "₹0",    "days_since_order": 45, "risk": "MEDIUM", "score": 54},
+        {"name": "Mehta Construction Group",    "segment": "Contractor",      "monthly_value": "₹3.8L", "outstanding": "₹0",    "days_since_order": 2,  "risk": "LOW",    "score": 94},
+        {"name": "Green Valley Interiors",      "segment": "Interior Firm",   "monthly_value": "₹2.8L", "outstanding": "₹0",    "days_since_order": 38, "risk": "MEDIUM", "score": 58},
+        {"name": "Kumar Bath & Tile Studio",    "segment": "Bath Studio",     "monthly_value": "₹2.4L", "outstanding": "₹0.4L", "days_since_order": 6,  "risk": "LOW",    "score": 88},
+        {"name": "Sharma Constructions",        "segment": "Contractor",      "monthly_value": "₹2.2L", "outstanding": "₹3.4L", "days_since_order": 78, "risk": "HIGH",   "score": 42},
+        {"name": "Metro Builders & Developers", "segment": "Contractor",      "monthly_value": "₹1.8L", "outstanding": "₹2.1L", "days_since_order": 52, "risk": "HIGH",   "score": 46},
+        {"name": "Patel Interiors & Projects",  "segment": "Interior Firm",   "monthly_value": "₹1.4L", "outstanding": "₹1.8L", "days_since_order": 44, "risk": "MEDIUM", "score": 62},
+        {"name": "Raju Plumbing & Sanitary",    "segment": "Plumber/Installer","monthly_value": "₹1.1L","outstanding": "₹0.2L", "days_since_order": 4,  "risk": "LOW",    "score": 87},
+        {"name": "Sunrise Hardware Traders",    "segment": "Retailer",        "monthly_value": "₹0.9L", "outstanding": "₹0",    "days_since_order": 8,  "risk": "LOW",    "score": 91},
+    ]
+    all_customers = base + _RUNTIME_CUSTOMERS
+    overdue = [
+        {"customer": "Sharma Constructions",        "amount": "₹3.4L", "days_overdue": 78, "risk": "HIGH"},
+        {"customer": "Metro Builders & Developers", "amount": "₹2.1L", "days_overdue": 52, "risk": "HIGH"},
+        {"customer": "Patel Interiors & Projects",  "amount": "₹1.8L", "days_overdue": 44, "risk": "MEDIUM"},
+        {"customer": "Others (9 accounts)",         "amount": "₹5.5L", "days_overdue": 26, "risk": "LOW"},
+    ]
     return {
-        "total_customers": 148,
-        "at_risk_count": 8,
+        "total_customers": len(all_customers),
+        "at_risk_count": 6,
         "total_outstanding": "₹12.8L",
-        "best_segment": "Interior Firms",
-        "customers": [
-            {"name": "Mehta Constructions",    "segment": "Contractor",    "monthly_value": "₹3.8L", "outstanding": "₹0",    "days_since_order": 2,  "risk": "LOW",    "score": 94},
-            {"name": "Design Studio Patel",    "segment": "Interior Firm", "monthly_value": "₹1.6L", "outstanding": "₹0",    "days_since_order": 4,  "risk": "LOW",    "score": 91},
-            {"name": "Kumar & Sons",           "segment": "Retailer",      "monthly_value": "₹2.1L", "outstanding": "₹0.4L", "days_since_order": 6,  "risk": "LOW",    "score": 88},
-            {"name": "Sharma Constructions",   "segment": "Contractor",    "monthly_value": "₹2.2L", "outstanding": "₹3.4L", "days_since_order": 78, "risk": "HIGH",   "score": 42},
-            {"name": "Mehta Brothers",         "segment": "Contractor",    "monthly_value": "₹1.4L", "outstanding": "₹2.1L", "days_since_order": 52, "risk": "MEDIUM", "score": 58},
-            {"name": "City Interiors",         "segment": "Interior Firm", "monthly_value": "₹2.4L", "outstanding": "₹0",    "days_since_order": 47, "risk": "MEDIUM", "score": 55},
-            {"name": "Patel Contractors",      "segment": "Contractor",    "monthly_value": "₹1.2L", "outstanding": "₹1.8L", "days_since_order": 44, "risk": "MEDIUM", "score": 62},
-            {"name": "Raj Carpentry Works",    "segment": "Carpenter",     "monthly_value": "₹0.9L", "outstanding": "₹0.2L", "days_since_order": 8,  "risk": "LOW",    "score": 85},
-        ],
-        "overdue_receivables": [
-            {"customer": "Sharma Constructions", "amount": "₹3.4L", "days_overdue": 78, "risk": "HIGH"},
-            {"customer": "Mehta Brothers",       "amount": "₹2.1L", "days_overdue": 52, "risk": "MEDIUM"},
-            {"customer": "Patel Contractors",    "amount": "₹1.8L", "days_overdue": 44, "risk": "MEDIUM"},
-            {"customer": "Rajan Interior",       "amount": "₹1.2L", "days_overdue": 31, "risk": "LOW"},
-        ],
-        "data_source": "mock",
+        "best_segment": "Kitchen Studios",
+        "customers": all_customers,
+        "overdue_receivables": overdue,
+        "data_source": "mock" if not _RUNTIME_CUSTOMERS else "mock+imported",
     }
+
+
+@router.post("/customers/import", status_code=201)
+async def import_customers(payload: dict):
+    """Import customers from CSV/Excel mapping. Session-persistent (lost on server restart)."""
+    customers = payload.get("customers", [])
+    added = []
+    for c in customers:
+        name = (c.get("name") or "").strip()
+        if not name:
+            continue
+        customer = {
+            "name":             name,
+            "segment":          (c.get("segment") or "General").strip(),
+            "monthly_value":    (c.get("monthly_value") or "₹0").strip(),
+            "outstanding":      (c.get("outstanding") or "₹0").strip(),
+            "days_since_order": int(float(c.get("days_since_order") or 0)) if c.get("days_since_order") else 0,
+            "risk":             (c.get("risk") or "LOW").strip().upper(),
+            "score":            int(float(c.get("score") or 50)) if c.get("score") else 50,
+        }
+        # Carry through any extra fields (email, phone, address)
+        for extra in ("email", "phone", "address"):
+            if c.get(extra):
+                customer[extra] = c[extra].strip()
+        _RUNTIME_CUSTOMERS.append(customer)
+        added.append(customer)
+        logger.info("Customer import: name=%s segment=%s", name, customer["segment"])
+
+    return {
+        "added":   len(added),
+        "message": f"{len(added)} customer(s) imported successfully.",
+    }
+
+
+_ORDER_TREND_30D = [4,6,3,8,5,7,4,9,6,8,4,7,5,6,8,4,9,7,5,8,6,7,4,8,5,9,6,7,8,24]
 
 
 # ── /api/orders ────────────────────────────────────────────────────────────────
 @router.get("/orders")
 async def get_orders(period: str = Query("MTD")):
-    result = await _try_db("query_order")
-    if result:
-        return result
+    # ── DB path: build KPIs + pending list from sales_orders table ────────────
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        # Today's counts by status
+                        await cur.execute(
+                            "SELECT status, COUNT(*) FROM sales_orders "
+                            "WHERE DATE(created_at) = CURDATE() GROUP BY status"
+                        )
+                        status_today = {r[0]: r[1] for r in await cur.fetchall()}
+
+                        # MTD order count
+                        await cur.execute(
+                            "SELECT COUNT(*) FROM sales_orders "
+                            "WHERE DATE_FORMAT(created_at,'%Y-%m') = DATE_FORMAT(CURDATE(),'%Y-%m')"
+                        )
+                        mtd_cnt = (await cur.fetchone() or [0])[0]
+
+                        # Pending (not yet dispatched/delivered/cancelled)
+                        await cur.execute(
+                            "SELECT id, order_number, customer_name, "
+                            "ROUND(total_value,2) AS val, status, delivery_date, notes "
+                            "FROM sales_orders "
+                            "WHERE status NOT IN ('DISPATCHED','DELIVERED','CANCELLED') "
+                            "ORDER BY delivery_date ASC LIMIT 10"
+                        )
+                        pending_rows = await cur.fetchall()
+                        import datetime as _dt
+                        pending_details = []
+                        for oid, onum, cust, val, st, ddate, notes in pending_rows:
+                            v = float(val or 0)
+                            val_str = f"₹{v/100000:.2f}L" if v >= 100000 else f"₹{v:,.0f}"
+                            if ddate:
+                                dd = ddate if isinstance(ddate, _dt.date) else _dt.date.fromisoformat(str(ddate))
+                                diff = (_dt.date.today() - dd).days
+                                delay = f"{diff}d overdue" if diff > 0 else (f"Due {ddate}" if diff == 0 else "On time")
+                            else:
+                                delay = "No date set"
+                            pending_details.append({
+                                "order": onum or f"SO-{oid}",
+                                "customer": cust or "—",
+                                "value": val_str,
+                                "delayed": delay,
+                                "reason": (notes or "").split("|")[0].strip() or "Pending",
+                                "status": st,
+                                "action": "Mark dispatched" if st == "IN_PRODUCTION" else "Advance status",
+                            })
+
+                        dispatched = status_today.get("DISPATCHED", 0)
+                        pending_cnt = sum(status_today.get(s, 0) for s in ("DRAFT", "CONFIRMED", "IN_PRODUCTION"))
+                        return {
+                            "today_orders": sum(status_today.values()),
+                            "dispatched": dispatched,
+                            "pending": pending_cnt,
+                            "avg_fulfillment_hrs": 3.2,
+                            "orders_mtd": mtd_cnt,
+                            "dispatch_sla": "87%",
+                            "pending_details": pending_details,
+                            "order_trend_30d": _ORDER_TREND_30D,
+                            "data_source": "mysql",
+                        }
+        except Exception as exc:
+            logger.warning("GET /api/orders DB failed: %s", exc)
+
+    # ── Demo mode: apply demo_state status overrides to filter pending list ───
+    try:
+        from app.core.demo_state import get_all_status_overrides
+        overrides = get_all_status_overrides()
+    except ImportError:
+        overrides = {}
+
+    _MOCK_PENDING = [
+        {"order": "ORD-2847", "order_id": 9,  "customer": "Crystal Interiors",       "value": "₹1.17L",
+         "delayed": "5d overdue", "reason": "HPL 1mm Matte in production — OVERDUE",
+         "status": "IN_PRODUCTION", "action": "Dispatch today"},
+        {"order": "ORD-2848", "order_id": 10, "customer": "BuildRight Construction",  "value": "₹2.16L",
+         "delayed": "3d overdue", "reason": "Compact Laminate 6mm — confirmed but not dispatched",
+         "status": "CONFIRMED", "action": "Arrange dispatch"},
+        {"order": "ORD-2855", "order_id": 6,  "customer": "TechPark Infra",           "value": "₹2.61L",
+         "delayed": "No delay",   "reason": "PVC Louver Blades — draft pending confirmation",
+         "status": "DRAFT", "action": "Confirm order"},
+        {"order": "ORD-2856", "order_id": 8,  "customer": "Horizon Hotels",           "value": "₹2.88L",
+         "delayed": "No delay",   "reason": "HPL Compact — draft pending confirmation",
+         "status": "DRAFT", "action": "Confirm order"},
+    ]
+    # Filter out orders whose status was advanced to DISPATCHED/DELIVERED via Sales Orders tab
+    pending = [
+        p for p in _MOCK_PENDING
+        if overrides.get(p.get("order_id")) not in ("DISPATCHED", "DELIVERED", "CANCELLED")
+           and p["status"] not in ("DISPATCHED", "DELIVERED", "CANCELLED")
+    ]
+    # Apply any overrides to status field so Orders view reflects updates
+    for p in pending:
+        if p.get("order_id") in overrides:
+            p["status"] = overrides[p["order_id"]]
+
     return {
-        "today_orders": 24, "dispatched": 18, "pending": 6,
+        "today_orders": 24, "dispatched": 18, "pending": len(pending),
         "avg_fulfillment_hrs": 3.2, "orders_mtd": 486,
         "dispatch_sla": "87%",
-        "pending_details": [
-            {"order": "ORD-2847", "customer": "Mehta Constructions", "value": "₹3.8L", "delayed": "30 hours", "reason": "18mm BWP stock shortage"},
-            {"order": "ORD-2852", "customer": "Patel Contractors",   "value": "₹1.2L", "delayed": "4 hours",  "reason": "QC pending on MR grade"},
-            {"order": "ORD-2855", "customer": "Kumar & Sons",        "value": "₹0.8L", "delayed": "No delay", "reason": "On track"},
-            {"order": "ORD-2856", "customer": "Raj Carpentry",       "value": "₹0.4L", "delayed": "No delay", "reason": "On track"},
-        ],
-        "order_trend_30d": [4,6,3,8,5,7,4,9,6,8,4,7,5,6,8,4,9,7,5,8,6,7,4,8,5,9,6,7,8,24],
+        "pending_details": pending,
+        "order_trend_30d": _ORDER_TREND_30D,
         "data_source": "mock",
     }
 
@@ -383,8 +516,17 @@ async def get_procurement(period: str = Query("MTD")):
                 )
                 def _ok(r): return r if not isinstance(r, Exception) else {}
                 s, p = _ok(supplier), _ok(po_grn)
+                raw_suppliers = s.get("suppliers", [])
+                suppliers_with_verdict = [
+                    {**sup, "recommendation": _compute_verdict(
+                        sup.get("on_time_pct", 0),
+                        sup.get("avg_delay_days", 0),
+                        sup.get("grn_match_rate", "100%"),
+                    )}
+                    for sup in raw_suppliers
+                ]
                 return {
-                    "suppliers": s.get("suppliers", []),
+                    "suppliers": suppliers_with_verdict,
                     "overdue_pos": s.get("overdue_pos", []),
                     "open_pos": p.get("kpis", {}).get("open_pos", 0),
                     "open_po_value": p.get("kpis", {}).get("open_po_value", "₹0"),
@@ -397,23 +539,56 @@ async def get_procurement(period: str = Query("MTD")):
     return _mock_procurement()
 
 
+def _compute_verdict(on_time_pct: float, avg_delay_days: float, grn_match_rate_str: str) -> str:
+    """Dynamically compute supplier AI verdict from live performance metrics."""
+    try:
+        grn_pct = float(str(grn_match_rate_str).strip('%'))
+    except (ValueError, AttributeError):
+        grn_pct = 100.0
+
+    if on_time_pct >= 92:
+        level = 3  # PREFERRED
+    elif on_time_pct >= 85:
+        level = 2  # GOOD
+    elif on_time_pct >= 70:
+        level = 1  # REVIEW
+    else:
+        level = 0  # AVOID
+
+    if grn_pct < 85:
+        level = max(0, level - 1)
+    if avg_delay_days > 5:
+        level = max(0, level - 1)
+
+    return {3: "PREFERRED", 2: "GOOD", 1: "REVIEW", 0: "AVOID"}.get(level, "REVIEW")
+
+
+_SUPPLIER_PERF = [
+    {"name": "Ebco India",    "on_time_pct": 94, "avg_delay_days": 0.6, "grn_match_rate": "99%", "open_pos": 2, "overdue_pos": 0},
+    {"name": "Hafele India",  "on_time_pct": 92, "avg_delay_days": 0.8, "grn_match_rate": "97%", "open_pos": 1, "overdue_pos": 0},
+    {"name": "Hettich India", "on_time_pct": 90, "avg_delay_days": 1.2, "grn_match_rate": "96%", "open_pos": 2, "overdue_pos": 0},
+    {"name": "Jaquar India",  "on_time_pct": 88, "avg_delay_days": 1.4, "grn_match_rate": "94%", "open_pos": 2, "overdue_pos": 1},
+    {"name": "Hindware",      "on_time_pct": 76, "avg_delay_days": 3.2, "grn_match_rate": "86%", "open_pos": 1, "overdue_pos": 1},
+]
+
+
 def _mock_procurement():
+    suppliers = [
+        {**s, "recommendation": _compute_verdict(s["on_time_pct"], s["avg_delay_days"], s["grn_match_rate"])}
+        for s in _SUPPLIER_PERF
+    ]
     return {
-        "suppliers": [
-            {"name": "Century Plyboards",  "on_time_pct": 96,  "avg_delay_days": 0.4, "grn_match_rate": "100%", "recommendation": "PREFERRED",  "open_pos": 2, "overdue_pos": 0},
-            {"name": "Greenply Industries","on_time_pct": 88,  "avg_delay_days": 1.2, "grn_match_rate": "94%",  "recommendation": "GOOD",        "open_pos": 1, "overdue_pos": 1},
-            {"name": "Gauri Laminates",    "on_time_pct": 68,  "avg_delay_days": 3.2, "grn_match_rate": "82%",  "recommendation": "REVIEW",      "open_pos": 1, "overdue_pos": 1},
-        ],
-        "overdue_pos": ["PO-7734 (Greenply, +2d)", "PO-7731 (Gauri, +4d)"],
+        "suppliers": suppliers,
+        "overdue_pos": ["PO-8841 (Hindware, +3d)", "PO-8839 (Jaquar, +1d)"],
         "open_pos": 8,
-        "open_po_value": "₹12.4L",
+        "open_po_value": "₹14.2L",
         "grn_match_rate": "96%",
         "grn_mismatches": 3,
         "alerts": [
-            {"type": "danger",  "text": "PO-7731 Gauri Laminates overdue +4 days — ₹0.49L pending"},
-            {"type": "danger",  "text": "PO-7734 Greenply Industries overdue +2 days — ₹2.16L pending"},
-            {"type": "warning", "text": "GRN-4421: Wrong grade received from Gauri — ₹3,200 discrepancy"},
-            {"type": "info",    "text": "Century Plyboards 96% on-time — preferred supplier this quarter"},
+            {"type": "danger",  "text": "PO-8841 Hindware overdue +3 days — ₹1.8L pending concealed cisterns"},
+            {"type": "warning", "text": "GRN-4422: Hindware qty mismatch — 18 units received vs 24 ordered"},
+            {"type": "warning", "text": "PO-8839 Jaquar +1 day delay — ₹2.4L CP fittings lot in transit"},
+            {"type": "info",    "text": "Ebco India 94% on-time — preferred supplier this quarter"},
         ],
         "data_source": "mock",
     }
@@ -426,26 +601,72 @@ async def get_freight(period: str = Query("MTD")):
     if result:
         return result
     return {
-        "outbound_cost_per_sheet": "₹18.4",
+        "outbound_cost_per_delivery": "₹510",
         "vehicle_utilisation": "68%",
         "lanes_count": 6,
         "savings_potential": "₹2,400",
         "outbound_lanes": [
-            {"lane": "Whitefield",      "zone": "East",  "cost_per_sheet": 14, "fill_pct": 78, "status": "BEST"},
-            {"lane": "Koramangala",     "zone": "South", "cost_per_sheet": 16, "fill_pct": 72, "status": "OK"},
-            {"lane": "HSR Layout",      "zone": "South", "cost_per_sheet": 17, "fill_pct": 65, "status": "OK"},
-            {"lane": "BTM Layout",      "zone": "South", "cost_per_sheet": 19, "fill_pct": 58, "status": "HIGH"},
-            {"lane": "Electronic City", "zone": "South", "cost_per_sheet": 24, "fill_pct": 54, "status": "WORST"},
-            {"lane": "Hebbal",          "zone": "North", "cost_per_sheet": 21, "fill_pct": 61, "status": "HIGH"},
+            {"lane": "Whitefield",      "zone": "East",  "cost_per_delivery": 420,  "fill_pct": 82, "status": "BEST"},
+            {"lane": "Koramangala",     "zone": "South", "cost_per_delivery": 480,  "fill_pct": 76, "status": "OK"},
+            {"lane": "HSR Layout",      "zone": "South", "cost_per_delivery": 510,  "fill_pct": 68, "status": "OK"},
+            {"lane": "BTM Layout",      "zone": "South", "cost_per_delivery": 560,  "fill_pct": 62, "status": "HIGH"},
+            {"lane": "Electronic City", "zone": "South", "cost_per_delivery": 680,  "fill_pct": 54, "status": "WORST"},
+            {"lane": "Hebbal",          "zone": "North", "cost_per_delivery": 590,  "fill_pct": 64, "status": "HIGH"},
         ],
         "inbound_costs": {
-            "Century Plyboards":   "₹8.4/sheet",
-            "Gauri Laminates":     "₹22/sheet",
-            "Greenply Industries": "₹12.6/sheet",
+            "Ebco India":    "₹1.8/unit (packs)",
+            "Hafele India":  "₹2.2/unit (premium)",
+            "Jaquar India":  "₹3.8/unit (fragile packing)",
+            "Hindware":      "₹5.4/unit (heavy — sanitary ware)",
         },
         "freight_trend_30d": [18, 19, 17, 20, 18, 21, 19, 18, 17, 20, 19, 18, 20, 21, 18, 17, 19, 18, 20, 18, 17, 19, 18, 19, 20, 18, 17, 18, 19, 18],
         "data_source": "mock",
     }
+
+
+# ── /api/freight/in-transit ────────────────────────────────────────────────────
+@router.get("/freight/in-transit")
+async def get_in_transit():
+    """Returns DISPATCHED + IN_PRODUCTION sales orders for freight route board."""
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor(aiomysql.DictCursor) as cur:
+                        await cur.execute(
+                            "SELECT order_id, order_number, customer_name, "
+                            "site_location, total_value, status, delivery_date, notes "
+                            "FROM sales_orders "
+                            "WHERE status IN ('IN_PRODUCTION','DISPATCHED') "
+                            "ORDER BY delivery_date ASC LIMIT 20"
+                        )
+                        rows = await cur.fetchall()
+                        if rows:
+                            return {"deliveries": rows, "total": len(rows), "data_source": "mysql"}
+        except Exception as exc:
+            logger.warning("in-transit DB failed: %s", exc)
+
+    today = date.today()
+    def d(delta): return (today + timedelta(days=delta)).isoformat()
+    deliveries = [
+        {"order_id": 1,  "order_number": "LO-20260408-001", "customer_name": "Prestige Skyrise Developers",
+         "site_location": "Whitefield, Bangalore",  "total_value": 588000,
+         "status": "IN_PRODUCTION", "delivery_date": d(4),  "notes": "Anodized silver facade"},
+        {"order_id": 3,  "order_number": "LO-20260412-001", "customer_name": "Urban Living Interiors",
+         "site_location": "Indiranagar, Bangalore",  "total_value": 156000,
+         "status": "DISPATCHED",   "delivery_date": d(0),  "notes": "Matte grey kitchen fitout"},
+        {"order_id": 8,  "order_number": "LO-20260430-001", "customer_name": "Deccan Builders",
+         "site_location": "Koramangala, Bangalore", "total_value": 320000,
+         "status": "DISPATCHED",   "delivery_date": d(1),  "notes": "Ebco fittings + Hettich drawers"},
+        {"order_id": 9,  "order_number": "LO-20260501-001", "customer_name": "SkyTech Infra",
+         "site_location": "Electronic City, Bangalore", "total_value": 210000,
+         "status": "IN_PRODUCTION", "delivery_date": d(6), "notes": "Compact laminate cubicles"},
+        {"order_id": 10, "order_number": "LO-20260503-001", "customer_name": "Metro Constructions",
+         "site_location": "Hebbal, Bangalore",       "total_value": 145000,
+         "status": "DISPATCHED",   "delivery_date": d(2),  "notes": "Hafele hardware + sanitary CP"},
+    ]
+    return {"deliveries": deliveries, "total": len(deliveries), "data_source": "mock"}
 
 
 # ── /api/finance ───────────────────────────────────────────────────────────────
@@ -483,40 +704,39 @@ async def get_finance(period: str = Query("MTD")):
 def _mock_finance():
     return {
         "revenue_mtd": "₹28.4L",
-        "gross_profit_mtd": "₹6.36L",
-        "gross_margin": "22.4%",
-        "working_capital_days": 48,
+        "gross_profit_mtd": "₹7.05L",
+        "gross_margin": "24.8%",
+        "working_capital_days": 44,
         "outstanding_receivables": "₹12.8L",
-        "dead_stock_locked": "₹7.8L",
-        "returns_mtd": "₹0.82L",
-        "net_cash": "₹4.1L",
+        "dead_stock_locked": "₹3.8L",
+        "returns_mtd": "₹0.62L",
+        "net_cash": "₹5.2L",
         "gst": {
             "output_collected": "₹5.11L",
-            "itc_available": "₹4.28L",
-            "net_payable": "₹0.83L",
+            "itc_available": "₹4.44L",
+            "net_payable": "₹0.67L",
             "gstr3b_status": "PENDING",
         },
-        "cash_cycle": "DIO 22 + DSO 34 − DPO 8 = 48 days",
+        "cash_cycle": "DIO 20 + DSO 32 − DPO 8 = 44 days",
         "margin_by_sku": [
-            {"sku": "18mm BWP",  "margin": 22.2}, {"sku": "12mm BWP",  "margin": 25.6},
-            {"sku": "12mm MR",   "margin": 15.4}, {"sku": "8mm Flexi", "margin": 6.7},
-            {"sku": "Laminates", "margin": 28.4}, {"sku": "Commercial","margin": 8.2},
-            {"sku": "18mm MR",   "margin": 18.6}, {"sku": "Others",    "margin": 16.4},
+            {"sku": "Jaquar CP Fittings",    "margin": 34.2}, {"sku": "Ebco Hinges",          "margin": 28.4},
+            {"sku": "Hettich Drawer Sys",    "margin": 31.1}, {"sku": "Hafele Handles",        "margin": 29.6},
+            {"sku": "Hindware Sanitary",     "margin": 27.8}, {"sku": "Door Hardware",         "margin": 24.2},
+            {"sku": "Parryware (dead stock)","margin": 0.0},  {"sku": "Others",                "margin": 22.4},
         ],
         "cash_flow_6m": [
-            {"month": "Nov", "collections": 24.1, "purchases": 18.4},
-            {"month": "Dec", "collections": 26.8, "purchases": 19.2},
-            {"month": "Jan", "collections": 22.4, "purchases": 20.1},
-            {"month": "Feb", "collections": 25.2, "purchases": 18.8},
-            {"month": "Mar", "collections": 26.0, "purchases": 19.6},
-            {"month": "Apr", "collections": 28.4, "purchases": 21.2},
+            {"month": "Nov", "collections": 22.4, "purchases": 16.8},
+            {"month": "Dec", "collections": 25.6, "purchases": 18.4},
+            {"month": "Jan", "collections": 23.2, "purchases": 18.8},
+            {"month": "Feb", "collections": 24.8, "purchases": 17.6},
+            {"month": "Mar", "collections": 26.0, "purchases": 19.2},
+            {"month": "Apr", "collections": 28.4, "purchases": 20.4},
         ],
         "overdue_receivables": [
-            {"customer": "Sharma Constructions", "amount": "₹3.4L", "days_overdue": 78, "risk": "HIGH"},
-            {"customer": "Mehta Brothers",       "amount": "₹2.1L", "days_overdue": 52, "risk": "MEDIUM"},
-            {"customer": "Patel Contractors",    "amount": "₹1.8L", "days_overdue": 44, "risk": "MEDIUM"},
-            {"customer": "Rajan Interior",       "amount": "₹1.2L", "days_overdue": 31, "risk": "LOW"},
-            {"customer": "Others (12 accounts)", "amount": "₹4.3L", "days_overdue": 25, "risk": "LOW"},
+            {"customer": "Sharma Constructions",        "amount": "₹3.4L", "days_overdue": 78, "risk": "HIGH"},
+            {"customer": "Metro Builders & Developers", "amount": "₹2.1L", "days_overdue": 52, "risk": "HIGH"},
+            {"customer": "Patel Interiors & Projects",  "amount": "₹1.8L", "days_overdue": 44, "risk": "MEDIUM"},
+            {"customer": "Others (12 accounts)",        "amount": "₹5.5L", "days_overdue": 24, "risk": "LOW"},
         ],
         "data_source": "mock",
     }
@@ -547,16 +767,15 @@ async def get_demand(period: str = Query("MTD")):
 def _mock_demand():
     return {
         "forecast": [
-            {"sku": "18mm BWP",  "curr": 480, "f30": 596, "f60": 680, "f90": 712, "signal": "SURGE +24%",    "action": "Pre-order 300 extra sheets NOW"},
-            {"sku": "12mm MR",   "curr": 420, "f30": 448, "f60": 436, "f90": 380, "signal": "STABLE +6.7%",  "action": "Normal ordering cycle"},
-            {"sku": "12mm BWP",  "curr": 380, "f30": 432, "f60": 498, "f90": 524, "signal": "GROWING +13.7%","action": "Increase stock by 25%"},
-            {"sku": "Laminates", "curr": 320, "f30": 298, "f60": 274, "f90": 250, "signal": "DECLINING -6.9%","action": "Reduce next order quantity"},
-            {"sku": "8mm Flexi", "curr": 72,  "f30": 68,  "f60": 60,  "f90": 55,  "signal": "SLOW",          "action": "Hold — do not reorder yet"},
-            {"sku": "18mm MR",   "curr": 258, "f30": 272, "f60": 284, "f90": 290, "signal": "GROWING +5.4%", "action": "Light increase in next order"},
-            {"sku": "Gurjan BWP","curr": 0,   "f30": 0,   "f60": 4,   "f90": 8,   "signal": "DEAD",          "action": "Liquidate — no demand forecast"},
+            {"sku": "Ebco Soft-Close Hinge 35mm Pk-10",  "curr": 240, "f30": 312, "f60": 368, "f90": 396, "signal": "SURGE +30%",    "action": "Pre-order 500 packs NOW — Diwali kitchen demand approaching"},
+            {"sku": "Jaquar Lyric Basin Mixer Chrome",    "curr": 42,  "f30": 52,  "f60": 64,  "f90": 72,  "signal": "GROWING +23.8%", "action": "Increase order by 30% — pre-monsoon plumbing surge"},
+            {"sku": "Hettich InnoTech Drawer Sys 400mm",  "curr": 62,  "f30": 76,  "f60": 88,  "f90": 94,  "signal": "GROWING +22.6%", "action": "Increase stock by 25% — modular kitchen demand rising"},
+            {"sku": "Hafele Zinc D-Handle 128mm",         "curr": 264, "f30": 278, "f60": 284, "f90": 276, "signal": "STABLE +5.3%",   "action": "Normal ordering cycle"},
+            {"sku": "Hindware Aura Stop Cock DN15",       "curr": 240, "f30": 304, "f60": 352, "f90": 388, "signal": "SURGE +26.7%",   "action": "Pre-order 200 units — pre-monsoon plumbing season"},
+            {"sku": "Parryware Pilot EV Sensor Tap",      "curr": 0,   "f30": 0,   "f60": 2,   "f90": 4,   "signal": "DEAD",           "action": "Liquidate existing stock — no viable demand forecast"},
         ],
-        "seasonal_insight": "Oct-Dec historically strongest quarter (+28%). Stock up BWP grades by September.",
-        "seasonal_index": [82, 78, 92, 88, 94, 76, 64, 68, 108, 120, 132, 138],
+        "seasonal_insight": "Jun–Aug pre-monsoon surge for plumbing (+32%). Sep–Nov Diwali kitchen hardware peak (+28%). Stock hinges and drawer systems by August.",
+        "seasonal_index": [86, 82, 94, 90, 96, 88, 112, 128, 118, 132, 138, 124],
         "data_source": "mock",
     }
 

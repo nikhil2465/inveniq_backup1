@@ -1,5 +1,5 @@
 """
-Root Cause Analysis (RCA) Engine for StockSense AI
+Root Cause Analysis (RCA) Engine for InvenIQ AI
 Multi-level, 5-Why and Ishikawa-inspired RCA for inventory and business issues.
 
 Also provides structured RCA templates for the Act mode chatbot responses.

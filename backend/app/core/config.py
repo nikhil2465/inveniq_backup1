@@ -15,9 +15,34 @@ class Settings(BaseSettings):
     # Email / SMTP — used for delivery delay notifications
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
-    smtp_user: str = ""          # Gmail address used to send alerts
-    smtp_password: str = ""      # Gmail App Password (not your regular password)
-    notification_email: str = ""                      # recipient: owner / ops manager (set in .env)
+    smtp_user: str = ""
+    smtp_password: str = ""
+    notification_email: str = ""
+
+    # ── Authentication ─────────────────────────────────────────────────────────
+    # Set JWT_SECRET_KEY to a strong random string (32+ chars) in production.
+    jwt_secret_key: str = "inveniq-dev-change-this-in-production-2026"
+    access_token_expire_hours: int = 8
+
+    # ── Client / default user credentials ────────────────────────────────────
+    auth_username:        str = "admin"
+    auth_password:        str = "inveniq@2024"
+    auth_display_name:    str = "Admin"
+    auth_email:           str = "admin@inveniq.app"
+    auth_role:            str = "admin"
+    # Comma-separated module IDs this user can access.
+    # "all" = unrestricted (admin role always gets all modules regardless of this setting).
+    # Example for client: "quotes,customers,catalog,chatbot,settings,about"
+    auth_allowed_modules: str = "all"
+
+    # ── Owner / developer backdoor (optional) ─────────────────────────────────
+    # Set OWNER_USERNAME + OWNER_PASSWORD to retain full admin access on a
+    # client deployment where AUTH_ROLE=client restricts the main account.
+    # Leave blank to disable (no backdoor account).
+    owner_username:     str = ""
+    owner_password:     str = ""
+    owner_display_name: str = "Owner"
+    owner_email:        str = ""
 
     class Config:
         env_file = ".env"

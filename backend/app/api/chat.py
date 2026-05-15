@@ -1,9 +1,12 @@
 import json
+import logging
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from app.services.orchestrator import process_query, process_query_stream
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["AI Assistant"])
 
@@ -63,6 +66,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                     break
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as exc:
+            logger.error("SSE stream error: %s", exc, exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
 
     return StreamingResponse(

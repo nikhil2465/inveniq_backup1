@@ -44,6 +44,107 @@ const FALLBACK_CATS = [
   'Office Furniture Fittings',
 ];
 
+// ── Import helpers ─────────────────────────────────────────────────────────────
+function parseCSVText(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i <= text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else if (ch !== undefined) { field += ch; }
+    } else if (ch === '"') {
+      inQ = true;
+    } else if (ch === ',') {
+      row.push(field.trim()); field = '';
+    } else if (ch === '\n' || ch === undefined || (ch === '\r' && text[i + 1] === '\n')) {
+      if (ch === '\r') i++;
+      row.push(field.trim()); field = '';
+      if (row.some(v => v)) rows.push(row);
+      row = [];
+    } else {
+      field += ch;
+    }
+  }
+  if (!rows.length) return { headers: [], rows: [] };
+  return { headers: rows[0], rows: rows.slice(1).filter(r => r.some(v => v)) };
+}
+
+function suggestProductMapping(headers) {
+  const norm = headers.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const HINTS = {
+    name:         ['productname','name','product','itemname','item','description','prodname'],
+    brand:        ['brand','make','manufacturer','mfr','mfg'],
+    category:     ['category','type','producttype','group','productgroup'],
+    sku_code:     ['sku','skucode','itemcode','partno','partnum','code','modelno','model'],
+    unit:         ['unit','uom','uofm'],
+    size:         ['size','dimension','dimensions','dim'],
+    thickness:    ['thickness','thick'],
+    finish:       ['finish','surface','texture','coating'],
+    buy_price:    ['buyprice','cost','purchaseprice','costprice','buyrate'],
+    sell_price:   ['sellprice','mrp','saleprice','sellingprice','price','rate','listprice'],
+    gst_rate:     ['gst','gstrate','tax','taxrate'],
+    hsn_code:     ['hsn','hsncode','hsnno'],
+    lead_time:    ['leadtime','delivery','deliverytime'],
+    moq:          ['moq','minqty','minimumorder'],
+    stock_status: ['stockstatus','status','stock','availability'],
+    tags:         ['tags','keywords','keyword'],
+  };
+  const result = {};
+  for (const [field, hints] of Object.entries(HINTS)) {
+    result[field] = null;
+    for (const hint of hints) {
+      const idx = norm.findIndex(h => h === hint || h.includes(hint) || hint.includes(h));
+      if (idx !== -1) { result[field] = idx; break; }
+    }
+  }
+  return result;
+}
+
+function rowsToProducts(rows, mapping) {
+  return rows.map(row => {
+    const p = {};
+    for (const [field, colIdx] of Object.entries(mapping)) {
+      if (colIdx === null || colIdx === undefined) continue;
+      const val = (row[colIdx] ?? '').trim();
+      if (!val) continue;
+      if (['buy_price', 'sell_price', 'gst_rate'].includes(field)) {
+        p[field] = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+      } else if (field === 'moq') {
+        p[field] = parseInt(val, 10) || 1;
+      } else if (field === 'tags') {
+        p[field] = val.split(/[,;|]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+      } else {
+        p[field] = val;
+      }
+    }
+    if (!p.name) return null;
+    if (!p.margin_pct && p.sell_price && p.buy_price && p.sell_price > 0) {
+      p.margin_pct = Math.round((p.sell_price - p.buy_price) / p.sell_price * 1000) / 10;
+    }
+    return p;
+  }).filter(Boolean);
+}
+
+const PRODUCT_IMPORT_FIELDS = [
+  { key: 'name',         label: 'Product Name *', required: true },
+  { key: 'brand',        label: 'Brand' },
+  { key: 'category',     label: 'Category' },
+  { key: 'sku_code',     label: 'SKU Code' },
+  { key: 'unit',         label: 'Unit' },
+  { key: 'size',         label: 'Size' },
+  { key: 'thickness',    label: 'Thickness' },
+  { key: 'finish',       label: 'Finish' },
+  { key: 'buy_price',    label: 'Buy Price (₹)' },
+  { key: 'sell_price',   label: 'Sell Price (₹)' },
+  { key: 'gst_rate',     label: 'GST Rate (%)' },
+  { key: 'hsn_code',     label: 'HSN Code' },
+  { key: 'lead_time',    label: 'Lead Time' },
+  { key: 'moq',          label: 'MOQ' },
+  { key: 'stock_status', label: 'Stock Status' },
+  { key: 'tags',         label: 'Tags' },
+];
+
 // ── Add Products Modal ─────────────────────────────────────────────────────────
 function AddProductModal({ onClose, onAdded, onGoChat }) {
   const [tab,           setTab]           = useState('scan');
@@ -65,6 +166,71 @@ function AddProductModal({ onClose, onAdded, onGoChat }) {
     lead_time: '3-5 days', moq: 1, stock_status: 'in_stock', tags: '',
   });
   const [manSaving, setManSaving] = useState(false);
+
+  // Import tab state
+  const [impStep,    setImpStep]    = useState(0);
+  const [impFile,    setImpFile]    = useState(null);
+  const [impHeaders, setImpHeaders] = useState([]);
+  const [impRows,    setImpRows]    = useState([]);
+  const [impMapping, setImpMapping] = useState({});
+  const [impLoading, setImpLoading] = useState(false);
+  const [impError,   setImpError]   = useState('');
+
+  const handleImpFile = async (f) => {
+    if (!f) return;
+    setImpFile(f);
+    setImpError('');
+    const ext = f.name.toLowerCase();
+    if (ext.endsWith('.csv')) {
+      const text = await f.text();
+      const { headers, rows } = parseCSVText(text);
+      if (!headers.length) { setImpError('File appears empty or could not be parsed.'); return; }
+      setImpHeaders(headers);
+      setImpRows(rows);
+      setImpMapping(suggestProductMapping(headers));
+      setImpStep(1);
+    } else if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) {
+      setImpLoading(true);
+      try {
+        const form = new FormData();
+        form.append('file', f);
+        const r = await fetch('/api/catalog/parse-import', { method: 'POST', body: form });
+        if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(`Server error ${r.status}${t ? ': ' + t.slice(0, 120) : ''}`); }
+        const d = await r.json();
+        if (!d.headers?.length) { setImpError('File appears empty or has no header row.'); return; }
+        setImpHeaders(d.headers);
+        setImpRows(d.rows);
+        setImpMapping(suggestProductMapping(d.headers));
+        setImpStep(1);
+      } catch (e) {
+        setImpError(e.message || 'Failed to parse Excel file.');
+      } finally {
+        setImpLoading(false);
+      }
+    } else {
+      setImpError('Unsupported format. Please upload a .csv, .xlsx, or .xls file.');
+    }
+  };
+
+  const handleImpConfirm = async () => {
+    const products = rowsToProducts(impRows, impMapping);
+    if (!products.length) { alert('No valid rows found. Make sure "Product Name" column is mapped and not empty.'); return; }
+    setSaving(true);
+    try {
+      const r = await fetch('/api/catalog/bulk-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products }),
+      });
+      const d = await r.json();
+      if (d.added > 0) { setSaved(true); onAdded(); }
+      else alert('No products were imported. Check column mapping and ensure Name column has values.');
+    } catch (e) {
+      alert('Import failed: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleFile = (f) => {
     if (!f) return;
@@ -207,7 +373,7 @@ function AddProductModal({ onClose, onAdded, onGoChat }) {
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '2px solid var(--border)', background: 'var(--surface)' }}>
-          {[['scan', '✨ Scan from File / Image'], ['manual', '✏️ Manual Entry']].map(([id, label]) => (
+          {[['scan', '✨ Scan from File / Image'], ['manual', '✏️ Manual Entry'], ['import', '📥 Import CSV / Excel']].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
               style={{ padding: '10px 20px', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', borderBottom: tab === id ? '2px solid var(--b2)' : '2px solid transparent', color: tab === id ? 'var(--b2)' : 'var(--text2)', background: 'transparent', marginBottom: -2 }}>
               {label}
@@ -418,6 +584,143 @@ function AddProductModal({ onClose, onAdded, onGoChat }) {
                   </button>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ── Import CSV / Excel tab ─────────────────────────────────── */}
+          {tab === 'import' && (
+            <div>
+              {impStep === 0 && (
+                <div>
+                  <div style={{ marginBottom: 12, color: 'var(--text2)', fontSize: 13 }}>
+                    Upload a CSV or Excel spreadsheet with your product data. Columns can be in any order — you'll map them in the next step.
+                  </div>
+                  <div
+                    onDrop={e => { e.preventDefault(); handleImpFile(e.dataTransfer.files[0]); }}
+                    onDragOver={e => e.preventDefault()}
+                    style={{ border: '2px dashed var(--border)', borderRadius: 10, padding: 36, textAlign: 'center', cursor: 'pointer', background: 'var(--bg)', transition: 'border-color .2s' }}
+                    onClick={() => document.getElementById('pc-imp-file').click()}
+                  >
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>📥</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text1)' }}>
+                      {impFile ? `📄 ${impFile.name}` : 'Drop your CSV or Excel file here'}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
+                      or click to browse · .csv · .xlsx · .xls
+                    </div>
+                  </div>
+                  <input id="pc-imp-file" type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }}
+                    onChange={e => handleImpFile(e.target.files[0])} />
+                  {impLoading && (
+                    <div style={{ textAlign: 'center', padding: 16, color: 'var(--text2)', fontSize: 13 }}>⏳ Parsing file…</div>
+                  )}
+                  {impError && (
+                    <div style={{ color: 'var(--red)', background: 'var(--r5)', borderRadius: 8, padding: 12, marginTop: 12, fontSize: 13 }}>
+                      ⚠ {impError}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 16, padding: 12, background: 'var(--s3)', borderRadius: 8, fontSize: 12, color: 'var(--text2)' }}>
+                    <strong>Recommended columns:</strong> Name · Brand · Category · Unit · Size · Buy Price · Sell Price · HSN Code · Stock Status · Tags
+                    <br /><span style={{ color: 'var(--text3)', fontSize: 11 }}>Only "Name" is required. All other columns are optional.</span>
+                  </div>
+                </div>
+              )}
+
+              {impStep === 1 && (
+                <div>
+                  {/* Back + file info */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                    <button
+                      onClick={() => { setImpStep(0); setImpFile(null); setImpHeaders([]); setImpRows([]); setImpError(''); }}
+                      style={{ fontSize: 12, padding: '4px 12px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', cursor: 'pointer', color: 'var(--text2)' }}
+                    >
+                      ← Change File
+                    </button>
+                    <span style={{ color: 'var(--text2)', fontSize: 13 }}>
+                      <strong>{impFile?.name}</strong> · {impRows.length} rows · {impHeaders.length} columns
+                    </span>
+                  </div>
+
+                  {/* Column mapping grid */}
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text1)' }}>
+                    Map Columns to Product Fields
+                    <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text3)', marginLeft: 8 }}>
+                      (auto-suggested — adjust as needed)
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 20 }}>
+                    {PRODUCT_IMPORT_FIELDS.map(({ key, label }) => {
+                      const mapped = impMapping[key] !== null && impMapping[key] !== undefined;
+                      return (
+                        <div key={key}>
+                          <div style={{ fontSize: 11, color: mapped ? 'var(--green)' : 'var(--text2)', fontWeight: 600, marginBottom: 3 }}>
+                            {label} {mapped && '✓'}
+                          </div>
+                          <select
+                            value={impMapping[key] ?? ''}
+                            onChange={e => setImpMapping(m => ({ ...m, [key]: e.target.value === '' ? null : Number(e.target.value) }))}
+                            style={{ width: '100%', padding: '5px 8px', border: `1.5px solid ${mapped ? 'var(--b3)' : 'var(--border)'}`, borderRadius: 6, fontSize: 12, background: 'var(--bg)', color: 'var(--text1)' }}
+                          >
+                            <option value="">— skip —</option>
+                            {impHeaders.map((h, i) => (
+                              <option key={i} value={i}>
+                                {h}{impRows[0]?.[i] ? ` (e.g. "${impRows[0][i]}")` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Preview table */}
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--text1)' }}>
+                    Preview — First {Math.min(3, impRows.length)} Row{impRows.length !== 1 ? 's' : ''}
+                  </div>
+                  <div style={{ overflowX: 'auto', marginBottom: 20, borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          {PRODUCT_IMPORT_FIELDS
+                            .filter(f => impMapping[f.key] !== null && impMapping[f.key] !== undefined)
+                            .map(f => (
+                              <th key={f.key} style={{ padding: '6px 10px', background: 'var(--s3)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text2)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                                {f.label}
+                              </th>
+                            ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {impRows.slice(0, 3).map((row, ri) => (
+                          <tr key={ri} style={{ background: ri % 2 === 0 ? 'transparent' : 'var(--s3)' }}>
+                            {PRODUCT_IMPORT_FIELDS
+                              .filter(f => impMapping[f.key] !== null && impMapping[f.key] !== undefined)
+                              .map(f => (
+                                <td key={f.key} style={{ padding: '5px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text1)' }}>
+                                  {row[impMapping[f.key]] || <span style={{ color: 'var(--text3)' }}>—</span>}
+                                </td>
+                              ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Confirm button */}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <button
+                      className="btn-primary"
+                      disabled={saving || impMapping.name === null || impMapping.name === undefined}
+                      onClick={handleImpConfirm}
+                    >
+                      {saving ? '⏳ Importing…' : `✓ Import ${impRows.length} Product${impRows.length !== 1 ? 's' : ''} to Catalog`}
+                    </button>
+                    {(impMapping.name === null || impMapping.name === undefined) && (
+                      <span style={{ fontSize: 12, color: 'var(--amber)' }}>⚠ Map "Product Name *" to continue</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

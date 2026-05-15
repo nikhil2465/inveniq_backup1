@@ -272,6 +272,32 @@ def _mock_quotations():
     ]
 
 
+# ── GET /api/po-grn/open-pos  ────────────────────────────────────────────────
+
+@router.get("/po-grn/open-pos")
+async def get_open_pos():
+    """Return list of open/partially-received POs for GRN recording selection."""
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                data = await get_po_grn_dashboard(pool)
+                open_pos = [
+                    po for po in data.get("open_pos", [])
+                    if po.get("fill_pct", 100) < 100 and po.get("status") not in ("RECEIVED",)
+                ]
+                return {"open_pos": open_pos, "data_source": "mysql"}
+        except Exception as exc:
+            logger.warning("open-pos DB failed: %s", exc)
+
+    mock = _mock_po_grn_data()
+    open_pos = [
+        po for po in mock["open_pos"]
+        if po.get("fill_pct", 100) < 100 and po.get("status") not in ("RECEIVED",)
+    ]
+    return {"open_pos": open_pos, "data_source": "mock"}
+
+
 # ── POST /api/grn  ───────────────────────────────────────────────────────────
 
 class CreateGRNRequest(BaseModel):
@@ -292,17 +318,55 @@ class CreateGRNRequest(BaseModel):
     quality_status: Optional[str] = None
     industry: Optional[str] = None
     notes: Optional[str] = None
+    godown_id: Optional[int] = None
+    godown_name: Optional[str] = None
 
 
 @router.post("/grn")
 async def create_grn(req: CreateGRNRequest):
-    """Create a new GRN record (DB or demo mode)."""
+    """Create a new GRN record (DB or demo mode). Inventory is updated on successful GRN."""
     if _DB_AVAILABLE:
         try:
             pool = await get_pool()
             if pool:
                 result = await _db_create_grn(pool, req.model_dump())
                 if result.get("success"):
+                    qty_received = req.qty_received or 0
+                    # Attempt general inventory update after successful GRN
+                    try:
+                        if qty_received > 0 and req.product_name:
+                            async with pool.acquire() as conn:
+                                async with conn.cursor() as cur:
+                                    await cur.execute(
+                                        "UPDATE inventory SET quantity = quantity + %s "
+                                        "WHERE sku_name LIKE %s LIMIT 1",
+                                        (qty_received, f"%{req.product_name[:30]}%"),
+                                    )
+                            result["inventory_updated"] = True
+                    except Exception as inv_exc:
+                        logger.debug("Inventory update skipped: %s", inv_exc)
+                        result["inventory_updated"] = False
+                    # Update warehouse-specific stock if a godown was selected
+                    if req.godown_id and req.product_name and qty_received > 0:
+                        try:
+                            async with pool.acquire() as conn:
+                                async with conn.cursor() as cur:
+                                    await cur.execute(
+                                        "INSERT INTO stock (product_id, godown_id, quantity) "
+                                        "SELECT product_id, %s, %s FROM products "
+                                        "WHERE sku_name LIKE %s LIMIT 1 "
+                                        "ON DUPLICATE KEY UPDATE quantity = quantity + %s",
+                                        (req.godown_id, qty_received,
+                                         f"%{req.product_name[:30]}%", qty_received),
+                                    )
+                            result["godown_name"] = req.godown_name
+                            result["warehouse_stock_updated"] = True
+                        except Exception as wh_exc:
+                            logger.debug("Warehouse stock update skipped: %s", wh_exc)
+                            result["godown_name"] = req.godown_name
+                    # Fire mismatch email alert if applicable (non-blocking)
+                    if result.get("match_status") == "MISMATCH":
+                        _fire_mismatch_alert(result, req)
                     return result
         except Exception as exc:
             logger.warning("DB GRN creation failed, using demo: %s", exc)
@@ -312,18 +376,109 @@ async def create_grn(req: CreateGRNRequest):
     invoice_val = req.invoice_value or 0
     grn_val = req.grn_value or invoice_val
     discrepancy = round(abs(invoice_val - grn_val), 2)
-    return {
+    qty_received = req.qty_received or 0
+    match_status = "MATCH" if discrepancy < 1 else "MISMATCH"
+
+    response = {
         "success": True,
         "grn_number": grn_number,
         "supplier": req.supplier_name,
         "po_number": req.po_number or "—",
         "invoice_value": invoice_val,
         "grn_value": grn_val,
-        "match_status": "MATCH" if discrepancy < 1 else "MISMATCH",
+        "match_status": match_status,
         "discrepancy_amt": discrepancy,
         "received_date": req.received_date or datetime.date.today().isoformat(),
+        "inventory_updated": qty_received > 0,
+        "inventory_note": f"+{qty_received} {req.unit or 'units'} of {req.product_name or 'product'} added to stock" if qty_received > 0 else "No quantity to update",
+        "godown_name": req.godown_name or None,
         "demo_mode": True,
     }
+
+    if match_status == "MISMATCH":
+        _fire_mismatch_alert(response, req)
+
+    return response
+
+
+def _fire_mismatch_alert(grn_response: dict, req) -> None:
+    """Fire GRN mismatch email alert as a background task (non-blocking)."""
+    import asyncio
+    try:
+        from app.core.config import get_settings
+        from app.services.email_service import send_grn_mismatch_alert
+        cfg = get_settings()
+        grn_payload = {
+            "grn_number":   grn_response.get("grn_number"),
+            "supplier":     grn_response.get("supplier"),
+            "product_name": getattr(req, "product_name", None) or "—",
+            "po_number":    grn_response.get("po_number"),
+            "invoice_value": grn_response.get("invoice_value", 0),
+            "grn_value":    grn_response.get("grn_value", 0),
+            "discrepancy_amt": grn_response.get("discrepancy_amt", 0),
+            "qty_ordered":  getattr(req, "qty_ordered", None),
+            "qty_received": getattr(req, "qty_received", None),
+            "unit":         getattr(req, "unit", "units"),
+            "received_date": grn_response.get("received_date"),
+        }
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(send_grn_mismatch_alert(grn_payload, cfg))
+        else:
+            loop.run_until_complete(send_grn_mismatch_alert(grn_payload, cfg))
+    except Exception as exc:
+        logger.warning("Could not fire GRN mismatch alert: %s", exc)
+
+
+# ── GET /api/po-grn/recent-grn  ──────────────────────────────────────────────
+
+def _mock_recent_grn() -> list:
+    today = datetime.date.today()
+    def d(delta): return (today - datetime.timedelta(days=delta)).isoformat()
+    return [
+        {"grn_number": "GRN-4428", "po_number": "PO-7740", "supplier": "Ebco India Pvt. Ltd.",
+         "product": "Soft-Close Hinge 35mm Pk-10", "qty_received": 100, "unit": "packs",
+         "grn_value": "₹48,500", "match_status": "MATCH", "received_date": d(0), "received_by": "Ravi M."},
+        {"grn_number": "GRN-4427", "po_number": "PO-7738", "supplier": "Hettich India",
+         "product": "InnoTech Drawer 400mm", "qty_received": 50, "unit": "sets",
+         "grn_value": "₹64,000", "match_status": "MATCH", "received_date": d(0), "received_by": "Santhosh K."},
+        {"grn_number": "GRN-4426", "po_number": "PO-7735", "supplier": "Hafele India",
+         "product": "Zinc D-Handle 128mm", "qty_ordered": 212, "qty_received": 200, "unit": "pcs",
+         "invoice_value": "₹67,840", "grn_value": "₹64,000", "discrepancy_amt": "₹3,840",
+         "match_status": "MISMATCH", "received_date": d(1), "received_by": "Ravi M.",
+         "notes": "Short by 12 pcs — Hafele to credit note. PO rate ₹320/pc × 212 = ₹67,840 invoiced, only 200 received."},
+        {"grn_number": "GRN-4425", "po_number": "PO-7733", "supplier": "Jaquar India",
+         "product": "Lyric Basin Mixer Chrome", "qty_received": 20, "unit": "pcs",
+         "grn_value": "₹97,000", "match_status": "MATCH", "received_date": d(1), "received_by": "Santhosh K."},
+        {"grn_number": "GRN-4424", "po_number": "PO-7729", "supplier": "Hindware",
+         "product": "Quartz Sensor Tap 230V", "qty_received": 8, "unit": "pcs",
+         "grn_value": "₹28,000", "match_status": "MATCH", "received_date": d(2), "received_by": "Ravi M."},
+    ]
+
+
+@router.get("/po-grn/recent-grn")
+async def get_recent_grn(limit: int = 20):
+    """Recent GRN activity — used by Inward/Outward for real-time feed."""
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor(aiomysql.DictCursor) as cur:
+                        await cur.execute(
+                            "SELECT grn_number, po_number, supplier_name AS supplier, "
+                            "product_name AS product, qty_received, unit, grn_value, "
+                            "match_status, received_date, received_by, notes "
+                            "FROM grn_records ORDER BY received_date DESC LIMIT %s", (limit,)
+                        )
+                        rows = await cur.fetchall()
+                        if rows:
+                            return {"grn_entries": rows, "total": len(rows), "data_source": "mysql"}
+        except Exception as exc:
+            logger.warning("recent-grn DB failed: %s", exc)
+
+    entries = _mock_recent_grn()[:limit]
+    return {"grn_entries": entries, "total": len(entries), "data_source": "mock"}
 
 
 # ── Mock data (same shape as DB, matches existing static POGRN.jsx data) ──────
@@ -419,3 +574,67 @@ def _mock_po_grn_data() -> dict:
         ],
         "data_source": "mock",
     }
+
+
+# ── POST /api/po-grn/scan-invoice ────────────────────────────────────────────
+
+class ScanInvoiceRequest(BaseModel):
+    image_base64: str
+    image_type: str = "image/jpeg"
+
+
+@router.post("/po-grn/scan-invoice")
+async def scan_grn_invoice(req: ScanInvoiceRequest):
+    """Extract GRN fields from a supplier invoice / delivery challan image using GPT-4o Vision."""
+    import os, json as _json
+    from app.core.config import get_settings
+    cfg = get_settings()
+
+    if not cfg.openai_api_key:
+        return {
+            "success": True, "demo": True,
+            "extracted": {
+                "invoice_number": "INV-SCAN-DEMO", "supplier_name": "Demo Supplier",
+                "product_name": "Demo Product", "qty_ordered": None, "qty_received": None,
+                "invoice_value": None, "grn_value": None,
+                "po_number": "", "vehicle_number": "", "received_by": "",
+                "notes": "Demo mode — add OPENAI_API_KEY to .env for real AI invoice scanning.",
+            },
+        }
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=60.0)
+        prompt = (
+            "You are a GRN extraction AI for an Indian hardware/building-materials dealer. "
+            "Extract all visible fields from this supplier invoice or delivery challan image.\n\n"
+            "Return ONLY a JSON object with exactly these keys:\n"
+            '{"invoice_number":"","supplier_name":"","product_name":"","qty_ordered":null,'
+            '"qty_received":null,"invoice_value":null,"grn_value":null,"po_number":"",'
+            '"vehicle_number":"","received_by":"","notes":""}\n\n'
+            "Rules: Remove ₹ symbols and commas from numbers. Use null for missing numerics. "
+            "notes should capture discrepancies, damage, or shortfall mentions. "
+            "Return ONLY the JSON — no markdown, no explanation."
+        )
+        resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {
+                    "url": f"data:{req.image_type};base64,{req.image_base64}",
+                    "detail": "high",
+                }},
+            ]}],
+            temperature=0,
+            max_tokens=400,
+        )
+        raw = resp.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        extracted = _json.loads(raw.strip())
+        return {"success": True, "demo": False, "extracted": extracted}
+    except Exception as exc:
+        logger.warning("GRN scan failed: %s", exc)
+        return {"success": False, "error": str(exc), "extracted": {}}

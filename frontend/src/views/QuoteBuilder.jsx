@@ -559,9 +559,11 @@ function LineItemRow({ item, idx, products, onChange, onRemove, marginMode = 'li
 }
 
 // ── Quote Detail Modal ─────────────────────────────────────────────────────────
-function QuoteDetail({ quote, onClose, onStatusUpdate, onGoChat, onEdit }) {
+function QuoteDetail({ quote, onClose, onStatusUpdate, onGoChat, onEdit, onNavigate }) {
   const [status, setStatus] = useState(quote.status);
   const [updating, setUpdating] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [convertedOrder, setConvertedOrder] = useState(null);
 
   const updateStatus = async (newStatus) => {
     setUpdating(true);
@@ -574,6 +576,20 @@ function QuoteDetail({ quote, onClose, onStatusUpdate, onGoChat, onEdit }) {
       onStatusUpdate?.(quote.quote_id, newStatus);
     } catch (e) { setStatus(newStatus); }
     finally { setUpdating(false); }
+  };
+
+  const handleConvertToOrder = async () => {
+    setConverting(true);
+    try {
+      const res  = await fetch(`/api/quotes/${quote.quote_id}/convert-to-order`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setConvertedOrder(data);
+        setStatus('WON');
+        onStatusUpdate?.(quote.quote_id, 'WON');
+      }
+    } catch (e) { console.error(e); }
+    finally { setConverting(false); }
   };
 
   const handlePrint = () => window.print();
@@ -726,6 +742,26 @@ function QuoteDetail({ quote, onClose, onStatusUpdate, onGoChat, onEdit }) {
           </div>
         </div>
 
+        {/* Conversion success banner */}
+        {convertedOrder && (
+          <div className="no-print" style={{ background: 'linear-gradient(135deg,#064e3b,#065f46)', borderRadius: 10, padding: '12px 18px', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 22 }}>✅</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#d1fae5', fontWeight: 800, fontSize: 14 }}>Sales Order Created: {convertedOrder.order_number}</div>
+              <div style={{ color: '#6ee7b7', fontSize: 12, marginTop: 2 }}>
+                {convertedOrder.customer_name} · {convertedOrder.converted_at} · Value: {fmtL(convertedOrder.total_value)}
+              </div>
+            </div>
+            {onNavigate && (
+              <button
+                style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                onClick={() => { onClose(); onNavigate('louvers'); }}>
+                View Sales Orders →
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Action bar (no-print) */}
         <div className="qb-modal-actions no-print">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -736,6 +772,16 @@ function QuoteDetail({ quote, onClose, onStatusUpdate, onGoChat, onEdit }) {
                 style={{ background: 'var(--g5)', color: 'var(--brand)', border: '1px solid var(--g4)', fontWeight: 700 }}
                 onClick={() => { onClose(); onEdit(quote); }}>
                 ✎ Edit Quotation
+              </button>
+            )}
+            {/* Convert to Sales Order — only for WON quotes not yet converted */}
+            {status === 'WON' && !convertedOrder && (
+              <button
+                className="qb-action-btn"
+                style={{ background: 'linear-gradient(135deg,#059669,#10b981)', color: '#fff', border: 'none', fontWeight: 700 }}
+                onClick={handleConvertToOrder}
+                disabled={converting}>
+                {converting ? '⏳ Converting…' : '🔄 Convert to Sales Order'}
               </button>
             )}
             {Object.keys(QUOTE_STATUS).filter(s => s !== status).map(s => (
@@ -1137,7 +1183,7 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
 
   // ── Main form ─────────────────────────────────────────────────────────────────
   const sectionStyle = {
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 10,
     padding: '16px 18px',
@@ -1413,7 +1459,7 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
                         style={{
                           width: 70, height: 36, border: '2px solid var(--g4)', borderRadius: 8,
                           padding: '0 10px', fontSize: 18, fontWeight: 900, color: 'var(--brand)',
-                          textAlign: 'center', background: '#fff', outline: 'none', fontFamily: 'var(--mono)',
+                          textAlign: 'center', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--mono)',
                         }}
                         onFocus={e => e.target.style.borderColor = 'var(--brand)'}
                         onBlur={e => e.target.style.borderColor = 'var(--g4)'}
@@ -1595,7 +1641,7 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
 }
 
 // ── Main QuoteBuilder View ─────────────────────────────────────────────────────
-export default function QuoteBuilder({ onGoChat, dbStatus }) {
+export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
   const [data, setData]           = useState(null);
   const [products, setProducts]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -1822,6 +1868,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus }) {
       {/* Modals */}
       {activeQ && (
         <QuoteDetail quote={activeQ} onClose={() => setActiveQ(null)} onGoChat={onGoChat} onEdit={handleEdit}
+          onNavigate={onNavigate}
           onStatusUpdate={(id, s) => setData(prev => ({
             ...prev,
             quotes: prev.quotes.map(q => q.quote_id === id ? { ...q, status: s } : q),

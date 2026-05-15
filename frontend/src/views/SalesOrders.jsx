@@ -10,6 +10,327 @@ import Pagination from '../components/Pagination';
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt    = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 const fmtL   = (n) => { const v = Number(n); return v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : fmt(v); };
+
+// ── Delivery Challan Modal ────────────────────────────────────────────────────
+function DeliveryChallanModal({ order, onClose }) {
+  const [transport, setTransport] = useState({
+    vehicle_no: order.vehicle_number || '',
+    lr_number: '',
+    eway_bill: '',
+    driver_name: '',
+  });
+  const setT = (k) => (e) => setTransport(t => ({ ...t, [k]: e.target.value }));
+
+  const challanNo = `DC-${order.order_id || order.order_number}-${Date.now().toString().slice(-4)}`;
+  const printDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  // Compute GST breakdown from total value (assuming 18% GST included)
+  const totalValue = Number(order.total_value || (Number(order.sell_price || 0) * Number(order.quantity || 1)));
+  const taxableAmt = totalValue / 1.18;
+  const gstAmt     = totalValue - taxableAmt;
+  const cgstAmt    = gstAmt / 2;
+  const sgstAmt    = gstAmt / 2;
+  const fmtCur = (n) => `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const handlePrint = () => {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Delivery Challan — ${challanNo}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Arial', sans-serif; font-size: 12px; color: #1a1a2e; background: #fff; padding: 24px; }
+  h1 { font-size: 22px; font-weight: 900; color: #065f46; letter-spacing: 1px; }
+  .header { display: flex; justify-content: space-between; border-bottom: 2.5px solid #065f46; padding-bottom: 14px; margin-bottom: 18px; }
+  .co-info { font-size: 11px; color: #6b7280; margin-top: 3px; }
+  .meta { text-align: right; font-size: 12px; }
+  .meta div { margin-bottom: 3px; }
+  .meta strong { color: #1a1a2e; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  .box { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px; background: #f9fafb; }
+  .box-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #6b7280; margin-bottom: 6px; }
+  .box-val { font-size: 13px; font-weight: 700; color: #111827; }
+  .box-sub { font-size: 11px; color: #6b7280; margin-top: 3px; }
+  .transport { border: 1px solid #d1fae5; border-radius: 6px; padding: 12px 14px; background: #ecfdf5; margin-bottom: 18px; }
+  .transport-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #065f46; margin-bottom: 8px; }
+  .t-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+  .t-item label { font-size: 10px; font-weight: 600; color: #6b7280; display: block; margin-bottom: 2px; }
+  .t-item span { font-size: 12px; font-weight: 700; color: #111827; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+  thead tr { background: #065f46; color: #fff; }
+  th { padding: 8px 10px; text-align: left; font-weight: 700; }
+  th.r { text-align: right; }
+  th.c { text-align: center; }
+  tbody tr { border-bottom: 1px solid #e5e7eb; }
+  td { padding: 9px 10px; color: #374151; }
+  td.r { text-align: right; font-family: monospace; }
+  td.c { text-align: center; }
+  td.bold { font-weight: 700; color: #111827; }
+  .totals { margin-left: auto; width: 280px; margin-bottom: 18px; }
+  .totals table { margin-bottom: 0; }
+  .totals td { padding: 5px 10px; }
+  .totals .subtotal { background: #f3f4f6; font-weight: 700; }
+  .totals .grandtotal { background: #065f46; color: #fff; font-weight: 800; font-size: 13px; }
+  .totals .grandtotal td { color: #fff; }
+  .sigs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 14px; }
+  .sig-box .sig-line { height: 38px; border-bottom: 1px solid #374151; margin-bottom: 5px; }
+  .sig-box .sig-label { font-size: 10px; color: #6b7280; font-weight: 600; }
+  .note { margin-top: 16px; padding: 9px 12px; background: #f3f4f6; border-radius: 5px; font-size: 10px; color: #6b7280; border-left: 3px solid #065f46; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 18mm 14mm; size: A4 portrait; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>DELIVERY CHALLAN</h1>
+    <div class="co-info">Building Materials &amp; Hardware · Bangalore</div>
+    <div class="co-info">GSTIN: [Your GSTIN here] &nbsp;|&nbsp; Contact: [Your Phone here]</div>
+  </div>
+  <div class="meta">
+    <div><strong>Challan No.:</strong> ${challanNo}</div>
+    <div><strong>Date:</strong> ${printDate}</div>
+    <div><strong>Ref. Order:</strong> ${order.order_number}</div>
+    ${order.delivery_date ? `<div><strong>Delivery Date:</strong> ${order.delivery_date}</div>` : ''}
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="box">
+    <div class="box-title">Consignee (Bill To)</div>
+    <div class="box-val">${order.customer_name}</div>
+    ${order.customer_type ? `<div class="box-sub">${order.customer_type}</div>` : ''}
+  </div>
+  <div class="box">
+    <div class="box-title">Delivery / Ship To</div>
+    <div class="box-val">${order.site_location || order.delivery_address || order.customer_name}</div>
+    ${order.delivery_date ? `<div class="box-sub">Scheduled: ${order.delivery_date}</div>` : ''}
+  </div>
+</div>
+
+<div class="transport">
+  <div class="transport-title">🚚 Transport Details</div>
+  <div class="t-grid">
+    <div class="t-item"><label>Vehicle / Truck No.</label><span>${transport.vehicle_no || '—'}</span></div>
+    <div class="t-item"><label>LR / Bilti No.</label><span>${transport.lr_number || '—'}</span></div>
+    <div class="t-item"><label>E-Way Bill No.</label><span>${transport.eway_bill || '—'}</span></div>
+    <div class="t-item"><label>Driver Name</label><span>${transport.driver_name || '—'}</span></div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Product / Description</th>
+      <th class="c">Qty</th>
+      <th class="c">Unit</th>
+      <th class="r">Unit Rate (₹)</th>
+      <th class="r">Taxable Amt (₹)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td class="bold">${order.product_name}${order.specifications ? `<br><span style="font-size:10px;color:#6b7280">${order.specifications}</span>` : ''}</td>
+      <td class="c bold">${Number(order.quantity || 0).toLocaleString('en-IN')}</td>
+      <td class="c">${order.unit || 'Nos'}</td>
+      <td class="r">${fmtCur(Number(order.sell_price || 0))}</td>
+      <td class="r">${fmtCur(taxableAmt)}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr><td>Taxable Amount</td><td class="r">${fmtCur(taxableAmt)}</td></tr>
+    <tr><td>CGST @ 9%</td><td class="r">${fmtCur(cgstAmt)}</td></tr>
+    <tr><td>SGST @ 9%</td><td class="r">${fmtCur(sgstAmt)}</td></tr>
+    <tr class="subtotal"><td><strong>Total GST (18%)</strong></td><td class="r bold">${fmtCur(gstAmt)}</td></tr>
+    <tr class="grandtotal"><td><strong>GRAND TOTAL</strong></td><td class="r"><strong>${fmtCur(totalValue)}</strong></td></tr>
+  </table>
+</div>
+
+<div class="sigs">
+  <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Prepared By — Name &amp; Signature</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Dispatched By — Name &amp; Signature</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Received By (Customer) — Name &amp; Signature</div></div>
+</div>
+
+<div class="note">
+  This is a computer-generated delivery challan. Goods once dispatched will not be accepted for return without prior written intimation.
+  Subject to Bangalore jurisdiction. This document is not a tax invoice.
+</div>
+
+<script>window.onload = function(){ window.print(); };<\/script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  };
+
+  // Shared input style for transport fields
+  const TI = {
+    width: '100%', padding: '7px 10px', border: '1px solid var(--border)',
+    borderRadius: 6, fontSize: 12, color: 'var(--text)', background: 'var(--surface)',
+    fontFamily: 'var(--font)', boxSizing: 'border-box',
+  };
+  const TL = { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.4px', fontFamily: 'var(--mono)' };
+
+  return (
+    <div className="qb-modal-overlay" onClick={onClose}>
+      <div className="qb-modal" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
+        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg,#064e3b,#065f46)', borderTop: 'none', borderRadius: '12px 12px 0 0' }}>
+          <div>
+            <div className="qb-modal-title" style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>Delivery Challan — {challanNo}</div>
+            <div className="qb-modal-sub" style={{ color: 'rgba(255,255,255,.75)', fontSize: 12 }}>
+              {order.order_number} · {order.customer_name}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="qb-print-btn" onClick={handlePrint} style={{ background: 'rgba(255,255,255,.15)', color: '#fff', border: '1px solid rgba(255,255,255,.25)' }}>
+              🖨 Print Challan
+            </button>
+            <button className="qb-close-btn" onClick={onClose} style={{ color: '#fff', opacity: .8 }}>×</button>
+          </div>
+        </div>
+
+        <div style={{ padding: '20px 24px', maxHeight: '80vh', overflowY: 'auto' }}>
+
+          {/* Transport Details — filled before printing */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: 1.4, textTransform: 'uppercase', fontFamily: 'var(--mono)', marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+            🚚 Transport Details (Included in Print)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+            <div><label style={TL}>Vehicle / Truck No.</label><input style={TI} value={transport.vehicle_no} onChange={setT('vehicle_no')} placeholder="e.g. KA-01-AB-1234" /></div>
+            <div><label style={TL}>LR / Bilti No.</label><input style={TI} value={transport.lr_number} onChange={setT('lr_number')} placeholder="e.g. LR-20260001" /></div>
+            <div><label style={TL}>E-Way Bill No.</label><input style={TI} value={transport.eway_bill} onChange={setT('eway_bill')} placeholder="e.g. 2301234567890" /></div>
+            <div><label style={TL}>Driver Name</label><input style={TI} value={transport.driver_name} onChange={setT('driver_name')} placeholder="e.g. Ramesh Kumar" /></div>
+          </div>
+
+          {/* Challan Preview */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: 1.4, textTransform: 'uppercase', fontFamily: 'var(--mono)', marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+            📄 Challan Preview
+          </div>
+
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: '2px solid #065f46' }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#065f46' }}>DELIVERY CHALLAN</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Building Materials &amp; Hardware · Bangalore</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>GSTIN: [Your GSTIN] · [Your Phone]</div>
+            </div>
+            <div style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12 }}>
+              <div><strong>Challan No.:</strong> {challanNo}</div>
+              <div><strong>Date:</strong> {printDate}</div>
+              <div><strong>Ref. Order:</strong> {order.order_number}</div>
+            </div>
+          </div>
+
+          {/* Consignee */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+            <div style={{ padding: '12px 14px', background: 'var(--s2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Consignee (Bill To)</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{order.customer_name}</div>
+              {order.customer_type && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{order.customer_type}</div>}
+            </div>
+            <div style={{ padding: '12px 14px', background: 'var(--s2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Delivery Address</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{order.site_location || order.delivery_address || order.customer_name}</div>
+              {order.delivery_date && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>Scheduled: {order.delivery_date}</div>}
+            </div>
+          </div>
+
+          {/* Transport preview chips */}
+          {(transport.vehicle_no || transport.lr_number || transport.eway_bill || transport.driver_name) && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, padding: '10px 12px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 7 }}>
+              {transport.vehicle_no && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>🚛 {transport.vehicle_no}</span>}
+              {transport.lr_number && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>📋 LR: {transport.lr_number}</span>}
+              {transport.eway_bill && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>📱 E-Way: {transport.eway_bill}</span>}
+              {transport.driver_name && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>👤 {transport.driver_name}</span>}
+            </div>
+          )}
+
+          {/* Items */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
+            <thead>
+              <tr style={{ background: '#065f46', color: '#fff' }}>
+                <th style={{ padding: '7px 10px', textAlign: 'left' }}>#</th>
+                <th style={{ padding: '7px 10px', textAlign: 'left' }}>Product / Description</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center' }}>Qty</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center' }}>Unit</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right' }}>Unit Rate (₹)</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right' }}>Taxable (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '8px 10px' }}>1</td>
+                <td style={{ padding: '8px 10px' }}>
+                  <div style={{ fontWeight: 700 }}>{order.product_name}</div>
+                  {order.specifications && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>{order.specifications}</div>}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'center', fontFamily: 'var(--mono)', fontWeight: 700 }}>
+                  {Number(order.quantity || 0).toLocaleString('en-IN')}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'center' }}>{order.unit || 'Nos'}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(Number(order.sell_price || 0))}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(taxableAmt)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* GST breakdown */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+            <table style={{ width: 260, borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>Taxable Amount</td>
+                  <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(taxableAmt)}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>CGST @ 9%</td>
+                  <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(cgstAmt)}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>SGST @ 9%</td>
+                  <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(sgstAmt)}</td>
+                </tr>
+                <tr style={{ background: '#065f46', color: '#fff' }}>
+                  <td style={{ padding: '7px 10px', fontWeight: 800 }}>GRAND TOTAL</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 800 }}>{fmtCur(totalValue)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Signature lines */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, marginTop: 36, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            {['Prepared By', 'Dispatched By', 'Received By (Customer)'].map(lbl => (
+              <div key={lbl}>
+                <div style={{ height: 36, borderBottom: '1px solid var(--text)', marginBottom: 5 }} />
+                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>{lbl}</div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Name &amp; Signature</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 16, padding: '9px 12px', background: 'var(--s3)', borderRadius: 5, fontSize: 10, color: 'var(--text3)', borderLeft: '3px solid #065f46' }}>
+            This is a computer-generated delivery challan. Goods once dispatched will not be accepted for return without prior written intimation.
+            Subject to Bangalore jurisdiction. This document is not a tax invoice.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 const fmtPct = (n) => `${Number(n).toFixed(1)}%`;
 
 // ── Status configs ────────────────────────────────────────────────────────────
@@ -706,6 +1027,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
   const [filter, setFilter]         = useState('ALL');
   const [showWizard, setShowWizard] = useState(false);
   const [wizardInit, setWizardInit] = useState(null);
+  const [challanOrder, setChallanOrder] = useState(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 15;
 
@@ -896,11 +1218,28 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
                     </td>
                     <td><StatusBadge status={o.status} map={ORDER_STATUS} /></td>
                     <td onClick={e=>e.stopPropagation()}>
-                      <div style={{display:'flex',gap:4}}>
+                      <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                         {sc.next && (
                           <button className="dc-act-btn dc-act-green"
                             onClick={()=>handleAdvanceStatus(o.order_id, sc.next)}
                             title={`Advance to ${sc.next}`}>→ {ORDER_STATUS[sc.next]?.label}</button>
+                        )}
+                        {/* Delivery Challan — shown for dispatched or delivered orders */}
+                        {['DISPATCHED','IN_PRODUCTION','CONFIRMED','DELIVERED'].includes(o.status) && (
+                          <button className="dc-act-btn"
+                            style={{background:'var(--g5)',color:'var(--brand)',border:'1px solid var(--g4)',fontSize:9,fontWeight:600}}
+                            onClick={()=>setChallanOrder(o)}
+                            title="Print Delivery Challan">📄 Challan</button>
+                        )}
+                        {/* Quick complete delivery — marks DELIVERED + opens challan */}
+                        {o.status === 'DISPATCHED' && (
+                          <button className="dc-act-btn dc-act-green"
+                            style={{fontSize:9}}
+                            onClick={async()=>{
+                              await handleAdvanceStatus(o.order_id,'DELIVERED');
+                              setChallanOrder({...o, status:'DELIVERED'});
+                            }}
+                            title="Mark Delivered &amp; Print Challan">✓ Delivered</button>
                         )}
                         <button className="dap-trigger-btn sm" style={{fontSize:9}}
                           onClick={()=>openAI(
@@ -917,6 +1256,9 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
         </div>
         <Pagination page={page} total={filteredOrders.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
+
+      {/* Delivery Challan Modal */}
+      {challanOrder && <DeliveryChallanModal order={challanOrder} onClose={() => setChallanOrder(null)} />}
     </div>
   );
 }

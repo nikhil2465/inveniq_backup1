@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import PageLoader from '../components/PageLoader';
 import ErrorState from '../components/ErrorState';
 import DataSourceBadge from '../components/DataSourceBadge';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
 import { ExportButton } from '../utils/exportUtils';
+import { printCreditNote } from '../utils/printUtils';
 
 // ── INDUSTRY CATALOGS ─────────────────────────────────────────────────────────
 
@@ -219,6 +220,7 @@ function SuccessCard({ result, type, onClose, onAskAI }) {
         </>}
         {type === 'grn' && <>
           <Row label="Supplier" val={result.supplier} />
+          {result.godown_name && <Row label="Received At" val={result.godown_name} />}
           <Row label="PO Reference" val={result.po_number} />
           <Row label="Invoice Value" val={`₹${Number(result.invoice_value || 0).toLocaleString('en-IN')}`} />
           <Row label="GRN Value" val={`₹${Number(result.grn_value || 0).toLocaleString('en-IN')}`} />
@@ -425,11 +427,103 @@ function CreatePOModal({ industry, onClose, onSuccess, prefill }) {
 // ── CREATE GRN MODAL ──────────────────────────────────────────────────────────
 
 function CreateGRNModal({ industry, onClose, onSuccess }) {
-  const [form, setForm] = useState(blankGRN());
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [form, setForm]               = useState(blankGRN());
+  const [submitting, setSubmitting]   = useState(false);
+  const [error, setError]             = useState('');
+  // Open POs (unreceived)
+  const [openPos, setOpenPos]         = useState([]);
+  const [posLoading, setPosLoading]   = useState(true);
+  const [selectedPoId, setSelectedPoId] = useState('');
+  // Invoice scan
+  const [scanState, setScanState]     = useState(null); // null | 'scanning' | 'done' | 'error'
+  const [scanMsg, setScanMsg]         = useState('');
+  const fileInputRef                  = useRef(null);
+  // Destination warehouse
+  const [godowns, setGodowns]         = useState([]);
+  const [godownId, setGodownId]       = useState('');
+  const [godownName, setGodownName]   = useState('');
+
   const set = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
   const cat = industry === 'louvers' ? LOUVERS : LAMINATES;
+
+  // Fetch unreceived POs and warehouses on mount
+  useEffect(() => {
+    setPosLoading(true);
+    fetch('/api/po-grn/open-pos')
+      .then(r => r.json())
+      .then(d => { setOpenPos(d.open_pos || []); setPosLoading(false); })
+      .catch(() => { setOpenPos([]); setPosLoading(false); });
+    fetch('/api/warehouses')
+      .then(r => r.json())
+      .then(d => setGodowns(d.warehouses || []))
+      .catch(() => {});
+  }, []);
+
+  // Auto-fill form when a PO is selected from the dropdown
+  const handlePoSelect = (poId) => {
+    setSelectedPoId(poId);
+    if (!poId) return;
+    const po = openPos.find(p => String(p.po_id ?? p.id ?? p.po_number) === poId);
+    if (!po) return;
+    setForm(f => ({
+      ...f,
+      po_number:     po.po_number || f.po_number,
+      supplier_name: po.supplier_name || po.supplier || f.supplier_name,
+      product_name:  po.sku_name || po.product_name || po.sku || f.product_name,
+      qty_ordered:   po.qty_pending ?? po.qty_ordered ?? po.quantity ?? f.qty_ordered,
+      unit:          po.unit || f.unit,
+    }));
+  };
+
+  // Scan invoice via GPT-4o Vision
+  const handleScanFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanState('scanning');
+    setScanMsg('Analysing invoice with AI…');
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const raw = ev.target.result; // data:image/jpeg;base64,...
+        const base64 = raw.split(',')[1];
+        const image_type = file.type || 'image/jpeg';
+        const res = await fetch('/api/po-grn/scan-invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: base64, image_type }),
+        });
+        const data = await res.json();
+        if (data.success && data.extracted) {
+          const x = data.extracted;
+          setForm(f => ({
+            ...f,
+            invoice_number: x.invoice_number || f.invoice_number,
+            supplier_name:  x.supplier_name  || f.supplier_name,
+            product_name:   x.product_name   || f.product_name,
+            qty_ordered:    x.qty_ordered != null ? String(x.qty_ordered) : f.qty_ordered,
+            qty_received:   x.qty_received != null ? String(x.qty_received) : f.qty_received,
+            invoice_value:  x.invoice_value != null ? String(x.invoice_value) : f.invoice_value,
+            grn_value:      x.grn_value != null ? String(x.grn_value) : f.grn_value,
+            vehicle_number: x.vehicle_number || f.vehicle_number,
+            received_by:    x.received_by    || f.received_by,
+            po_number:      x.po_number      || f.po_number,
+            notes:          x.notes          || f.notes,
+          }));
+          setScanState('done');
+          setScanMsg(data.demo ? 'Demo scan complete — fields pre-filled with sample data.' : 'Invoice scanned — fields pre-filled. Please verify before saving.');
+        } else {
+          setScanState('error');
+          setScanMsg(data.detail || 'Invoice scan failed — please fill fields manually.');
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setScanState('error');
+      setScanMsg('Network error during scan — please fill fields manually.');
+    }
+    // Reset file input so same file can be re-scanned if needed
+    e.target.value = '';
+  };
 
   const handleSubmit = async () => {
     if (!form.supplier_name.trim()) return setError('Supplier name is required.');
@@ -458,6 +552,8 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
           received_by: form.received_by || null,
           quality_status: form.quality_status,
           industry: industry,
+          godown_id: godownId ? Number(godownId) : null,
+          godown_name: godownName || null,
           notes: [
             form.condition !== 'Good — Accepted' ? `Condition: ${form.condition}` : '',
             `Quality: ${form.quality_status}`,
@@ -495,14 +591,84 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
               Goods Received Note — 3-way match against PO &amp; invoice. Fields marked * are required.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 4px' }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Scan invoice button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={scanState === 'scanning'}
+              style={{ ...BTN_PRIMARY, fontSize: 12, padding: '7px 14px', background: scanState === 'scanning' ? 'var(--text3)' : 'var(--purple, #7c3aed)' }}
+              title="Scan supplier invoice image to auto-fill this form"
+            >
+              {scanState === 'scanning' ? '⏳ Scanning…' : '📷 Scan Invoice'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleScanFile}
+            />
+            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 4px' }}>×</button>
+          </div>
         </div>
 
         <div style={MODAL_BODY}>
+
+          {/* Scan status banner */}
+          {scanState && (
+            <div style={{
+              background: scanState === 'done' ? 'var(--g3)' : scanState === 'error' ? 'var(--r3)' : 'var(--b3)',
+              border: `1px solid ${scanState === 'done' ? 'var(--g4)' : scanState === 'error' ? 'var(--r4)' : 'var(--b4)'}`,
+              borderRadius: 8, padding: '9px 13px', fontSize: 12,
+              color: scanState === 'done' ? 'var(--green)' : scanState === 'error' ? 'var(--r2)' : 'var(--b2)',
+              marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span>{scanState === 'done' ? '✅' : scanState === 'error' ? '⚠' : '🔍'} {scanMsg}</span>
+              <button onClick={() => { setScanState(null); setScanMsg(''); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: 14, padding: '0 2px' }}>×</button>
+            </div>
+          )}
+
+          {/* Open PO Selector */}
+          <div style={SECTION_TITLE}>📋 Select from Unreceived Purchase Orders</div>
+          <div style={{ marginBottom: 16 }}>
+            {posLoading ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--mono)', padding: '8px 0' }}>Loading open POs…</div>
+            ) : openPos.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>No unreceived purchase orders found — fill details manually below.</div>
+            ) : (
+              <>
+                <label style={LABEL}>Link to a Purchase Order (auto-fills fields below)</label>
+                <select
+                  value={selectedPoId}
+                  onChange={e => handlePoSelect(e.target.value)}
+                  style={{ ...INPUT, appearance: 'none', backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: 28 }}
+                >
+                  <option value="">— Manual entry (no PO) —</option>
+                  {openPos.map(po => {
+                    const id = String(po.po_id ?? po.id ?? po.po_number);
+                    const qtyLabel = po.qty_pending != null ? `${po.qty_pending} ${po.unit || 'units'} pending` : po.quantity != null ? `${po.quantity} ${po.unit || 'units'}` : '';
+                    const valLabel = po.total_value ? ` · ₹${Number(po.total_value).toLocaleString('en-IN')}` : '';
+                    return (
+                      <option key={id} value={id}>
+                        {po.po_number} — {po.supplier_name} | {po.sku_name || po.product_name || 'No SKU'}{qtyLabel ? ` | ${qtyLabel}` : ''}{valLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+                {selectedPoId && (
+                  <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 5 }}>
+                    ✓ PO fields auto-filled — verify quantities below and enter invoice details.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Reference */}
           <div style={SECTION_TITLE}>📑 Document References</div>
           <div style={ROW3}>
-            <Inp label="PO Number (if applicable)" value={form.po_number} onChange={set('po_number')} placeholder="PO-7734" />
+            <Inp label="PO Number" value={form.po_number} onChange={set('po_number')} placeholder="PO-7734" />
             <Inp label="Supplier Invoice No. *" value={form.invoice_number} onChange={set('invoice_number')} placeholder="INV-2026-0041" required />
             <Inp label="Invoice Date" value={form.invoice_date} onChange={set('invoice_date')} type="date" />
           </div>
@@ -516,6 +682,34 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
               </datalist>
             </div>
             <Inp label="Date Received" value={form.received_date} onChange={set('received_date')} type="date" />
+          </div>
+
+          {/* Destination Warehouse */}
+          <div style={FIELD}>
+            <label style={LABEL}>Destination Warehouse / Godown</label>
+            <select
+              value={godownId}
+              onChange={e => {
+                const wh = godowns.find(g => String(g.godown_id) === e.target.value);
+                setGodownId(e.target.value);
+                setGodownName(wh?.godown_name || '');
+              }}
+              style={{ ...INPUT, appearance: 'none', backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: 28 }}
+            >
+              <option value="">— No specific warehouse —</option>
+              {godowns.map(g => (
+                <option key={g.godown_id} value={g.godown_id}>
+                  {g.godown_name}{g.current_stock_sheets != null
+                    ? ` (${g.current_stock_sheets} sheets · ${g.utilisation_pct != null ? g.utilisation_pct.toFixed(0) : '?'}% full)`
+                    : ''}
+                </option>
+              ))}
+            </select>
+            {godownId && (
+              <div style={{ fontSize: 11, color: 'var(--b2)', fontFamily: 'var(--mono)', marginTop: 5 }}>
+                ✓ Goods will be stocked in <strong>{godownName}</strong> after GRN is recorded.
+              </div>
+            )}
           </div>
 
           {/* Product */}
@@ -1111,7 +1305,7 @@ export default function POGRN({ onGoChat }) {
         ) : (
           <table className="tbl">
             <thead>
-              <tr><th>GRN#</th><th>PO#</th><th>Supplier</th><th>Invoice</th><th>GRN Value</th><th>Variance</th><th>Issue</th><th>Recommended Action</th><th>RCA + Fix</th></tr>
+              <tr><th>GRN#</th><th>PO#</th><th>Supplier</th><th>Invoice</th><th>GRN Value</th><th>Variance</th><th>Issue</th><th>Recommended Action</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {discrepancies.map(g => (
@@ -1125,10 +1319,16 @@ export default function POGRN({ onGoChat }) {
                   <td style={{ fontSize: 11 }}>{g.notes}</td>
                   <td style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>{g.action}</td>
                   <td>
-                    <button onClick={() => goChat(`Explain the GRN discrepancy ${g.grn_number} for ${g.supplier}: ${g.notes}. Give me a step-by-step action plan to resolve it.`)}
-                      style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #dc2626', borderRadius: 4, cursor: 'pointer', color: '#dc2626', fontWeight: 600 }}>
-                      RCA + Fix
-                    </button>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <button onClick={() => goChat(`Explain the GRN discrepancy ${g.grn_number} for ${g.supplier}: ${g.notes}. Give me a step-by-step action plan to resolve it.`)}
+                        style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #dc2626', borderRadius: 4, cursor: 'pointer', color: '#dc2626', fontWeight: 600 }}>
+                        RCA + Fix
+                      </button>
+                      <button onClick={() => printCreditNote(g)}
+                        style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid var(--b3)', borderRadius: 4, cursor: 'pointer', color: 'var(--b2)', fontWeight: 600 }}>
+                        🖨 Credit Note
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

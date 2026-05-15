@@ -1,9 +1,9 @@
 """
-Proactive Business Intelligence Engine — StockSense AI
+Proactive Business Intelligence Engine — InvenIQ AI
 Generates ranked, ₹-quantified insights from all MCP tool data.
 
 Approach: Rule-based pattern matching + heuristic scoring
-  - Analyzes data from all 11 tools
+  - Analyzes data from all 19 tools
   - Identifies issues, risks, and opportunities
   - Ranks by ₹ impact (highest first) + severity
   - Returns structured insight objects for LLM to present as a briefing
@@ -66,6 +66,8 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
     freight  = tool_data.get("freight", {})
     po_grn   = tool_data.get("po_grn", {})
     inward   = tool_data.get("inward", {})
+    credit   = tool_data.get("credit", {})
+    schemes  = tool_data.get("schemes", {})
 
     # ── 1. Critical Stockout Risk ─────────────────────────────────────────────
     critical_low = stock.get("critical_low", [])
@@ -86,7 +88,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                     f"Daily sale: {item.get('daily_sale', '?')} sheets/day. Lead time: {item.get('lead_time', '6 days')}."
                 ),
                 "impact": f"{rev_risk_str} revenue at risk if stockout occurs",
-                "action": f"Place emergency PO for {item.get('daily_sale', 17) * 21} sheets from Century Plyboards — today",
+                "action": f"Place emergency PO for {item.get('daily_sale', 8) * 21} units/packs from {item.get('supplier', 'Ebco India')} — today",
                 "urgency": "TODAY",
                 "rupee_impact": rupee_val,
             })
@@ -108,7 +110,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                 f"Capital locked earning 0% return, plus ₹{_format_lakh(int(total_dead * 0.22))} annual holding cost."
             ),
             "impact": f"₹{_format_lakh(total_dead)} cash recovery possible. Plus ₹{_format_lakh(int(total_dead * 0.22))} annual holding cost saved.",
-            "action": "Offer 12% discount to top contractors (Mehta, Patel). Bundle 4mm MR with 18mm BWP orders.",
+            "action": "Offer 12% discount to plumbers and contractors (Raju Plumbing, Mehta Construction). Bundle old Ebco LED lights with new hinge sets for kitchen studio customers.",
             "urgency": "THIS WEEK",
             "rupee_impact": total_dead,
         })
@@ -142,7 +144,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                     f"That's {stated_pct - real_pct:.0f}pp margin gap hidden by stated buy-price-only calculation."
                 ),
                 "impact": f"₹{_format_lakh(annual_leakage)} annual profit leakage on current volumes",
-                "action": "Switch sourcing to Century Plyboards (lower freight) or reprice to reflect true cost",
+                "action": "Review Hindware freight terms or switch volume to Jaquar (better margin + reliability). Reprice Hindware SKUs to reflect true landed cost.",
                 "urgency": "THIS WEEK",
                 "rupee_impact": annual_leakage,
             })
@@ -182,10 +184,10 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             "title": "GSTR-3B Filing Overdue — ₹50/Day Penalty Accruing",
             "finding": (
                 f"GSTR-3B is PENDING with ₹{_format_lakh(net_payable)} GST payable. "
-                f"Additionally ₹{_format_lakh(unclaimed)} ITC unclaimed (3 Gauri invoices missing from GSTR-2B)."
+                f"Additionally ₹{_format_lakh(unclaimed)} ITC unclaimed (Hindware + Jaquar invoices not reconciled in GSTR-2B)."
             ),
             "impact": f"₹50/day late fee + 18% p.a. interest on ₹{_format_lakh(net_payable)} = ~₹1,500/month cost",
-            "action": f"File GSTR-3B immediately. Reconcile 3 Gauri invoices to claim ₹{_format_lakh(unclaimed)} ITC.",
+            "action": f"File GSTR-3B immediately. Reconcile Hindware and Jaquar invoices to claim ₹{_format_lakh(unclaimed)} ITC.",
             "urgency": "URGENT",
             "rupee_impact": net_payable + unclaimed,
         })
@@ -200,10 +202,10 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             "title": f"{len(overdue_pos)} Supplier POs Overdue — Supply Risk",
             "finding": (
                 f"Overdue: {', '.join(overdue_pos)}. "
-                f"Gauri PO-7731 overdue 4 days (+68% historical on-time rate = high risk of further delay)."
+                f"Hindware PO-8841 overdue +3 days (76% historical on-time = high risk of further delay). Jaquar PO-8839 +1 day."
             ),
-            "impact": "Stockout risk on delayed SKUs + ₹8,400 GRN discrepancy MTD from Gauri",
-            "action": "Call Gauri (PO-7731) and Greenply (PO-7734) for confirmed ETAs. Start emergency sourcing if >2 more days.",
+            "impact": "Stockout risk on delayed sanitary SKUs + ₹18,000 GRN quantity mismatch from Hindware",
+            "action": "Call Hindware (PO-8841) for confirmed ETA on concealed cisterns. If >2 more days, source from Jaquar as emergency substitute.",
             "urgency": "TODAY",
             "rupee_impact": 45000,
         })
@@ -220,7 +222,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             extra_sheets = max(0, int(f30) - int(curr))
         else:
             extra_sheets = 100
-        extra_revenue = extra_sheets * 1920  # approx sell price 18mm BWP
+        extra_revenue = extra_sheets * 485  # approx sell price for A-class hardware (Ebco hinge pack)
         insights.append({
             "id": "demand_surge_opportunity",
             "category": "📈 Revenue Opportunity",
@@ -231,7 +233,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                 f"Signal: {top_surge.get('signal', 'GROWING')}. {top_surge.get('action', 'Pre-order recommended')}."
             ),
             "impact": f"₹{_format_lakh(extra_revenue)} additional revenue if stock is available for the surge",
-            "action": f"Pre-order {extra_sheets} extra sheets from Century Plyboards at current price before surge",
+            "action": f"Pre-order {extra_sheets} extra units from primary supplier (Ebco/Jaquar) at current price before demand surge",
             "urgency": "THIS WEEK",
             "rupee_impact": extra_revenue,
         })
@@ -294,6 +296,83 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             "action": f"Prioritise {top_pending.get('order')} dispatch. Call {top_pending.get('customer')} with ETA and compensation offer.",
             "urgency": "TODAY",
             "rupee_impact": order_val,
+        })
+
+    # ── 11. Credit Limit Breach / At-Limit Accounts ──────────────────────────
+    at_limit = credit.get("at_limit_accounts", [])
+    if at_limit:
+        top = at_limit[0]
+        util_pct = top.get("utilisation_pct", 95)
+        limit_val = _parse_rupee(top.get("credit_limit", "Rs.5L"))
+        outstanding = _parse_rupee(top.get("outstanding", "Rs.4.7L"))
+        insights.append({
+            "id": f"credit_at_limit_{top.get('customer', 'unknown')[:20].replace(' ', '_')}",
+            "category": "💳 Credit Risk",
+            "severity": "HIGH" if util_pct >= 100 else "MEDIUM",
+            "title": f"Credit Breach: {top.get('customer')} at {util_pct}% Utilisation",
+            "finding": (
+                f"{top.get('customer')} has ₹{_format_lakh(outstanding)} outstanding against "
+                f"₹{_format_lakh(limit_val)} credit limit ({util_pct}% utilised). "
+                f"Any new order will exceed the approved limit."
+            ),
+            "impact": f"₹{_format_lakh(outstanding)} exposure — further sales increase bad-debt risk",
+            "action": (
+                f"Block new orders for {top.get('customer')} until partial payment received. "
+                "Call with specific payment amount and deadline."
+            ),
+            "urgency": "TODAY" if util_pct >= 100 else "THIS WEEK",
+            "rupee_impact": outstanding,
+        })
+
+    # ── 12. Bounced / Overdue PDC ─────────────────────────────────────────────
+    bounced_pdc = credit.get("bounced_pdc", [])
+    if bounced_pdc:
+        top_pdc = bounced_pdc[0]
+        pdc_val = _parse_rupee(top_pdc.get("amount", "Rs.1.2L"))
+        insights.append({
+            "id": f"bounced_pdc_{top_pdc.get('customer', 'unknown')[:20].replace(' ', '_')}",
+            "category": "🚨 Payment Risk",
+            "severity": "HIGH",
+            "title": f"Bounced PDC: {top_pdc.get('customer')} — ₹{_format_lakh(pdc_val)} Cheque Returned",
+            "finding": (
+                f"Post-dated cheque of ₹{_format_lakh(pdc_val)} from {top_pdc.get('customer')} "
+                f"bounced on {top_pdc.get('date', 'recent date')}. "
+                f"Reason: {top_pdc.get('reason', 'Insufficient funds')}. "
+                f"Customer has {top_pdc.get('total_overdue', 'additional outstanding')} total overdue."
+            ),
+            "impact": f"₹{_format_lakh(pdc_val)} cash gap. Dishonoured cheque attracts NI Act Section 138 legal recourse.",
+            "action": (
+                f"Issue legal notice to {top_pdc.get('customer')} within 30 days. "
+                "Stop all credit supply immediately. Demand NEFT/RTGS replacement."
+            ),
+            "urgency": "URGENT",
+            "rupee_impact": pdc_val,
+        })
+
+    # ── 13. Supplier Scheme At-Risk ───────────────────────────────────────────
+    at_risk_schemes = schemes.get("at_risk_schemes", [])
+    if at_risk_schemes:
+        top_scheme = at_risk_schemes[0]
+        scheme_val = _parse_rupee(top_scheme.get("payout_at_risk", "Rs.0.8L"))
+        target_gap = top_scheme.get("target_gap", "unknown quantity")
+        insights.append({
+            "id": f"scheme_at_risk_{top_scheme.get('supplier', 'unknown')[:20].replace(' ', '_')}",
+            "category": "⭐ Scheme Risk",
+            "severity": "MEDIUM",
+            "title": f"Scheme At-Risk: {top_scheme.get('supplier')} — ₹{_format_lakh(scheme_val)} Bonus in Jeopardy",
+            "finding": (
+                f"{top_scheme.get('supplier')} scheme '{top_scheme.get('scheme_name', 'Volume Bonus')}' ends "
+                f"{top_scheme.get('end_date', 'this quarter')}. "
+                f"Current achievement: {top_scheme.get('achievement_pct', '?')}%. "
+                f"Gap to target: {target_gap} units / ₹{_format_lakh(scheme_val)} payout at risk."
+            ),
+            "impact": f"₹{_format_lakh(scheme_val)} scheme payout forfeited if target not met",
+            "action": (
+                f"Push {target_gap} units to key customers before {top_scheme.get('end_date', 'quarter end')}. "
+                "Offer short-term price incentive to close the gap."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": scheme_val,
         })
 
     # ── Sort: ₹ impact descending, then severity ──────────────────────────────

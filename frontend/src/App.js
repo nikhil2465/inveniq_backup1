@@ -5,6 +5,21 @@ import Topbar from './components/Topbar';
 import PageLoader from './components/PageLoader';
 import ErrorBoundary from './components/ErrorBoundary';
 import ToastContainer from './components/Toast';
+import PWAInstallBanner from './components/PWAInstallBanner';
+import Login from './views/Login';
+import { isAuthenticated, getUser, setAuth, clearAuth, installFetchInterceptor, getAllowedModules } from './utils/authUtils';
+import AIDockPanel from './components/AIDockPanel';
+
+// Returns the best landing view given the user's allowed module list.
+// null = unrestricted (admin) → overview; restricted → first preferred module available.
+function getDefaultView(allowedModules) {
+  if (!allowedModules) return 'overview';
+  const preferred = ['overview', 'quotes', 'customers', 'catalog', 'chatbot', 'settings', 'about'];
+  for (const v of preferred) {
+    if (allowedModules.includes(v)) return v;
+  }
+  return allowedModules[0] || 'settings';
+}
 
 // Lazy-loaded views — each chunk only loads when first navigated to,
 // reducing the initial JS bundle from ~2 MB to ~200 KB.
@@ -33,6 +48,8 @@ const Settings          = lazy(() => import('./views/Settings'));
 const CreditManagement  = lazy(() => import('./views/CreditManagement'));
 const CounterPOS        = lazy(() => import('./views/CounterPOS'));
 const SchemeManagement  = lazy(() => import('./views/SchemeManagement'));
+const Warehouse         = lazy(() => import('./views/Warehouse'));
+const TallyExport       = lazy(() => import('./views/TallyExport'));
 
 const VIEW_TITLES = {
   credit:      'Credit Management — Limits · Overdue · PDC Tracking',
@@ -59,17 +76,38 @@ const VIEW_TITLES = {
   quotes:      'Quotation Builder — AI-Powered Professional Quotes',
   about:       'About InvenIQ — AI Inventory Intelligence Platform',
   settings:    'Settings & System Status — Configuration · Health · Module Registry',
+  tally:       'Tally Prime Export — Export Data as Tally-Compatible CSV Files',
   schemes:     'Scheme Management — Promotions · Targets · Accruals',
+  warehouse:   'Warehouse Management — Capacity · GRN Activity · Stock Distribution',
 };
 
 export default function App() {
-  const [activeView, setActiveView]             = useState('overview');
+  // Auth state — initialised from localStorage so page reload stays logged in.
+  // allowedModules: null = unrestricted (admin); string[] = restricted client list.
+  const [authState, setAuthState] = useState(() => {
+    const allowedModules = getAllowedModules();
+    return { authenticated: isAuthenticated(), user: getUser(), allowedModules };
+  });
+
+  // Default view: overview for unrestricted; first preferred allowed view for restricted users.
+  const [activeView, setActiveView] = useState(() => getDefaultView(getAllowedModules()));
   const [period, setPeriod]                     = useState('Today');
   const [pendingChatQuery, setPendingChatQuery] = useState('');
   const [dbStatus, setDbStatus]                 = useState({ status: 'checking', source: null, checkedAt: null });
   const [alerts, setAlerts]                     = useState([]);
   const [sidebarOpen, setSidebarOpen]           = useState(false);
   const [goMode, setGoMode]                     = useState(false);
+
+  // Install the global fetch interceptor once — adds Bearer token to every /api/* call
+  // and fires 'inveniq:auth-expired' on 401 so the handler below can force logout.
+  useEffect(() => {
+    installFetchInterceptor();
+    const handleExpired = () => {
+      setAuthState({ authenticated: false, user: null, allowedModules: null });
+    };
+    window.addEventListener('inveniq:auth-expired', handleExpired);
+    return () => window.removeEventListener('inveniq:auth-expired', handleExpired);
+  }, []);
 
   // Restore saved theme preference on load
   useEffect(() => {
@@ -82,7 +120,9 @@ export default function App() {
   }, []);
 
   // Poll /api/health every 60 s to know if MySQL is live or demo mode
+  // Only when authenticated — health endpoint is public but no point polling pre-login.
   useEffect(() => {
+    if (!authState.authenticated) return;
     let cancelled = false;
     const check = async () => {
       const ctrl = new AbortController();
@@ -109,10 +149,11 @@ export default function App() {
     check();
     const id = setInterval(check, 60_000);
     return () => { cancelled = true; clearInterval(id); };
-  }, []);
+  }, [authState.authenticated]);
 
-  // Poll /api/alerts every 5 min for notification bell
+  // Poll /api/alerts every 5 min for notification bell — only when authenticated
   useEffect(() => {
+    if (!authState.authenticated) return;
     let cancelled = false;
     const fetchAlerts = async () => {
       const ctrl = new AbortController();
@@ -130,7 +171,7 @@ export default function App() {
     fetchAlerts();
     const id = setInterval(fetchAlerts, 5 * 60_000);
     return () => { cancelled = true; clearInterval(id); };
-  }, []);
+  }, [authState.authenticated]);
 
   // Scroll main content back to top whenever the user navigates to a new view
   useEffect(() => {
@@ -138,14 +179,18 @@ export default function App() {
     if (el) el.scrollTop = 0;
   }, [activeView]);
 
-  // GitHub-style keyboard navigation: press "g" then a letter
+  // GitHub-style keyboard navigation: press "g" then a letter.
+  // Restricted users can only navigate to their allowed modules via shortcut.
   useEffect(() => {
+    const allowedMods = authState.allowedModules;
     const GO_MAP = {
       h: 'overview',  i: 'inventory', s: 'sales',      c: 'customers',
       o: 'orders',    f: 'finance',   d: 'demand',      p: 'procurement',
       r: 'freight',   w: 'inward',    z: 'deadstock',   a: 'analytics',
       q: 'quotes',    x: 'chatbot',   e: 'settings',    u: 'pogrn',
       l: 'louvers',   n: 'discounts', t: 'projects',    m: 'claims',
+      b: 'catalog',   k: 'credit',    v: 'pos',         y: 'schemes',
+      j: 'about',     g: 'warehouse', '1': 'tally',
     };
     let active = false;
     let goTimer = null;
@@ -169,12 +214,35 @@ export default function App() {
       if (active) {
         exitGoMode();
         const view = GO_MAP[e.key];
-        if (view) { setActiveView(view); setSidebarOpen(false); }
+        // Enforce module restriction — restricted users can only navigate to allowed views
+        if (view && (!allowedMods || allowedMods.includes(view))) {
+          setActiveView(view);
+          setSidebarOpen(false);
+        }
         return;
       }
     };
     document.addEventListener('keydown', handler);
     return () => { document.removeEventListener('keydown', handler); clearTimeout(goTimer); };
+  }, [authState.allowedModules]);
+
+  const handleLoginSuccess = useCallback((token, user) => {
+    setAuth(token, user);
+    // Parse allowed_modules from the user object (mirrors what the JWT contains)
+    const raw = user.allowed_modules;
+    const allowedModules = (!raw || raw === 'all')
+      ? null
+      : typeof raw === 'string' ? raw.split(',').map(m => m.trim()).filter(Boolean) : raw || null;
+    setAuthState({ authenticated: true, user, allowedModules });
+    // Land restricted users on their first accessible view instead of overview
+    setActiveView(getDefaultView(allowedModules));
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    clearAuth();
+    setAuthState({ authenticated: false, user: null, allowedModules: null });
+    // Fire-and-forget — server-side logout is stateless, ignore errors
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
   }, []);
 
   const goChat = useCallback((query) => {
@@ -183,6 +251,12 @@ export default function App() {
   }, []);
 
   const clearPendingQuery = useCallback(() => setPendingChatQuery(''), []);
+
+  // Show login screen when not authenticated — conditional JSX, not early return
+  // (all hooks above have already run unconditionally — this is safe per React rules)
+  if (!authState.authenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <div>
@@ -197,6 +271,7 @@ export default function App() {
         dbStatus={dbStatus}
         isOpen={sidebarOpen}
         alerts={alerts}
+        allowedModules={authState.allowedModules}
       />
       <Topbar
         title={VIEW_TITLES[activeView] || 'InvenIQ — Enterprise Inventory Intelligence'}
@@ -207,8 +282,12 @@ export default function App() {
         onNavigate={setActiveView}
         dbStatus={dbStatus}
         onToggleSidebar={() => setSidebarOpen(o => !o)}
+        onLogout={handleLogout}
+        currentUser={authState.user}
       />
       <ToastContainer />
+      <PWAInstallBanner />
+      <AIDockPanel activeView={activeView} onNavigateToChat={() => setActiveView('chatbot')} />
       {goMode && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
@@ -219,7 +298,7 @@ export default function App() {
           animation: 'goModeIn .15s ease',
         }}>
           <span style={{ background: '#16a34a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#fff' }}>g</span>
-          Type a letter to navigate · h=home · i=inventory · s=sales · f=finance · x=AI · e=settings
+          Type a key to navigate · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally
         </div>
       )}
       <main className="main">
@@ -249,13 +328,15 @@ export default function App() {
             {activeView === 'louvers'     && <SalesOrders         onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'analytics'   && <Analytics           onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'catalog'     && <ProductCatalog      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'projects'    && <ProjectTracker      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'quotes'      && <QuoteBuilder        onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'projects'    && <ProjectTracker      onGoChat={goChat} dbStatus={dbStatus} period={period} onNavigate={setActiveView} />}
+            {activeView === 'quotes'      && <QuoteBuilder        onGoChat={goChat} dbStatus={dbStatus} period={period} onNavigate={setActiveView} />}
             {activeView === 'credit'      && <CreditManagement  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'pos'         && <CounterPOS        onGoChat={goChat} dbStatus={dbStatus} />}
             {activeView === 'schemes'     && <SchemeManagement  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'warehouse'   && <Warehouse         onGoChat={goChat} dbStatus={dbStatus} />}
             {activeView === 'about'       && <About onGoChat={goChat} />}
             {activeView === 'settings'    && <Settings onNavigate={setActiveView} dbStatus={dbStatus} />}
+            {activeView === 'tally'       && <TallyExport dbStatus={dbStatus} period={period} />}
           </ErrorBoundary>
         </Suspense>
       </main>

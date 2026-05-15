@@ -1,5 +1,5 @@
 """
-Intelligent Tool Selector for StockSense AI
+Intelligent Tool Selector for InvenIQ AI
 Routes natural language queries to the appropriate MCP tools.
 Mode-aware: explain/act modes pull broader context automatically.
 """
@@ -215,6 +215,42 @@ KEYWORD_MAP = {
         "product code", "product id", "sku price", "sell price", "buy price",
         "product spec", "available products", "product categories",
         "acp panel", "toilet cubicle", "kitchen laminate",
+    ],
+    "credit": [
+        "credit", "credit limit", "credit management", "credit exposure",
+        "credit utilisation", "credit utilization", "credit block",
+        "overdue account", "pdc", "post dated cheque", "post-dated cheque",
+        "bounced cheque", "high risk account", "credit risk",
+        "customer credit", "credit days", "credit terms",
+        "collection", "collections", "recover payment", "block customer",
+        "credit outstanding", "payment overdue", "overdue customer",
+    ],
+    "pos": [
+        "pos", "counter pos", "counter sale", "walk in", "walk-in",
+        "walk in customer", "retail sale", "cash sale", "billing counter",
+        "bill", "receipt", "invoice counter", "today sales",
+        "counter billing", "fast billing", "over counter",
+        "daily transactions", "till", "cash register",
+    ],
+    "schemes": [
+        "scheme", "schemes", "supplier scheme", "promo scheme",
+        "promotion scheme", "volume bonus", "loyalty scheme",
+        "annual target", "target achievement", "scheme reward",
+        "accrual scheme", "scheme accrual", "quarterly bonus",
+        "scheme payout", "scheme target", "scheme tracker",
+        "incentive scheme", "dealer incentive", "distributor scheme",
+        "century scheme", "greenply scheme", "gauri scheme",
+        "scheme management", "scheme status",
+    ],
+    "warehouse": [
+        "warehouse", "warehouses", "godown", "godowns",
+        "warehouse capacity", "godown capacity", "warehouse utilisation",
+        "warehouse stock", "warehouse management", "stock distribution",
+        "which godown", "where is my stock", "godown stock",
+        "warehouse utilization", "capacity used", "space available",
+        "main warehouse", "transit hub", "counter stock replenish",
+        "warehouse performance", "stock location", "multi-warehouse",
+        "grn activity warehouse", "warehouse grn", "receiving area",
     ],
 }
 

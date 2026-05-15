@@ -41,7 +41,7 @@ export default function About({ onGoChat }) {
           A complete AI intelligence layer for dealers and distributors. Turn raw inventory, sales, and procurement data into clear decisions — instantly.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-          {[['25 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['GPT-4o Powered','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
+          {[['26 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['GPT-4o Powered','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
             <span key={t} style={{ padding:'8px 16px', borderRadius:20, fontSize:12, fontWeight:700, background:c+'22', border:`1px solid ${c}55`, color:c }}>{t}</span>
           ))}
         </div>
@@ -50,11 +50,11 @@ export default function About({ onGoChat }) {
       {/* ── STATS ── */}
       <div className="card" style={{ marginBottom:16 }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', borderBottom:'1px solid var(--border)' }}>
-          <Stat value="25" label="Intelligence Modules" color="var(--b2)" />
-          <Stat value="16" label="AI Data Tools" color="#10b981" />
+          <Stat value="26" label="Intelligence Modules" color="var(--b2)" />
+          <Stat value="19" label="AI Data Tools" color="#10b981" />
           <Stat value="3" label="Chat Modes (Ask/Explain/Act)" color="#8b5cf6" />
-          <Stat value="75+" label="API Endpoints" color="#0ea5e9" />
-          <Stat value="19" label="Knowledge Base Topics" color="#f59e0b" />
+          <Stat value="80+" label="API Endpoints" color="#0ea5e9" />
+          <Stat value="23" label="Knowledge Base Topics" color="#f59e0b" />
           <Stat value="0" label="Setup Time (Demo Mode)" color="#10b981" />
         </div>
         <div style={{ padding:'12px 16px', textAlign:'center', fontSize:12, color:'var(--text3)' }}>
@@ -90,7 +90,7 @@ export default function About({ onGoChat }) {
 
       {/* ── FEATURES ── */}
       <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.8px', fontFamily:'var(--mono)', marginBottom:10 }}>
-        25 Intelligence Modules
+        26 Intelligence Modules
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:10, marginBottom:16 }}>
         {[
@@ -113,6 +113,13 @@ export default function About({ onGoChat }) {
           { icon:'🗺️', title:'Project Tracker', desc:'Full inquiry-to-invoice pipeline with milestone tracking, stage updates, and win-rate analysis.', color:'#6366f1' },
           { icon:'📝', title:'Quotation Builder', desc:'Professional quotes with AI win-probability, margin health analysis, and WhatsApp requirement scanner.', color:'#8b5cf6' },
           { icon:'💰', title:'Profitability & Cash', desc:'Owner-level view: gross margin, cash cycle (DIO+DSO-DPO), GST summary, overdue receivables.', color:'#22c55e' },
+          { icon:'📈', title:'Credit Management',   desc:'Customer credit limits, utilisation, overdue ageing, post-dated cheque (PDC) tracker, and high-risk account flags.', color:'#6366f1' },
+          { icon:'🛒', title:'Counter POS',         desc:'Walk-in customer billing — product search, cart, ₹ total, and printable receipt. Works offline with catalog data.', color:'#0ea5e9' },
+          { icon:'⭐', title:'Scheme Management',   desc:'Supplier promotional schemes, volume targets, accrual tracking, and salesperson-wise target-vs-actual scorecards.', color:'#f59e0b' },
+          { icon:'🏭', title:'Warehouse Management', desc:'Multi-warehouse capacity tracking, zone utilisation, GRN activity log, and stock distribution across locations.', color:'#14b8a6' },
+          { icon:'📤', title:'Tally Prime Export',  desc:'One-click export of stock items, customer ledgers, supplier ledgers, sales vouchers, and purchase vouchers to Tally-compatible CSV.', color:'#6366f1' },
+          { icon:'🤖', title:'AI Assistant',        desc:'GPT-4o chat with 3 modes (Ask/Explain/Act), 19 live data tools, RCA engine, WhatsApp scanner, and PO creation.', color:'#10a37f' },
+          { icon:'⚙️', title:'Settings & Status',  desc:'System health dashboard, connection status, module registry, keyboard shortcuts reference, and quick setup guide.', color:'#64748b' },
         ].map(f => <Feature key={f.title} {...f} />)}
       </div>
 
@@ -155,9 +162,9 @@ export default function About({ onGoChat }) {
         <div className="ch"><div className="ctit">How It Works — 3 Simple Steps</div></div>
         <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'8px 0 8px' }}>
           <Step n={1} icon="⚙️" title="Connect Your Data"
-            desc="Point InvenIQ to your MySQL database or run it without any database in Demo Mode. All 22 modules show rich data immediately. No complex setup needed — just one .env file." />
+            desc="Point InvenIQ to your MySQL database or run it without any database in Demo Mode. All 26 modules show rich data immediately. No complex setup needed — just one .env file." />
           <Step n={2} icon="📊" title="See Everything at a Glance"
-            desc="22 intelligence modules cover every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, demand forecasts, quotations, and projects — all live." />
+            desc="26 intelligence modules cover every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, demand forecasts, quotations, and projects — all live." />
           <Step n={3} icon="🤖" title="Ask AI for Answers and Plans"
             desc="Type any question in plain language. The AI reads your live data, finds the root cause of problems, and gives you a step-by-step action plan. No reports, no spreadsheets." />
         </div>
@@ -209,7 +216,7 @@ export default function About({ onGoChat }) {
         <div style={{ fontSize:28, marginBottom:10 }}>🎯</div>
         <div style={{ fontWeight:800, fontSize:18, marginBottom:8, color:'var(--green)' }}>Try It Right Now — No Setup Needed</div>
         <div style={{ fontSize:13, color:'var(--text2)', maxWidth:480, margin:'0 auto 16px', lineHeight:1.7 }}>
-          InvenIQ runs in Demo Mode out of the box. All 22 modules show realistic sample data for a Bangalore building materials dealer. Click any "Ask AI" button to try the chatbot.
+          InvenIQ runs in Demo Mode out of the box. All 26 modules show realistic sample data for a Bangalore building materials dealer. Click any "Ask AI" button to try the chatbot.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
           <a href="https://github.com/nikhil2465/ai_chatbot_inventory1" target="_blank" rel="noopener noreferrer"

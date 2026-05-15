@@ -83,6 +83,9 @@ logs/
 test_*.txt
 tmp*.txt
 *tmptest*
+# Output capture files (e.g. _out.txt from start_prod.bat)
+_out.txt
+_*.txt
 
 # ── Dev caches (auto-regenerated) ────────────────────────────────────────────
 .cache/

@@ -1,5 +1,5 @@
 """
-LLM Orchestration Engine — StockSense AI v2
+LLM Orchestration Engine — InvenIQ AI v3
 Coordinates MCP tools → RCA engine → GPT-4o streaming → mode-specific responses.
 
 Modes:
@@ -18,6 +18,7 @@ PO Creation (Function Calling):
 """
 import os
 import json
+import logging
 import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from openai import AsyncOpenAI
@@ -31,18 +32,33 @@ from app.services.insights_engine import is_insights_query, generate_proactive_i
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 MODEL = "gpt-4o"
 MODEL_MINI = "gpt-4o-mini"
 
 _client: Optional[AsyncOpenAI] = None
 
+_OPENAI_KEY_MISSING_MSG = (
+    "⚠️ **AI features are not configured.** "
+    "Please set `OPENAI_API_KEY` in your `.env` file and restart the server. "
+    "All other modules (inventory, sales, finance, etc.) remain fully functional."
+)
+
 
 def get_client() -> AsyncOpenAI:
-    """Return a lazily-initialised AsyncOpenAI client (reads .env first)."""
+    """Return a lazily-initialised AsyncOpenAI client. Raises ValueError if key missing."""
     global _client
     if _client is None:
-        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=60.0)
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY is not set in environment / .env file")
+        _client = AsyncOpenAI(api_key=api_key, timeout=60.0)
     return _client
+
+
+def _is_openai_key_missing() -> bool:
+    return not os.getenv("OPENAI_API_KEY", "").strip()
 
 
 # ── PO CREATION — OpenAI Function Calling Definition ───────────────────────────
@@ -110,7 +126,7 @@ def _is_po_creation_query(query: str) -> bool:
 
 
 # ── GENERIC / CONVERSATIONAL SYSTEM PROMPT ─────────────────────────────────────
-SYSTEM_GENERIC = """You are StockSense AI — a friendly, expert AI assistant built for inventory dealers in India.
+SYSTEM_GENERIC = """You are InvenIQ AI — a friendly, expert AI assistant built for inventory dealers in India.
 
 ## Your Purpose
 Help plywood, hardware, and building-materials dealers run their business smarter:
@@ -177,7 +193,7 @@ If someone asks "how to grow", "expand business", "increase revenue", "get more 
 4. Keep it grounded in their specific data — no generic MBA advice
 """
 # ── KNOWLEDGE MODE SYSTEM PROMPT ──────────────────────────────────────────────
-SYSTEM_KNOWLEDGE = """You are StockSense AI — a world-class inventory management expert with deep knowledge of
+SYSTEM_KNOWLEDGE = """You are InvenIQ AI — a world-class inventory management expert with deep knowledge of
 supply chain best practices, financial formulas, and the plywood/building materials trade in India.
 
 ## Your Task for This Response
@@ -210,8 +226,8 @@ You have been given:
 """
 
 # ── INSIGHTS MODE SYSTEM PROMPT ───────────────────────────────────────────────
-SYSTEM_INSIGHTS = """You are StockSense AI — presenting a proactive business intelligence briefing.
-You have analyzed all data dimensions across stock, finance, customers, suppliers, orders, freight, and procurement.
+SYSTEM_INSIGHTS = """You are InvenIQ AI — presenting a proactive business intelligence briefing.
+You have analyzed all data dimensions across stock, finance, customers, suppliers, orders, freight, procurement, credit, counter POS, and supplier schemes.
 
 ## Your Task for This Response
 Present a morning briefing — ranked list of business insights the owner should act on today/this week.
@@ -381,6 +397,109 @@ You have live access to the full project pipeline from initial inquiry to final 
 - Lost projects: Always capture loss reason (price/delivery/competitor) — feed into pricing strategy
 """
 
+CREDIT_SYSTEM_ADDENDUM = """
+## Credit Management Intelligence
+You have access to live credit management data. When answering credit questions:
+
+### Credit Limit Rules (Standard Policy)
+- Standard credit period: 30 days (max 60 days for Tier-1 accounts)
+- Credit block trigger: Outstanding > 90 days OR utilisation > 95%
+- Interest on overdue: 18% p.a. after 60 days
+- New customer: No credit first 3 orders; start at ₹1-2L limit after payment track record
+
+### What to Always Include in Credit Answers
+1. **Utilisation %**: How much of the limit is consumed — flag anyone above 85%
+2. **Overdue aging**: 0-30d / 31-60d / 61-90d / 90d+ buckets — each has different urgency
+3. **PDC status**: Upcoming cheques reduce effective overdue; bounced cheques = immediate escalation
+4. **Recommended action**: HOLD (block new orders) / WATCH (monitor) / ESCALATE (legal) / CLEAR (healthy)
+5. **Revenue risk**: If you block/limit a high-value account, state the monthly revenue at risk
+
+### Credit Risk Scoring
+- **HIGH RISK**: Utilisation >90% OR overdue >60d — block new dispatches immediately
+- **MEDIUM RISK**: Utilisation 70-90% OR overdue 31-60d — require PDC before next order
+- **LOW RISK**: Utilisation <70% AND overdue <30d — normal business, monitor monthly
+- **BOUNCED PDC**: Immediate legal notice + supply stop regardless of other metrics
+"""
+
+POS_SYSTEM_ADDENDUM = """
+## Counter POS Intelligence
+You have access to live Counter POS (Point of Sale) data for walk-in retail billing. When answering POS questions:
+
+### Key POS Metrics to Always Include
+1. **Daily revenue** split by payment mode (Cash / UPI / Card) — cash-heavy is a working capital signal
+2. **Transaction count + avg bill value** — declining avg bill = customers buying less per visit
+3. **Top products at counter** vs top products in bulk sales — counter mix often differs from B2B
+4. **Peak hour analysis** — helps in staffing and counter stock planning
+5. **Returns at counter** — high return rate signals quality or mismatch issues
+
+### POS Business Rules
+- Counter stock must be replenished from main warehouse daily (not weekly)
+- Low-stock alerts at counter = immediate pull from main godown
+- Walk-in margin is typically 3-5% higher than distributor margin (no credit risk)
+- UPI/Card > 50% is healthy (reduces cash handling risk); Cash > 70% = cash flow management needed
+- Counter sales avg ₹5,000–₹15,000 per bill for plywood/laminate dealers
+
+### Counter Insights Pattern
+- If asked about walk-in performance: Compare today vs yesterday vs weekly average
+- If asked about counter stock: Flag any SKU at counter_stock < 10 (reorder from warehouse)
+- If asked about best counter products: Show revenue + margin together (not just revenue)
+"""
+
+SCHEMES_SYSTEM_ADDENDUM = """
+## Scheme Management Intelligence
+You have access to live supplier scheme data (volume bonuses, loyalty programs, promotional offers). When answering scheme questions:
+
+### What to Always Include in Scheme Answers
+1. **Achievement %**: Target vs achieved so far — is the dealer on track?
+2. **Days remaining**: Urgency increases as deadline approaches — calculate daily run-rate needed
+3. **Estimated payout**: ₹ value at stake if scheme is achieved vs current trajectory
+4. **At-risk schemes**: Any scheme below 60% achievement with <30 days left = ACTION REQUIRED
+5. **Accrual outstanding**: Total accrued but not yet claimed — this is cash receivable
+
+### Scheme Strategy Intelligence
+- **Volume target schemes**: Calculate daily units needed to hit target. If needed > current run rate, recommend specific actions (customer-specific pushes, promo pricing to move volume).
+- **Accrual schemes**: Every ₹ of purchase generates accrual — track cumulative and settlement dates.
+- **Promotional/monthly schemes**: Highest urgency — short window, often overlooked. Flag these proactively.
+- **Loyalty annual schemes**: Lower urgency but highest absolute value — track quarterly.
+
+### Scheme Maximisation Rules
+- If scheme payout > ₹1L, it justifies targeted customer outreach (call top 3 accounts)
+- If scheme is at-risk with <20 days left, recommend specific SKUs to push to specific customer segments
+- Always net scheme payout against any additional discount given to push volume (ensure net positive)
+- Century / Greenply / Gauri each have different scheme structures — reference the actual scheme data
+"""
+
+WAREHOUSE_SYSTEM_ADDENDUM = """
+## Warehouse & Godown Intelligence
+You have access to live warehouse/godown data covering capacity, stock distribution, and GRN activity. When answering warehouse questions:
+
+### What to Always Include in Warehouse Answers
+1. **Utilisation %** per godown — flag any godown above 85% (capacity risk) or below 30% (underutilised asset)
+2. **Stock value by location** — helps prioritise which godown to pull from for orders
+3. **GRN activity** — recent inward receipts, discrepancy counts, and last-received dates
+4. **Replenishment signals** — Counter Stock godown < 25% → pull from Main Godown today
+5. **Capacity headroom** — in units/sheets and ₹ value; plan incoming POs against available space
+
+### Warehouse Business Rules (Indian Hardware/Sanitary Dealer)
+- **Main Godown** (Whitefield): primary storage for bulk stock — target utilisation 65–80% (below 50% = idle capital, above 85% = inward risk)
+- **Transit Hub** (Electronic City): cross-docking for outbound orders — high GRN turnover expected, low resting stock
+- **Counter Stock**: replenish daily from Main Godown; never let it drop below 25% capacity
+- **Minimum stock rotation**: any SKU resting in one godown >90 days without movement = deadstock alert
+- **Multi-godown pick rules**: always pick from the godown closest to delivery point (save freight), then Main Godown
+
+### Warehouse Optimisation Intelligence
+- If Main Godown > 80%: fast-track dispatch of slow-moving SKUs; review pending POs for rescheduling
+- If Transit Hub > 60%: orders are backing up — investigate dispatch bottleneck or pending delivery routes
+- If Counter Stock < 30%: immediate replenishment from Main Godown; check which SKUs are critically low
+- GRN discrepancy rate > 5%: raise with supplier — short-shipment or damage in transit
+- Monthly godown audit: verify physical counts match system — identify shrinkage and misplacements
+
+### Warehouse Capacity Reference (Standard Setup)
+- Main Godown capacity: 800 units | Transit Hub: 250 units | Counter Stock: 150 units
+- Total system capacity: 1,200 units across 3 locations
+- Always state: current stock, capacity %, stock value, and last GRN date per godown
+"""
+
 SYSTEM_BASE = """You are InvenIQ AI — an expert AI advisor for building-materials dealers and distributors in India.
 You are live-connected to a dealer's full business intelligence platform covering inventory, sales, procurement, projects, and quotations.
 
@@ -392,12 +511,13 @@ You are live-connected to a dealer's full business intelligence platform coverin
 5. **Quantify everything**: Every insight must have a ₹ number or % attached
 6. **RCA Rule**: Whenever the question is about a problem, issue, root cause, or "why", ALWAYS include the RCA context — even in Ask mode (🔎 Root Cause: ...), full section in Explain/Act mode.
 
-## Platform Modules (22 active)
+## Platform Modules (25 active)
 **Inventory:** Stock Intelligence · Dead Stock & Ageing · Inward & Outward · Demand Forecasting
 **Purchasing:** Supplier & Procurement · PO & GRN · Product Catalog (louvers, laminates, ACP, operable systems)
-**Sales:** Customer Intelligence · Sales Orders · Orders & Fulfilment · Freight Planning · Sales Performance · Claims & Rebates · Discount Calculator
+**Sales:** Customer Intelligence · Sales Orders · Orders & Fulfilment · Freight Planning · Sales Performance · Claims & Rebates · Discount Calculator · Scheme Management (supplier promotions, volume targets, accruals)
 **Projects & Quotes:** Project Tracker (Inquiry→Invoice) · Quotation Builder (with AI analysis + WhatsApp scanner)
-**Finance:** Profitability & Cash (owner-level: margin, cash cycle, GST, working capital)
+**Finance:** Profitability & Cash (owner-level: margin, cash cycle, GST, working capital) · Credit Management (customer credit limits, overdue accounts, PDC tracker)
+**Operations:** Counter POS (walk-in billing, daily summary, retail transactions) · Warehouse & Godown Management (multi-location capacity, stock distribution, GRN activity)
 **AI:** Knowledge Base · Proactive Insights · RCA Engine · AI Chat
 
 ## Live Business Snapshot (Real-Time)
@@ -411,6 +531,11 @@ You are live-connected to a dealer's full business intelligence platform coverin
 - **Working capital**: 48 days (target <40d) | GSTR-3B PENDING
 - **Quotation pipeline**: ₹13.1L | Win rate 50% | 2 quotes expiring this week
 - **Active projects**: Prestige Skyrise (₹48L, IN_PRODUCTION), Metro Constructions Koramangala (₹9.5L, NEGOTIATING)
+- **Credit exposure**: ₹42.8L total | BuildRight ₹14.1L (94% utilised — AT LIMIT) | Skyline ₹5.8L (97% — CRITICAL) | Overdue: ₹8.6L across 4 accounts
+- **PDC pending**: ₹5.2L across 6 cheques | 1 bounced cheque (Sunshine Interiors ₹0.3L — Axis Bank)
+- **Counter POS today**: 18 transactions | ₹1.24L revenue | Peak: 10AM–12PM & 4–6PM | Avg bill ₹6,880
+- **Warehouse**: Main Godown Whitefield 76.8% (614/800 units, ₹28.4L value) | Transit Hub 32% (80/250, ₹5.1L) | Counter Stock 82% (123/150, ₹4.6L) — Counter Stock HIGH: replenish today
+- **Active schemes**: 3 supplier schemes | Century Q1 Volume Bonus (₹2.8L est., 74.7% achieved, 49d left) | Greenply Loyalty (₹54K accrual, 72.4%) | Gauri May Promo (AT RISK — need 22 more HPL cartons)
 - **Product catalog**: Aluminium Louvers · HPL/Compact/Acrylic Laminates · PVC Louvers · ACP · Operable Systems · Toilet Cubicles · **Ebco Hardware** (Drawer Slides, Hinges, Handles, Kitchen Systems, LED Lights, Wardrobe Fittings, Aluminium Profiles) · Hafele / Hettich / Blum range available
 - **Catalog feature**: Products can be scanned and added from any catalog image, PDF, or price list using AI Vision — product auto-added to live catalog and QuoteBuilder instantly
 - **Hardware HSN reference**: Hinges/slides/handles = 8302 (18% GST), Locks = 8301 (18%), LED = 9405 (18%), Al profiles = 7604 (18%), Screws/cam = 7318 (18%)
@@ -546,6 +671,14 @@ def _build_messages(
         system_prompt += LOUVERS_SYSTEM_ADDENDUM
     if "projects" in tool_data:
         system_prompt += PROJECTS_SYSTEM_ADDENDUM
+    if "credit" in tool_data:
+        system_prompt += CREDIT_SYSTEM_ADDENDUM
+    if "pos" in tool_data:
+        system_prompt += POS_SYSTEM_ADDENDUM
+    if "schemes" in tool_data:
+        system_prompt += SCHEMES_SYSTEM_ADDENDUM
+    if "warehouse" in tool_data:
+        system_prompt += WAREHOUSE_SYSTEM_ADDENDUM
     messages = [{"role": "system", "content": system_prompt}]
 
     if history:
@@ -614,7 +747,8 @@ async def _generate_follow_ups(query: str, mode: str) -> List[str]:
         lines = resp.choices[0].message.content.strip().split('\n')
         cleaned = [l.strip().lstrip('123.-•– ').strip() for l in lines if l.strip()]
         return [q for q in cleaned if 4 < len(q) < 80][:3]
-    except Exception:
+    except Exception as exc:
+        logger.debug("Follow-up generation failed: %s", exc)
         return []
 
 
@@ -636,6 +770,13 @@ async def process_query_stream(
         yield {"type": "error", "message": "Please enter a question or request."}
         return
 
+    # ── Guard: OpenAI key must be configured ─────────────────────────────────
+    if _is_openai_key_missing():
+        yield {"type": "meta", "tools_used": [], "rca_performed": False}
+        yield {"type": "token", "content": _OPENAI_KEY_MISSING_MSG}
+        yield {"type": "done", "follow_ups": []}
+        return
+
     query = query.strip()
 
     # ── Generic / conversational fast-path — skip tools and RCA ──────────────
@@ -654,7 +795,7 @@ async def process_query_stream(
                 if token:
                     yield {"type": "token", "content": token}
         except Exception as exc:
-            yield {"type": "token", "content": f"Hi! I'm StockSense AI — your inventory advisor. Ask me about stock, margins, suppliers, or customers. *(Error: {str(exc)[:60]})*"}
+            yield {"type": "token", "content": f"Hi! I'm InvenIQ AI — your inventory advisor. Ask me about stock, margins, suppliers, or customers. *(Error: {str(exc)[:60]})*"}
         follow_ups_g = await _generate_follow_ups(query, mode)
         yield {"type": "done", "follow_ups": follow_ups_g or [
             "Which SKUs need urgent reorder?",
@@ -710,12 +851,13 @@ async def process_query_stream(
 
     # ── Insights / Business Intelligence fast-path — proactive briefing ───────
     if is_insights_query(query):
-        # Gather data from ALL 14 tools for comprehensive analysis
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog"]
+        # Gather data from ALL tools for comprehensive analysis
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Insights generation failed: %s", exc)
             insights_list = []
         insights_ctx = format_insights_context(insights_list)
 
@@ -778,7 +920,8 @@ async def process_query_stream(
     # Step 3: RCA (explain mode or 'why' words)
     try:
         rca_performed, rca_context = await _run_rca_if_needed(mode, query, tool_data)
-    except Exception:
+    except Exception as exc:
+        logger.warning("RCA engine failed: %s", exc)
         rca_performed, rca_context = False, ""
 
     # Step 3b: RCA templates (act mode — full structured framework)
@@ -786,7 +929,8 @@ async def process_query_stream(
     if mode == "act":
         try:
             rca_template_context = get_act_rca_templates(query, tool_data)
-        except Exception:
+        except Exception as exc:
+            logger.warning("RCA templates failed: %s", exc)
             rca_template_context = ""
 
     # Step 3c: Inline RCA tip (ask/explain modes — compact single-template insight)
@@ -795,7 +939,8 @@ async def process_query_stream(
     if mode in ("ask", "explain") and not rca_context:
         try:
             inline_rca = get_inline_rca_tip(query, tool_data, mode)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Inline RCA tip failed: %s", exc)
             inline_rca = ""
     if inline_rca:
         rca_performed = True  # flag frontend to show the RCA chip
@@ -896,6 +1041,7 @@ async def process_query_stream(
                     yield {"type": "token", "content": "I need more details to create the PO. Please specify: supplier name, product/SKU, and quantity."}
 
     except Exception as exc:
+        logger.error("GPT-4o stream error [mode=%s]: %s", mode, exc, exc_info=True)
         fallback = _fallback_response(query, tool_data, mode, str(exc))
         for word in fallback.split():
             yield {"type": "token", "content": word + " "}
@@ -916,6 +1062,8 @@ async def process_query(
     """Non-streaming version — collects the full stream into a single response."""
     if not query:
         return {"response": "Please ask a question.", "mode": mode, "tools_used": [], "rca_performed": False}
+    if _is_openai_key_missing():
+        return {"response": _OPENAI_KEY_MISSING_MSG, "mode": mode, "tools_used": [], "rca_performed": False}
 
     # ── Generic / conversational fast-path ───────────────────────────────────
     if is_generic_query(query):
@@ -934,7 +1082,7 @@ async def process_query(
             }
         except Exception as exc:
             return {
-                "response": f"Hi! I'm StockSense AI — your inventory intelligence advisor. How can I help you today? *(Error: {str(exc)[:60]})*",
+                "response": f"Hi! I'm InvenIQ AI — your inventory intelligence advisor. How can I help you today? *(Error: {str(exc)[:60]})*",
                 "mode": mode,
                 "tools_used": [],
                 "rca_performed": False,
@@ -974,7 +1122,8 @@ async def process_query(
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Insights generation failed (non-stream): %s", exc)
             insights_list = []
         insights_ctx = format_insights_context(insights_list)
         messages_i = [{"role": "system", "content": SYSTEM_INSIGHTS}]
@@ -997,11 +1146,13 @@ async def process_query(
     tool_data = await gather_tool_data(selected_tools, query)
     try:
         rca_performed, rca_context = await _run_rca_if_needed(mode, query, tool_data)
-    except Exception:
+    except Exception as exc:
+        logger.warning("RCA engine failed (non-stream): %s", exc)
         rca_performed, rca_context = False, ""
     try:
         rca_template_context = get_act_rca_templates(query, tool_data) if mode == "act" else ""
-    except Exception:
+    except Exception as exc:
+        logger.warning("RCA templates failed (non-stream): %s", exc)
         rca_template_context = ""
     messages = _build_messages(query, mode, tool_data, rca_context, history, rca_template_context)
 
@@ -1017,6 +1168,7 @@ async def process_query(
         )
         answer = resp.choices[0].message.content.strip()
     except Exception as exc:
+        logger.error("GPT-4o non-stream error [mode=%s]: %s", mode, exc, exc_info=True)
         answer = _fallback_response(query, tool_data, mode, str(exc))
 
     return {
@@ -1053,7 +1205,7 @@ def _fallback_response(query: str, tool_data: dict, mode: str, error: str) -> st
 
     if is_generic_query(query):
         return (
-            "👋 Hi! I'm **StockSense AI** — your inventory intelligence advisor.\n\n"
+            "👋 Hi! I'm **InvenIQ AI** — your inventory intelligence advisor.\n\n"
             "I can help you with:\n"
             "- 📦 Stock levels, reorder alerts, dead stock recovery\n"
             "- 💰 Margin analysis and cash flow\n"

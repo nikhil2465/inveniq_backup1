@@ -417,7 +417,7 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
       {/* ── PO Header ── */}
       <div style={{ background: '#1e3a5f', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ color: '#93c5fd', fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>StockSense Plywood Dealers</div>
+          <div style={{ color: '#93c5fd', fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>InvenIQ Dealers</div>
           <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, letterSpacing: '1px' }}>PURCHASE ORDER</div>
           <div style={{ color: '#94a3b8', fontSize: 10, marginTop: 3 }}>Bangalore, Karnataka · GSTIN: 29AABCS1234F1ZX</div>
         </div>
@@ -440,7 +440,7 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
         </div>
         <div style={{ padding: '12px 20px' }}>
           <div style={{ ...labelStyle }}>Ship / Deliver To</div>
-          <div style={{ ...valueStyle, fontWeight: 700 }}>StockSense Plywood Dealers</div>
+          <div style={{ ...valueStyle, fontWeight: 700 }}>InvenIQ Dealers</div>
           <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, lineHeight: 1.5 }}>
             Main Warehouse, Bangalore<br />
             Karnataka — 560001

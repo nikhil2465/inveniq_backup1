@@ -98,8 +98,231 @@ function KanbanCard({ project, onClick }) {
   );
 }
 
+// ── Category options (hardware + sanitary + louvers profile) ──────────────────
+const CATEGORIES = [
+  'Aluminium Louvers', 'HPL Exterior Cladding + ACP', 'Compact Laminate',
+  'Acrylic Laminate', 'Hardware Fittings', 'Sanitary CP Fittings',
+  'Kitchen Systems', 'Door Hardware', 'Soft Furnishings & Accessories', 'Other',
+];
+const CLIENT_TYPES = ['Developer', 'Interior Firm', 'Contractor', 'End User', 'Architect', 'Institutional'];
+
+// ── New Project Modal ─────────────────────────────────────────────────────────
+function NewProjectModal({ onClose, onCreated }) {
+  const blank = {
+    project_name: '', client_name: '', client_type: 'Developer',
+    architect_name: '', site_location: '', category: '', estimated_value: '',
+    priority: 'MEDIUM', expected_close: '', notes: '',
+  };
+  const [form, setForm]       = useState(blank);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.project_name.trim() || !form.client_name.trim() || !form.site_location.trim() || !form.category || !form.estimated_value) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const body = {
+        ...form,
+        estimated_value: parseFloat(form.estimated_value),
+        architect_name: form.architect_name || null,
+        expected_close: form.expected_close || null,
+        notes: form.notes || null,
+      };
+      const res  = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to create project');
+      onCreated(data.project_number);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="qb-modal-overlay" onClick={onClose}>
+      <div className="pt-new-modal" onClick={e => e.stopPropagation()}>
+        <div className="pt-new-modal-header">
+          <div>
+            <div className="pt-new-modal-title">New Project</div>
+            <div className="pt-new-modal-sub">Create a new project in the pipeline</div>
+          </div>
+          <button className="qb-close-btn" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="pt-new-form">
+          <div className="pt-new-form-grid">
+            {/* Row 1 */}
+            <div className="pt-fg pt-fg-full">
+              <label>Project Name *</label>
+              <input type="text" value={form.project_name} onChange={e => set('project_name', e.target.value)} placeholder="e.g. Prestige Skyrise Tower A — Hardware Fitout" required />
+            </div>
+            {/* Row 2 */}
+            <div className="pt-fg">
+              <label>Client Name *</label>
+              <input type="text" value={form.client_name} onChange={e => set('client_name', e.target.value)} placeholder="e.g. Prestige Developers" required />
+            </div>
+            <div className="pt-fg">
+              <label>Client Type *</label>
+              <select value={form.client_type} onChange={e => set('client_type', e.target.value)}>
+                {CLIENT_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            {/* Row 3 */}
+            <div className="pt-fg">
+              <label>Architect / Consultant</label>
+              <input type="text" value={form.architect_name} onChange={e => set('architect_name', e.target.value)} placeholder="e.g. Sikka & Associates" />
+            </div>
+            <div className="pt-fg">
+              <label>Site Location *</label>
+              <input type="text" value={form.site_location} onChange={e => set('site_location', e.target.value)} placeholder="e.g. Whitefield, Bangalore" required />
+            </div>
+            {/* Row 4 */}
+            <div className="pt-fg">
+              <label>Category *</label>
+              <select value={form.category} onChange={e => set('category', e.target.value)} required>
+                <option value="">— Select category —</option>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="pt-fg">
+              <label>Estimated Value (₹) *</label>
+              <input type="number" min="1000" step="1000" value={form.estimated_value} onChange={e => set('estimated_value', e.target.value)} placeholder="e.g. 500000" required />
+            </div>
+            {/* Row 5 */}
+            <div className="pt-fg">
+              <label>Priority</label>
+              <select value={form.priority} onChange={e => set('priority', e.target.value)}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div className="pt-fg">
+              <label>Expected Close Date</label>
+              <input type="date" value={form.expected_close} onChange={e => set('expected_close', e.target.value)} />
+            </div>
+            {/* Notes */}
+            <div className="pt-fg pt-fg-full">
+              <label>Notes</label>
+              <textarea rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Key requirements, specifications, special instructions…" />
+            </div>
+          </div>
+          {error && <div className="pt-new-error">{error}</div>}
+          <div className="pt-new-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? 'Creating…' : '+ Create Project'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Procurement tab inside ProjectDetail ──────────────────────────────────────
+function ProjectProcurementTab({ projectId, onNavigate }) {
+  const [data, setData]     = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/projects/${projectId}/procurement`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const fmtV = n => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+  const statusColor = s =>
+    s === 'GRN_DONE'   ? { bg: '#dcfce7', color: '#15803d' }
+    : s === 'IN_TRANSIT' ? { bg: '#dbeafe', color: '#1e40af' }
+    : s === 'ORDERED'    ? { bg: '#fef3c7', color: '#92400e' }
+    : { bg: '#f3f4f6', color: '#6b7280' };
+
+  if (loading) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>Loading procurement…</div>;
+
+  const pos = data?.purchase_orders || [];
+  const summary = data?.summary || {};
+
+  return (
+    <div className="pt-proc-wrap">
+      {/* Summary row */}
+      <div className="pt-proc-summary">
+        <div className="pt-proc-kpi">
+          <div className="pt-proc-kpi-label">Total POs</div>
+          <div className="pt-proc-kpi-val">{summary.total_pos || 0}</div>
+        </div>
+        <div className="pt-proc-kpi">
+          <div className="pt-proc-kpi-label">Total Value</div>
+          <div className="pt-proc-kpi-val">{fmtV(summary.total_value || 0)}</div>
+        </div>
+        <div className="pt-proc-kpi">
+          <div className="pt-proc-kpi-label">Received</div>
+          <div className="pt-proc-kpi-val" style={{ color: 'var(--green)' }}>{fmtV(summary.received_value || 0)}</div>
+        </div>
+        <div className="pt-proc-kpi">
+          <div className="pt-proc-kpi-label">Pending</div>
+          <div className="pt-proc-kpi-val" style={{ color: (summary.pending_value || 0) > 0 ? 'var(--amber)' : 'var(--text3)' }}>{fmtV(summary.pending_value || 0)}</div>
+        </div>
+      </div>
+
+      {pos.length === 0 ? (
+        <div className="pt-proc-empty">
+          <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="3" width="30" height="34" rx="3" stroke="currentColor" strokeWidth="1.5" opacity=".3"/><path d="M13 13h14M13 19h10M13 25h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity=".3"/></svg>
+          <div>No purchase orders raised for this project yet.</div>
+          {onNavigate && <button className="btn-primary" style={{ fontSize: 12, marginTop: 10 }} onClick={() => onNavigate('pogrn')}>Raise PO in PO & GRN →</button>}
+        </div>
+      ) : (
+        <>
+          <div className="pt-proc-list">
+            {pos.map((po, i) => {
+              const sc = statusColor(po.status);
+              return (
+                <div key={i} className="pt-proc-row">
+                  <div className="pt-proc-row-left">
+                    <div className="pt-proc-po-num">{po.po_number}</div>
+                    <div className="pt-proc-supplier">{po.supplier}</div>
+                    <div className="pt-proc-items">{po.items}</div>
+                  </div>
+                  <div className="pt-proc-row-right">
+                    <div className="pt-proc-value">{fmtV(po.value)}</div>
+                    <span className="pt-proc-status" style={{ background: sc.bg, color: sc.color }}>
+                      {po.status.replace('_', ' ')}
+                    </span>
+                    {po.expected_delivery && (
+                      <div className="pt-proc-date">Due: {po.expected_delivery}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {onNavigate && (
+            <button className="pt-proc-add-btn" onClick={() => onNavigate('pogrn')}>
+              + Raise New PO in PO &amp; GRN
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Project detail panel ───────────────────────────────────────────────────────
-function ProjectDetail({ project, onClose, onGoChat }) {
+function ProjectDetail({ project, onClose, onGoChat, onNavigate }) {
+  const [tab, setTab] = useState('details');
   const stages = ['INQUIRY', 'QUOTE_SENT', 'NEGOTIATING', 'WON', 'IN_PRODUCTION', 'DISPATCHED', 'DELIVERED', 'INVOICED'];
   const currentIdx = stages.indexOf(project.stage);
 
@@ -119,8 +342,20 @@ function ProjectDetail({ project, onClose, onGoChat }) {
           <button className="qb-close-btn" onClick={onClose}>×</button>
         </div>
 
+        {/* Tab bar */}
+        <div className="pt-detail-tabs">
+          <button className={`pt-detail-tab${tab === 'details' ? ' active' : ''}`} onClick={() => setTab('details')}>Details</button>
+          <button className={`pt-detail-tab${tab === 'milestones' ? ' active' : ''}`} onClick={() => setTab('milestones')}>Milestones</button>
+          <button className={`pt-detail-tab${tab === 'procurement' ? ' active' : ''}`} onClick={() => setTab('procurement')}>Procurement</button>
+        </div>
+
+        {tab === 'procurement' && (
+          <ProjectProcurementTab projectId={project.project_id} onNavigate={onNavigate} />
+        )}
+
+        {tab !== 'procurement' && (
         <div className="pt-detail-body">
-          {/* Left */}
+          {/* Left — Details */}
           <div className="pt-detail-left">
             {/* Client info */}
             <div className="pc-detail-section">
@@ -231,17 +466,19 @@ function ProjectDetail({ project, onClose, onGoChat }) {
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ── Main ProjectTracker View ───────────────────────────────────────────────────
-export default function ProjectTracker({ onGoChat, dbStatus }) {
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [view, setView]       = useState('kanban');
-  const [selected, setSelected] = useState(null);
+export default function ProjectTracker({ onGoChat, dbStatus, onNavigate }) {
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [view, setView]           = useState('kanban');
+  const [selected, setSelected]   = useState(null);
+  const [showNewProject, setShowNewProject] = useState(false);
   const [stageFilter, setStageFilter] = useState('ALL');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 15;
@@ -279,6 +516,7 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
         </div>
         <div className="ph-actions">
           <DataSourceBadge source={data?.data_source} />
+          <button className="btn-secondary" onClick={() => setShowNewProject(true)}>+ New Project</button>
           {onGoChat && (
             <button className="btn-primary" onClick={() => onGoChat('What is my current project pipeline value and which projects need immediate attention to close this month?')}>
               ✨ AI Pipeline Analysis
@@ -427,7 +665,19 @@ export default function ProjectTracker({ onGoChat, dbStatus }) {
       {/* Project detail */}
       {selected && (
         <ProjectDetail project={selected} onClose={() => setSelected(null)}
-          onGoChat={onGoChat ? (q) => { setSelected(null); onGoChat(q); } : null} />
+          onGoChat={onGoChat ? (q) => { setSelected(null); onGoChat(q); } : null}
+          onNavigate={onNavigate} />
+      )}
+
+      {/* New Project modal */}
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreated={(projectNumber) => {
+            setShowNewProject(false);
+            fetchData();
+          }}
+        />
       )}
 
       {onGoChat && (

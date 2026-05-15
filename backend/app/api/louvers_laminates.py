@@ -26,9 +26,81 @@ except ImportError:
 # GET /api/louvers  — full dashboard
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _compute_kpis(orders: list, claims: list, rebates: list) -> dict:
+    """Derive KPI summary from live or mock order/claim/rebate lists."""
+    import datetime
+    current_month = datetime.date.today().strftime("%Y-%m")
+    mtd = [o for o in orders if str(o.get("order_date") or o.get("created_at", "")).startswith(current_month)]
+    pipeline = [o for o in orders if o.get("status") in ("DRAFT", "CONFIRMED", "IN_PRODUCTION")]
+    active   = [o for o in orders if o.get("status") not in ("DELIVERED", "CANCELLED")]
+    all_margins = [float(o.get("margin_pct") or 0) for o in orders if o.get("margin_pct") is not None]
+    return {
+        "orders_this_month": len(mtd) if mtd else len(orders),
+        "active_orders":     len(active),
+        "order_revenue":     sum(float(o.get("total_value") or 0) for o in (mtd or orders)),
+        "avg_margin_pct":    round(sum(all_margins) / len(all_margins), 1) if all_margins else 0,
+        "pipeline_value":    sum(float(o.get("total_value") or 0) for o in pipeline),
+        "claims_pending":    sum(o.get("amount_claimed", 0) or 0 for o in claims if o.get("status") in ("SUBMITTED", "UNDER_REVIEW", "DRAFT")),
+        "claims_approved":   sum((o.get("amount_approved") or 0) for o in claims if o.get("status") in ("APPROVED", "PARTIAL")),
+        "rebate_liability":  sum(r.get("rebate_value", 0) or 0 for r in rebates if r.get("status") in ("ACTIVE", "PENDING_APPROVAL", "ACHIEVED")),
+        "rebate_paid":       sum(r.get("rebate_value", 0) or 0 for r in rebates if r.get("status") == "PAID"),
+    }
+
+
 @router.get("/louvers")
 async def get_louvers_dashboard():
-    return _mock_dashboard()
+    from app.core.demo_state import get_all_status_overrides
+    base = _mock_dashboard()
+
+    # ── DB path: pull live orders from sales_orders table ────────────────────
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute("""
+                            SELECT id AS order_id, order_number, customer_name, customer_type,
+                                   product_name, category, quantity, unit,
+                                   sell_price, buy_price,
+                                   ROUND(sell_price * quantity, 2) AS total_value,
+                                   ROUND((sell_price - COALESCE(buy_price, sell_price * 0.78))
+                                         / NULLIF(sell_price, 0) * 100, 2) AS margin_pct,
+                                   status, delivery_date,
+                                   DATE(created_at) AS order_date,
+                                   COALESCE(supplier_name, '') AS supplier_name,
+                                   COALESCE(notes, '') AS notes
+                            FROM sales_orders
+                            ORDER BY created_at DESC
+                            LIMIT 200
+                        """)
+                        rows = await cur.fetchall()
+                        if rows:
+                            cols = [d[0] for d in cur.description]
+                            db_orders = []
+                            for r in rows:
+                                o = dict(zip(cols, r))
+                                if o.get("delivery_date") and not isinstance(o["delivery_date"], str):
+                                    o["delivery_date"] = o["delivery_date"].isoformat()
+                                if o.get("order_date") and not isinstance(o["order_date"], str):
+                                    o["order_date"] = str(o["order_date"])
+                                db_orders.append(o)
+                            base["orders"] = db_orders
+                            base["kpis"] = _compute_kpis(db_orders, base["claims"], base["rebates"])
+                            base["data_source"] = "mysql"
+                            return base
+        except Exception as exc:
+            logger.warning("GET /api/louvers DB fetch failed: %s", exc)
+
+    # ── Demo mode: apply in-session status overrides ──────────────────────────
+    overrides = get_all_status_overrides()
+    if overrides:
+        for o in base["orders"]:
+            if o["order_id"] in overrides:
+                o["status"] = overrides[o["order_id"]]
+        base["kpis"] = _compute_kpis(base["orders"], base["claims"], base["rebates"])
+
+    return base
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SALES ORDERS
@@ -71,6 +143,25 @@ async def create_order(req: CreateOrderRequest):
 async def update_order_status(order_id: int, req: OrderStatusUpdate):
     if req.status not in VALID_ORDER_STATUSES:
         raise HTTPException(422, f"Status must be one of {VALID_ORDER_STATUSES}")
+
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            "UPDATE sales_orders SET status = %s WHERE id = %s",
+                            (req.status, order_id),
+                        )
+                    await conn.commit()
+                return {"success": True, "order_id": order_id, "status": req.status, "demo_mode": False}
+        except Exception as exc:
+            logger.warning("Status update DB failed: %s", exc)
+
+    # Demo mode: persist in-session cache so GET /api/louvers reflects the change
+    from app.core.demo_state import set_order_status
+    set_order_status(order_id, req.status)
     return {"success": True, "order_id": order_id, "status": req.status, "demo_mode": True}
 
 

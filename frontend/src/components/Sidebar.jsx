@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 const NAV_ITEMS = [
   // ── Overview ──────────────────────────────────────────────────────────────
@@ -33,6 +33,10 @@ const NAV_ITEMS = [
   {
     id: 'inward', label: 'Inward & Outward',
     icon: <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v10M5 9l3 3 3-3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/><path d="M2 14h12" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".6"/></svg>,
+  },
+  {
+    id: 'warehouse', label: 'Warehouse Management',
+    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M1 7L8 2l7 5v7H1V7z" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".85"/><rect x="5" y="9" width="6" height="5" rx=".5" stroke="white" strokeWidth="1.2" opacity=".7"/></svg>,
   },
 
   // ── Procurement ───────────────────────────────────────────────────────────
@@ -110,6 +114,13 @@ const NAV_ITEMS = [
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="11" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M1 7h14" stroke="white" strokeWidth="1.2" opacity=".5"/><path d="M5 1v4M11 1v4" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".7"/><path d="M5 10l1.5 1.5L10 9" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
   },
 
+  // ── Integrations ─────────────────────────────────────────────────────────
+  { section: 'Integrations' },
+  {
+    id: 'tally', label: 'Tally Prime Export', badge: 'NEW', badgeClass: 'nb-g',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 5h6M5 8h6M5 11h4" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".7"/><path d="M11 9.5l1.5 1.5L15 8.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
+  },
+
   // ── AI Assistant ──────────────────────────────────────────────────────────
   { section: 'AI Assistant' },
   {
@@ -162,7 +173,9 @@ function SidebarFooter({ dbStatus }) {
   );
 }
 
-export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, alerts = [] }) {
+export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, alerts = [], allowedModules = null }) {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const dynBadges = useMemo(() => {
     const critStock = alerts.filter(a => a.category === 'stock' && a.severity === 'critical').length;
     const deadItems = alerts.filter(a => a.id?.startsWith('dead') || (a.category === 'stock' && a.title?.toLowerCase().includes('dead'))).length;
@@ -175,6 +188,26 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
       procurement: overduePO  > 0 ? String(overduePO) : null,
     };
   }, [alerts]);
+
+  // Filter by allowedModules and search query.
+  // Section headers are emitted only when at least one visible item exists in that section.
+  const visibleItems = useMemo(() => {
+    const allowed = allowedModules ? new Set(allowedModules) : null;
+    const q = searchQuery.trim().toLowerCase();
+    const result = [];
+    let pendingSection = null;
+    for (const item of NAV_ITEMS) {
+      if (item.section) {
+        pendingSection = item;
+      } else {
+        if (allowed && !allowed.has(item.id)) continue;
+        if (q && !item.label.toLowerCase().includes(q)) continue;
+        if (pendingSection) { result.push(pendingSection); pendingSection = null; }
+        result.push(item);
+      }
+    }
+    return result;
+  }, [allowedModules, searchQuery]);
 
   return (
     <nav className={`sidebar${isOpen ? ' open' : ''}`}>
@@ -197,9 +230,30 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
         <div className="logo-tag">Inventory Intelligence Platform</div>
       </div>
 
+      {/* Module Search */}
+      <div className="sb-search">
+        <svg viewBox="0 0 16 16" fill="none" className="sb-search-icon">
+          <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.4" opacity=".6"/>
+          <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity=".6"/>
+        </svg>
+        <input
+          type="text"
+          className="sb-search-input"
+          placeholder="Search modules…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button className="sb-search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">×</button>
+        )}
+      </div>
+
       {/* Navigation */}
       <div className="nav">
-        {NAV_ITEMS.map((item, idx) => {
+        {visibleItems.length === 0 && (
+          <div className="sb-no-results">No modules found</div>
+        )}
+        {visibleItems.map((item, idx) => {
           if (item.section) {
             return <div key={`sec-${idx}`} className="nav-sec">{item.section}</div>;
           }
@@ -211,7 +265,7 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
           return (
             <button
               key={item.id}
-              className={`ni${activeView === item.id ? ' active' : ''}`}
+              className={`ni${activeView === item.id ? ' active' : ''}${item.id === 'chatbot' ? ' ai-available' : ''}`}
               onClick={() => onNavigate(item.id)}
             >
               {item.icon}

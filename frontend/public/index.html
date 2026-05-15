@@ -4,13 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#15803d" />
-    <meta name="description" content="InvenIQ — AI-Powered Inventory Intelligence Platform for dealers and distributors. 22 modules covering stock, sales, procurement, quotations, projects, finance, and AI insights." />
+    <meta name="description" content="InvenIQ — AI-Powered Inventory Intelligence Platform for dealers and distributors. 26 modules covering stock, sales, procurement, quotations, projects, finance, and AI insights." />
     <meta name="application-name" content="InvenIQ" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="InvenIQ" />
 
     <!-- Open Graph / Sharing -->
     <meta property="og:type"        content="website" />
     <meta property="og:title"       content="InvenIQ — Inventory Intelligence Platform" />
-    <meta property="og:description" content="22-module AI intelligence platform for building materials dealers. Stock, sales, procurement, quotations & AI chat — all in one place." />
+    <meta property="og:description" content="26-module AI intelligence platform for building materials dealers. Stock, sales, procurement, quotations & AI chat — all in one place." />
     <meta property="og:site_name"   content="InvenIQ" />
 
     <title>InvenIQ — Inventory Intelligence</title>
@@ -38,5 +43,12 @@
   <body>
     <noscript>You need to enable JavaScript to run InvenIQ.</noscript>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').catch(function(){});
+        });
+      }
+    </script>
   </body>
 </html>

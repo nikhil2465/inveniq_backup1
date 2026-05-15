@@ -1244,3 +1244,94 @@ kbd {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DARK MODE — Maps --iq-* variables to dark palette
+   Both manual .dark-mode class and prefers-color-scheme: dark are supported.
+══════════════════════════════════════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode) {
+    --iq-bg:            #0f1117;
+    --iq-bg-secondary:  #1a1d23;
+    --iq-surface:       #1a1d23;
+    --iq-border:        #2d3340;
+    --iq-border-soft:   #23272f;
+    --iq-border-brand:  #374151;
+    --iq-text:          #f1f5f9;
+    --iq-text-muted:    #94a3b8;
+    --iq-text-subtle:   #64748b;
+    --iq-text-lighter:  #374151;
+    --iq-navy:          #e2e8f0;
+    --iq-navy-mid:      #cbd5e1;
+    --iq-navy-light:    #94a3b8;
+    --iq-success-light: #052e16;
+    --iq-danger-light:  #450a0a;
+  }
+}
+.dark-mode {
+  --iq-bg:            #0f1117;
+  --iq-bg-secondary:  #1a1d23;
+  --iq-surface:       #1a1d23;
+  --iq-border:        #2d3340;
+  --iq-border-soft:   #23272f;
+  --iq-border-brand:  #374151;
+  --iq-text:          #f1f5f9;
+  --iq-text-muted:    #94a3b8;
+  --iq-text-subtle:   #64748b;
+  --iq-text-lighter:  #374151;
+  --iq-navy:          #e2e8f0;
+  --iq-navy-mid:      #cbd5e1;
+  --iq-navy-light:    #94a3b8;
+  --iq-success-light: #052e16;
+  --iq-danger-light:  #450a0a;
+}
+
+/* Dark mode chip overrides — hardcoded light backgrounds → dark equivalents */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode) .iq-chip.mode-ask      { background: #0c1a3d; color: #93c5fd; border-color: #1e3a5f; }
+  :root:not(.light-mode) .iq-chip.mode-explain  { background: #2e1065; color: #d8b4fe; border-color: #4c1d95; }
+  :root:not(.light-mode) .iq-chip.mode-act      { background: #451a03; color: #fcd34d; border-color: #78350f; }
+  :root:not(.light-mode) .iq-chip.rca           { background: #2e1065; color: #e9d5ff; border-color: #4c1d95; }
+  :root:not(.light-mode) .iq-chip.tool-stock    { background: #0c1a3d; color: #93c5fd; border-color: #1e3a5f; }
+  :root:not(.light-mode) .iq-chip.tool-finance  { background: #052e16; color: #86efac; border-color: #14532d; }
+  :root:not(.light-mode) .iq-chip.tool-supplier { background: #2e1065; color: #d8b4fe; border-color: #4c1d95; }
+  :root:not(.light-mode) .iq-chip.tool-customer { background: #451a03; color: #fcd34d; border-color: #78350f; }
+  :root:not(.light-mode) .iq-chip.tool-order    { background: #1e2128; color: #94a3b8; border-color: #374151; }
+  :root:not(.light-mode) .iq-chip.tool-demand   { background: #450a0a; color: #fecdd3; border-color: #7f1d1d; }
+  :root:not(.light-mode) .iq-chip.tool-freight  { background: #022c22; color: #67e8f9; border-color: #064e3b; }
+  :root:not(.light-mode) .iq-chip.tool-email    { background: #0c1a3d; color: #7dd3fc; border-color: #1e3a5f; }
+  :root:not(.light-mode) .iq-chip.tool-sales    { background: #052e16; color: #4ade80; border-color: #14532d; }
+  :root:not(.light-mode) .iq-chip.tool-inward   { background: #1c1917; color: #a8a29e; border-color: #44403c; }
+  :root:not(.light-mode) .iq-chip.tool-knowledge{ background: #022c22; color: #22d3ee; border-color: #064e3b; }
+  :root:not(.light-mode) .iq-chip.tool-insights { background: #052e16; color: #4ade80; border-color: #14532d; }
+  :root:not(.light-mode) .iq-chip.tool-quotes   { background: #500724; color: #f9a8d4; border-color: #831843; }
+  :root:not(.light-mode) .iq-chip.tool-projects { background: #431407; color: #fdba74; border-color: #7c2d12; }
+  :root:not(.light-mode) .iq-chip.tool-catalog  { background: #2e1065; color: #c4b5fd; border-color: #4c1d95; }
+  :root:not(.light-mode) .iq-icon-btn--active   { background: #0c1a3d; color: #93c5fd; border-color: #1e3a5f; }
+  :root:not(.light-mode) .iq-hist-del:hover     { background: #450a0a; color: #fca5a5; }
+  :root:not(.light-mode) .iq-md code            { color: #c4b5fd; }
+  :root:not(.light-mode) .iq-md-table tbody td strong { color: var(--iq-navy); }
+}
+.dark-mode .iq-chip.mode-ask      { background: #0c1a3d; color: #93c5fd; border-color: #1e3a5f; }
+.dark-mode .iq-chip.mode-explain  { background: #2e1065; color: #d8b4fe; border-color: #4c1d95; }
+.dark-mode .iq-chip.mode-act      { background: #451a03; color: #fcd34d; border-color: #78350f; }
+.dark-mode .iq-chip.rca           { background: #2e1065; color: #e9d5ff; border-color: #4c1d95; }
+.dark-mode .iq-chip.tool-stock    { background: #0c1a3d; color: #93c5fd; border-color: #1e3a5f; }
+.dark-mode .iq-chip.tool-finance  { background: #052e16; color: #86efac; border-color: #14532d; }
+.dark-mode .iq-chip.tool-supplier { background: #2e1065; color: #d8b4fe; border-color: #4c1d95; }
+.dark-mode .iq-chip.tool-customer { background: #451a03; color: #fcd34d; border-color: #78350f; }
+.dark-mode .iq-chip.tool-order    { background: #1e2128; color: #94a3b8; border-color: #374151; }
+.dark-mode .iq-chip.tool-demand   { background: #450a0a; color: #fecdd3; border-color: #7f1d1d; }
+.dark-mode .iq-chip.tool-freight  { background: #022c22; color: #67e8f9; border-color: #064e3b; }
+.dark-mode .iq-chip.tool-email    { background: #0c1a3d; color: #7dd3fc; border-color: #1e3a5f; }
+.dark-mode .iq-chip.tool-sales    { background: #052e16; color: #4ade80; border-color: #14532d; }
+.dark-mode .iq-chip.tool-inward   { background: #1c1917; color: #a8a29e; border-color: #44403c; }
+.dark-mode .iq-chip.tool-knowledge{ background: #022c22; color: #22d3ee; border-color: #064e3b; }
+.dark-mode .iq-chip.tool-insights { background: #052e16; color: #4ade80; border-color: #14532d; }
+.dark-mode .iq-chip.tool-quotes   { background: #500724; color: #f9a8d4; border-color: #831843; }
+.dark-mode .iq-chip.tool-projects { background: #431407; color: #fdba74; border-color: #7c2d12; }
+.dark-mode .iq-chip.tool-catalog  { background: #2e1065; color: #c4b5fd; border-color: #4c1d95; }
+.dark-mode .iq-icon-btn--active   { background: #0c1a3d; color: #93c5fd; border-color: #1e3a5f; }
+.dark-mode .iq-hist-del:hover     { background: #450a0a; color: #fca5a5; }
+.dark-mode .iq-md code            { color: #c4b5fd; }
+.dark-mode .iq-md-table tbody td strong { color: var(--iq-navy); }

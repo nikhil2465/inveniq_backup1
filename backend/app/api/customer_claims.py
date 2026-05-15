@@ -109,7 +109,7 @@ async def list_claims():
         "pending_amt":   sum(c["amount"] for c in all_claims if c["status"] in ("SUBMITTED", "UNDER_REVIEW")),
         "pending_count": sum(1 for c in all_claims if c["status"] not in ("APPROVED", "REJECTED")),
     }
-    return {"claims": all_claims, "summary": summary, "source": "demo"}
+    return {"claims": all_claims, "summary": summary, "data_source": "demo"}
 
 
 @router.get("/rebate-programs")
@@ -121,7 +121,7 @@ async def list_programs():
             for p in _DEMO_PROGRAMS if p.get("accrualRate")
         ),
     }
-    return {"programs": _DEMO_PROGRAMS, "summary": summary, "source": "demo"}
+    return {"programs": _DEMO_PROGRAMS, "summary": summary, "data_source": "demo"}
 
 
 @router.post("/customer-claims")

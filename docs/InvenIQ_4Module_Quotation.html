@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>InvenIQ · IQ-4M-2026-001 · 4-Module Client Licence</title>
+<style>
+*, *::before, *::after {
+  margin: 0; padding: 0; box-sizing: border-box;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+html { font-size: 12.5px; }
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: #D8D4CC;
+  color: #1A1A2E;
+  line-height: 1.6;
+  margin: 0;
+}
+.page {
+  max-width: 870px;
+  margin: 0 auto;
+  background: #FFFFFF;
+  box-shadow: 0 12px 80px rgba(0,0,0,.22);
+}
+.sec  { padding: 28px 52px; border-bottom: 1px solid #E2DED6; }
+.sec:last-child { border-bottom: none; }
+.sec-alt { background: #F9F8F4; }
+.sh-num  { font-family: 'Courier New', Courier, monospace; font-size: 8px; font-weight: 700; color: #0C6B3E; letter-spacing: 2px; text-transform: uppercase; display: block; margin-bottom: 2px; }
+.sh-num.gold { color: #C9A84C; }
+.sh-t    { font-family: Georgia, 'Times New Roman', serif; font-size: 16px; font-weight: 700; color: #0B1929; display: block; }
+.sh-sub  { font-size: 10.5px; color: #9A9590; display: block; margin-top: 3px; }
+.badge {
+  display: inline-block;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  padding: 4px 12px; border-radius: 2px;
+}
+.b-navy   { background: #0B1929; color: #FFFFFF; }
+.b-green  { background: #0C6B3E; color: #FFFFFF; }
+.b-gold   { background: #C9A84C; color: #0B1929; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.tbl th {
+  background: #0B1929;
+  color: rgba(255,255,255,.78);
+  padding: 9px 13px;
+  text-align: left;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 7.5px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  font-weight: 500;
+  border: none;
+}
+.tbl td {
+  padding: 9px 13px;
+  border-bottom: 1px solid #E8E4DC;
+  color: #3D3D3D;
+  vertical-align: top;
+  background: #FFFFFF;
+}
+.tbl tr:nth-child(even) td { background: #F9F8F4; }
+.num {
+  text-align: right;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #1A1A2E;
+  white-space: nowrap;
+}
+.cel { color: #0B1929; font-weight: 600; }
+.desc { font-size: 9.5px; color: #9A9590; display: block; margin-top: 2px; font-family: 'Courier New', Courier, monospace; }
+.desc.ok { color: #0C6B3E; }
+.box { margin-top: 13px; padding: 12px 15px; font-size: 11px; line-height: 1.6; border-radius: 3px; }
+.box-g { background: #EBF6EF; border: 1px solid #B5D9C4; border-left: 4px solid #0C6B3E; color: #0A4D2B; }
+.box-a { background: #FDF6E8; border: 1px solid #E0CFA0; border-left: 4px solid #C9A84C; color: #7A5A0A; }
+.box strong { font-weight: 700; }
+.ie-hdr { padding: 9px 14px; font-family: 'Courier New', Courier, monospace; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+.ie-list { list-style: none; background: #FFFFFF; }
+.ie-list li { font-size: 11px; color: #3D3D3D; padding: 5px 14px; border-bottom: 1px solid #F0EDE6; display: table; width: 100%; }
+.ie-list li:last-child { border-bottom: none; }
+.ie-ico { display: table-cell; width: 18px; font-weight: 700; vertical-align: top; }
+.ie-txt { display: table-cell; vertical-align: top; }
+.l-head { font-family: 'Courier New', Courier, monospace; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #0B1929; margin-bottom: 4px; display: block; }
+.l-body { font-size: 11px; color: #4A4A4A; line-height: 1.7; display: block; }
+.sig-line { border-bottom: 1.5px solid #C8C4BB; height: 30px; margin-bottom: 14px; }
+.sig-lbl  { font-family: 'Courier New', Courier, monospace; font-size: 8px; color: #9A9590; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 5px; }
+/* module card */
+.mod-card {
+  border: 1px solid #E2DED6;
+  border-top: 4px solid #0C6B3E;
+  background: #FFFFFF;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+.mod-card.gold { border-top-color: #C9A84C; }
+.mod-card.navy { border-top-color: #0B1929; }
+.mod-card.teal { border-top-color: #0E7490; }
+.mod-name { font-family: Georgia, 'Times New Roman', serif; font-size: 15px; font-weight: 700; color: #0B1929; margin-bottom: 4px; }
+.mod-price { font-family: 'Courier New', Courier, monospace; font-size: 17px; font-weight: 700; color: #0C6B3E; margin-bottom: 10px; }
+.mod-feat { list-style: none; margin: 0; padding: 0; }
+.mod-feat li { font-size: 11px; color: #3D3D3D; padding: 3px 0; border-bottom: 1px dashed #EEE; display: flex; gap: 6px; }
+.mod-feat li:last-child { border-bottom: none; }
+.mod-feat li::before { content: "✓"; color: #0C6B3E; font-weight: 700; flex-shrink: 0; }
+@media print {
+  body { background: #FFF; }
+  .page { box-shadow: none; }
+  .sec { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- GOLD TOP BAR -->
+<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+  <tr>
+    <td style="height:4px;background:linear-gradient(90deg,#C9A84C 0%,#F6D860 40%,#C9A84C 75%,#A07820 100%);font-size:0;">&nbsp;</td>
+  </tr>
+</table>
+
+<!-- COVER -->
+<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#0B1929;">
+  <tr>
+    <td style="padding:40px 0 36px 52px;vertical-align:top;width:62%;">
+      <div style="display:inline-block;background:#C9A84C;color:#0B1929;font-family:'Courier New',Courier,monospace;font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:3px 10px;margin-bottom:10px;">Enterprise Technology</div>
+      <div style="font-family:Georgia,'Times New Roman',serif;font-size:34px;font-weight:700;color:#FFFFFF;letter-spacing:-0.5px;line-height:1;margin-bottom:6px;">InvenIQ</div>
+      <div style="font-family:'Courier New',Courier,monospace;font-size:8.5px;color:rgba(255,255,255,.32);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:30px;">Enterprise Inventory Intelligence Platform</div>
+      <div style="height:1px;background:linear-gradient(90deg,rgba(201,168,76,.4),rgba(201,168,76,.04));margin-bottom:24px;width:90%;"></div>
+      <div style="font-family:'Courier New',Courier,monospace;font-size:8.5px;color:rgba(255,255,255,.35);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:8px;">Software Licence &amp; Subscription Proposal</div>
+      <div style="font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:700;color:#FFFFFF;line-height:1.15;letter-spacing:-0.3px;margin-bottom:8px;">4-Module Client<br><span style="color:#C9A84C;">Licence Package</span></div>
+      <div style="font-size:11.5px;color:rgba(255,255,255,.42);letter-spacing:.2px;">Quotation Builder &nbsp;·&nbsp; Customer Intelligence &nbsp;·&nbsp; Product Catalog &nbsp;·&nbsp; AI Assistant</div>
+    </td>
+    <td style="padding:40px 52px 36px 20px;vertical-align:top;text-align:right;width:38%;">
+      <div style="display:inline-block;background:rgba(12,107,62,.28);border:1px solid rgba(74,222,128,.32);color:#4ADE80;font-family:'Courier New',Courier,monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;margin-bottom:24px;">Ready to Deploy · No Dev Wait</div>
+      <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-left:auto;">
+        <tr><td style="padding:4px 0;text-align:right;">
+          <span style="font-family:'Courier New',Courier,monospace;font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Document Ref</span>
+          <span style="font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.58);">IQ-4M-2026-001</span>
+        </td></tr>
+        <tr><td style="padding:8px 0;text-align:right;">
+          <span style="font-family:'Courier New',Courier,monospace;font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Issue Date</span>
+          <span style="font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.58);">12 May 2026</span>
+        </td></tr>
+        <tr><td style="padding:8px 0;text-align:right;">
+          <span style="font-family:'Courier New',Courier,monospace;font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Valid Until</span>
+          <span style="font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.58);">11 June 2026</span>
+        </td></tr>
+        <tr><td style="padding:8px 0;text-align:right;">
+          <span style="font-family:'Courier New',Courier,monospace;font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Prepared For</span>
+          <span style="font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.58);">Prospective Client</span>
+        </td></tr>
+        <tr><td style="padding:8px 0;text-align:right;">
+          <span style="font-family:'Courier New',Courier,monospace;font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Prepared By</span>
+          <span style="font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.58);">InvenIQ Solutions</span>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<!-- KPI BANNER -->
+<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#0C6B3E;">
+  <tr>
+    <td width="25%" style="padding:16px 20px;border-right:1px solid rgba(255,255,255,.1);text-align:center;vertical-align:middle;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px;">Year-1 Total</span>
+      <span style="font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#F6D860;line-height:1;display:block;">&#8377;1,28,000</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.4);display:block;margin-top:3px;font-family:'Courier New',Courier,monospace;">excl. GST @ 18%</span>
+    </td>
+    <td width="25%" style="padding:16px 20px;border-right:1px solid rgba(255,255,255,.1);text-align:center;vertical-align:middle;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px;">Monthly Licence</span>
+      <span style="font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#FFFFFF;line-height:1;display:block;">&#8377;9,000</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.4);display:block;margin-top:3px;font-family:'Courier New',Courier,monospace;">all 4 modules · no lock-in</span>
+    </td>
+    <td width="25%" style="padding:16px 20px;border-right:1px solid rgba(255,255,255,.1);text-align:center;vertical-align:middle;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px;">Modules Included</span>
+      <span style="font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#F6D860;line-height:1;display:block;">4</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.4);display:block;margin-top:3px;font-family:'Courier New',Courier,monospace;">38+ live features</span>
+    </td>
+    <td width="25%" style="padding:16px 20px;text-align:center;vertical-align:middle;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px;">Deployment</span>
+      <span style="font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#FFFFFF;line-height:1;display:block;">1–2 Days</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.4);display:block;margin-top:3px;font-family:'Courier New',Courier,monospace;">ready-to-use software</span>
+    </td>
+  </tr>
+</table>
+
+<!-- DETAILS STRIP -->
+<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#F4F2ED;border-bottom:2px solid #0B1929;">
+  <tr>
+    <td style="padding:10px 20px;border-right:1px solid #DDD9CF;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:#8A857A;letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Quotation Ref</span>
+      <span style="font-family:'Courier New',Courier,monospace;font-size:11.5px;font-weight:600;color:#0B1929;">IQ-4M-2026-001</span>
+    </td>
+    <td style="padding:10px 20px;border-right:1px solid #DDD9CF;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:#8A857A;letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Prepared For</span>
+      <span style="font-size:11.5px;font-weight:600;color:#0B1929;">Prospective Client <span style="font-size:9.5px;color:#9A9590;font-weight:400;">(Confidential)</span></span>
+    </td>
+    <td style="padding:10px 20px;border-right:1px solid #DDD9CF;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:#8A857A;letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Package</span>
+      <span style="font-size:11.5px;font-weight:600;color:#0B1929;">4-Module Client Licence</span>
+    </td>
+    <td style="padding:10px 20px;border-right:1px solid #DDD9CF;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:#8A857A;letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Currency</span>
+      <span style="font-size:11.5px;font-weight:600;color:#0B1929;">INR <span style="font-size:9.5px;color:#9A9590;font-weight:400;">+ GST @ 18%</span></span>
+    </td>
+    <td style="padding:10px 20px;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:7.5px;color:#8A857A;letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:2px;">Valid Until</span>
+      <span style="font-family:'Courier New',Courier,monospace;font-size:11.5px;font-weight:600;color:#0B1929;">11 June 2026</span>
+    </td>
+  </tr>
+</table>
+
+
+<!-- 01 · MODULE BREAKDOWN -->
+<div class="sec">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr>
+      <td style="vertical-align:middle;border-left:4px solid #0C6B3E;padding-left:14px;">
+        <span class="sh-num">01 · Module Overview</span>
+        <span class="sh-t">What the Client Gets — 4 Modules, 38+ Features</span>
+        <span class="sh-sub">All modules are fully built, tested, and ready to deploy — no development wait time</span>
+      </td>
+      <td style="vertical-align:middle;text-align:right;"><span class="badge b-navy">4 Modules</span></td>
+    </tr>
+  </table>
+
+  <table class="tbl" cellspacing="0">
+    <thead>
+      <tr>
+        <th style="width:38px;text-align:right;">#</th>
+        <th>Module</th>
+        <th>Core Purpose</th>
+        <th style="text-align:right;">Features</th>
+        <th style="text-align:right;">Monthly (INR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align:right;font-family:'Courier New',Courier,monospace;color:#9A9590;background:#FFFFFF;">01</td>
+        <td style="background:#FFFFFF;">
+          <strong class="cel">Quotation Builder</strong>
+          <span class="desc ok">AI-powered · PDF · WhatsApp share</span>
+        </td>
+        <td style="background:#FFFFFF;">Create professional quotations, export PDF, share via WhatsApp, AI pricing guidance</td>
+        <td style="background:#FFFFFF;" class="num">11</td>
+        <td style="background:#FFFFFF;" class="num">2,200</td>
+      </tr>
+      <tr>
+        <td style="text-align:right;font-family:'Courier New',Courier,monospace;color:#9A9590;background:#F9F8F4;">02</td>
+        <td style="background:#F9F8F4;">
+          <strong class="cel">Customer Intelligence</strong>
+          <span class="desc ok">AI score · Risk tracking · Import</span>
+        </td>
+        <td style="background:#F9F8F4;">Full customer health dashboard, AI risk scoring, payment tracking, import from Excel/CSV</td>
+        <td style="background:#F9F8F4;" class="num">10</td>
+        <td style="background:#F9F8F4;" class="num">1,600</td>
+      </tr>
+      <tr>
+        <td style="text-align:right;font-family:'Courier New',Courier,monospace;color:#9A9590;background:#FFFFFF;">03</td>
+        <td style="background:#FFFFFF;">
+          <strong class="cel">Product Catalog</strong>
+          <span class="desc ok">30+ products · Specs · Import/Export</span>
+        </td>
+        <td style="background:#FFFFFF;">Complete product database with specs, pricing, margin view, import from Excel/CSV, AI scan</td>
+        <td style="background:#FFFFFF;" class="num">11</td>
+        <td style="background:#FFFFFF;" class="num">1,600</td>
+      </tr>
+      <tr>
+        <td style="text-align:right;font-family:'Courier New',Courier,monospace;color:#9A9590;background:#F9F8F4;">04</td>
+        <td style="background:#F9F8F4;">
+          <strong class="cel">AI Business Assistant</strong>
+          <span class="desc ok">GPT-4o · Real-time streaming · 19-topic KB</span>
+        </td>
+        <td style="background:#F9F8F4;">GPT-4o powered chat assistant — ask anything about customers, products, pricing, quotations</td>
+        <td style="background:#F9F8F4;" class="num">6</td>
+        <td style="background:#F9F8F4;" class="num">2,800</td>
+      </tr>
+      <tr>
+        <td colspan="3" style="background:#EAE7DF;border-top:1.5px solid #C9A84C;padding:9px 13px;font-weight:700;color:#0B1929;text-align:right;"><strong>TOTAL MONTHLY LICENCE (all 4 modules)</strong></td>
+        <td style="background:#EAE7DF;border-top:1.5px solid #C9A84C;padding:9px 13px;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0B1929;">38</td>
+        <td style="background:#EAE7DF;border-top:1.5px solid #C9A84C;padding:9px 13px;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0C6B3E;">8,200</td>
+      </tr>
+      <tr>
+        <td colspan="4" style="background:#FDF6E8;border-left:3px solid #C9A84C;padding:9px 13px;color:#0B1929;font-weight:600;">Platform Base (support, updates, maintenance)</td>
+        <td style="background:#FDF6E8;padding:9px 13px;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#92700A;">800</td>
+      </tr>
+      <tr>
+        <td colspan="4" style="background:#0B1929;padding:11px 13px;color:#FFFFFF;font-weight:700;font-size:12px;border:none;"><strong>TOTAL MONTHLY SUBSCRIPTION</strong></td>
+        <td style="background:#0B1929;padding:11px 13px;text-align:right;font-family:'Courier New',Courier,monospace;font-size:14px;font-weight:700;color:#F6D860;border:none;">INR&nbsp;9,000</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- 02 · MODULE FEATURE DETAIL -->
+<div class="sec sec-alt">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr>
+      <td style="vertical-align:middle;border-left:4px solid #0C6B3E;padding-left:14px;">
+        <span class="sh-num">02 · Feature Detail — Per Module</span>
+        <span class="sh-t">Complete Feature List with Metrics</span>
+        <span class="sh-sub">Every feature is live and functional — not a roadmap, not a promise</span>
+      </td>
+      <td style="vertical-align:middle;text-align:right;"><span class="badge b-green">Live &amp; Tested</span></td>
+    </tr>
+  </table>
+
+  <!-- Module 1 -->
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:16px;">
+    <tr>
+      <td style="background:#0B1929;padding:10px 16px;border-radius:3px 3px 0 0;">
+        <span style="color:#F6D860;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:700;">Module 01 &nbsp;·&nbsp; Quotation Builder</span>
+        <span style="float:right;font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.5);">&#8377;2,200 / month</span>
+      </td>
+    </tr>
+  </table>
+  <table class="tbl" cellspacing="0" style="margin-bottom:20px;">
+    <thead><tr><th style="width:30%;">Feature</th><th>What It Does</th><th style="text-align:right;width:80px;">Metric</th></tr></thead>
+    <tbody>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Multi-Line Quote Builder</strong></td><td style="background:#FFFFFF;">Create quotes with unlimited line items, quantity, unit, GST, discount per line</td><td style="background:#FFFFFF;" class="num">Unlimited lines</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">AI Pricing Assistant</strong></td><td style="background:#F9F8F4;">GPT-4o analyses margin, suggests optimal price, flags discount leakage</td><td style="background:#F9F8F4;" class="num">GPT-4o</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">PDF Quotation Export</strong></td><td style="background:#FFFFFF;">Professional branded PDF generated instantly — client-ready format</td><td style="background:#FFFFFF;" class="num">Instant</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">WhatsApp Share</strong></td><td style="background:#F9F8F4;">One-click wa.me deep-link to share quote directly with customer</td><td style="background:#F9F8F4;" class="num">1 click</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Product Catalog Integration</strong></td><td style="background:#FFFFFF;">Live product search while building quote — picks price, HSN, unit automatically</td><td style="background:#FFFFFF;" class="num">30+ products</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Margin Guardrails</strong></td><td style="background:#F9F8F4;">Visual margin indicator warns if quote goes below minimum margin threshold</td><td style="background:#F9F8F4;" class="num">Real-time</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Quote History &amp; Management</strong></td><td style="background:#FFFFFF;">View, edit, duplicate all past quotes — with status (Draft / Sent / Won / Lost)</td><td style="background:#FFFFFF;" class="num">Unlimited history</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Customer Auto-Fill</strong></td><td style="background:#F9F8F4;">Select customer from database — address, contact, segment auto-populated</td><td style="background:#F9F8F4;" class="num">Linked to CI</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Tax Calculation Engine</strong></td><td style="background:#FFFFFF;">Auto-calculates GST (18%), subtotal, grand total, adjusts for discounts</td><td style="background:#FFFFFF;" class="num">Automatic</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Export to CSV</strong></td><td style="background:#F9F8F4;">Download complete quote history as Excel-compatible CSV for records</td><td style="background:#F9F8F4;" class="num">All columns</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Search &amp; Filter Quotes</strong></td><td style="background:#FFFFFF;">Find any quote by customer, quote number, project, or status</td><td style="background:#FFFFFF;" class="num">Instant search</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Module 2 -->
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:16px;">
+    <tr>
+      <td style="background:#0C6B3E;padding:10px 16px;border-radius:3px 3px 0 0;">
+        <span style="color:#FFFFFF;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:700;">Module 02 &nbsp;·&nbsp; Customer Intelligence</span>
+        <span style="float:right;font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.6);">&#8377;1,600 / month</span>
+      </td>
+    </tr>
+  </table>
+  <table class="tbl" cellspacing="0" style="margin-bottom:20px;">
+    <thead><tr><th style="width:30%;">Feature</th><th>What It Does</th><th style="text-align:right;width:80px;">Metric</th></tr></thead>
+    <tbody>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Customer Health Dashboard</strong></td><td style="background:#FFFFFF;">Full view of every customer — revenue, outstanding, days silent, risk score</td><td style="background:#FFFFFF;" class="num">All accounts</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">AI Risk Score (0–100)</strong></td><td style="background:#F9F8F4;">AI-computed health score per customer — flags top accounts and at-risk ones</td><td style="background:#F9F8F4;" class="num">GPT-4o</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Risk Classification</strong></td><td style="background:#FFFFFF;">Automatic LOW / MEDIUM / HIGH risk labelling based on payment &amp; order behaviour</td><td style="background:#FFFFFF;" class="num">3 tiers</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Outstanding Payment Tracking</strong></td><td style="background:#F9F8F4;">Live view of overdue receivables per customer — amount and days overdue</td><td style="background:#F9F8F4;" class="num">Real-time</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Days Since Last Order</strong></td><td style="background:#FFFFFF;">Tracks how many days since each customer last ordered — highlights dormant accounts</td><td style="background:#FFFFFF;" class="num">Per customer</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Segment Analysis</strong></td><td style="background:#F9F8F4;">View customers by segment: Contractor, Interior Firm, Retailer, Carpenter</td><td style="background:#F9F8F4;" class="num">4+ segments</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">AI Customer Brief</strong></td><td style="background:#FFFFFF;">GPT-4o generates full customer health report — who to call, why, and what to offer</td><td style="background:#FFFFFF;" class="num">GPT-4o</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Import from CSV / Excel</strong></td><td style="background:#F9F8F4;">Upload customer list from spreadsheet — auto column mapping, preview before import</td><td style="background:#F9F8F4;" class="num">Any format</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Export to CSV</strong></td><td style="background:#FFFFFF;">Download full customer list with all fields for records and reporting</td><td style="background:#FFFFFF;" class="num">All columns</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Search &amp; Filter</strong></td><td style="background:#F9F8F4;">Filter by Top Accounts / At Risk / Overdue · search by name or segment</td><td style="background:#F9F8F4;" class="num">4 filters</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Module 3 -->
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:16px;">
+    <tr>
+      <td style="background:#0E7490;padding:10px 16px;border-radius:3px 3px 0 0;">
+        <span style="color:#FFFFFF;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:700;">Module 03 &nbsp;·&nbsp; Product Catalog</span>
+        <span style="float:right;font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.6);">&#8377;1,600 / month</span>
+      </td>
+    </tr>
+  </table>
+  <table class="tbl" cellspacing="0" style="margin-bottom:20px;">
+    <thead><tr><th style="width:30%;">Feature</th><th>What It Does</th><th style="text-align:right;width:80px;">Metric</th></tr></thead>
+    <tbody>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Full Product Database</strong></td><td style="background:#FFFFFF;">30+ products across Louvers, Laminates, ACP, Cladding, Ebco hardware</td><td style="background:#FFFFFF;" class="num">30+ SKUs</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Detailed Product Specs</strong></td><td style="background:#F9F8F4;">Size, thickness, finish, weight, certifications, installation tips per product</td><td style="background:#F9F8F4;" class="num">12+ fields</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Pricing &amp; Margin View</strong></td><td style="background:#FFFFFF;">Buy price, sell price, gross margin % visible per product for owner only</td><td style="background:#FFFFFF;" class="num">Per SKU</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Category Filtering</strong></td><td style="background:#F9F8F4;">Browse by 20 product categories — Aluminium Louvers, HPL, Drawer Slides, etc.</td><td style="background:#F9F8F4;" class="num">20 categories</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Stock Status Tracking</strong></td><td style="background:#FFFFFF;">In Stock / On Order / Out of Stock badge per product — live status</td><td style="background:#FFFFFF;" class="num">3 states</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">AI Product Intelligence</strong></td><td style="background:#F9F8F4;">Ask AI about any product — sales pitch, target customers, pricing strategy</td><td style="background:#F9F8F4;" class="num">GPT-4o</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Add via AI Scan</strong></td><td style="background:#FFFFFF;">Upload any catalog image, PDF, or Excel — AI extracts products automatically</td><td style="background:#FFFFFF;" class="num">Any file type</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Import from CSV / Excel</strong></td><td style="background:#F9F8F4;">Upload product list from spreadsheet — auto column mapping, preview, bulk add</td><td style="background:#F9F8F4;" class="num">Any format</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Manual Product Entry</strong></td><td style="background:#FFFFFF;">Add any product manually — all fields available via structured form</td><td style="background:#FFFFFF;" class="num">All fields</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Export to CSV</strong></td><td style="background:#F9F8F4;">Download full catalog with pricing for offline records or sharing</td><td style="background:#F9F8F4;" class="num">All columns</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Grid &amp; List View</strong></td><td style="background:#FFFFFF;">Switch between visual card grid and detailed table view — user preference</td><td style="background:#FFFFFF;" class="num">2 views</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Module 4 -->
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:16px;">
+    <tr>
+      <td style="background:#6B21A8;padding:10px 16px;border-radius:3px 3px 0 0;">
+        <span style="color:#FFFFFF;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:700;">Module 04 &nbsp;·&nbsp; AI Business Assistant</span>
+        <span style="float:right;font-family:'Courier New',Courier,monospace;font-size:11px;color:rgba(255,255,255,.6);">&#8377;2,800 / month</span>
+      </td>
+    </tr>
+  </table>
+  <table class="tbl" cellspacing="0" style="margin-bottom:0;">
+    <thead><tr><th style="width:30%;">Feature</th><th>What It Does</th><th style="text-align:right;width:80px;">Metric</th></tr></thead>
+    <tbody>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">GPT-4o Chat Interface</strong></td><td style="background:#FFFFFF;">Natural language business queries — ask about customers, products, quotes, strategy</td><td style="background:#FFFFFF;" class="num">GPT-4o</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Real-Time Streaming</strong></td><td style="background:#F9F8F4;">AI responds word-by-word in real time — no waiting for full response</td><td style="background:#F9F8F4;" class="num">SSE stream</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">19-Topic Knowledge Base</strong></td><td style="background:#FFFFFF;">Pre-loaded business knowledge: inventory, pricing, customers, procurement, freight</td><td style="background:#FFFFFF;" class="num">19 topics</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Proactive Insights Engine</strong></td><td style="background:#F9F8F4;">AI detects patterns and surfaces actionable insights without being asked</td><td style="background:#F9F8F4;" class="num">10 insight types</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Cross-Module Intelligence</strong></td><td style="background:#FFFFFF;">AI can reason across all 4 modules — e.g. "which customers need follow-up on quotes?"</td><td style="background:#FFFFFF;" class="num">All 4 modules</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Chat History</strong></td><td style="background:#F9F8F4;">Last 16 messages retained per session for contextual follow-up questions</td><td style="background:#F9F8F4;" class="num">16-turn context</td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- 03 · ONE-TIME SETUP -->
+<div class="sec">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr>
+      <td style="vertical-align:middle;border-left:4px solid #0C6B3E;padding-left:14px;">
+        <span class="sh-num">03 · One-Time Setup &amp; Onboarding Fee</span>
+        <span class="sh-t">Deployment, Configuration &amp; Training</span>
+        <span class="sh-sub">Paid once at the start — covers full setup so client is live and productive from Day 1</span>
+      </td>
+      <td style="vertical-align:middle;text-align:right;"><span class="badge b-navy">One-Time</span></td>
+    </tr>
+  </table>
+
+  <table class="tbl" cellspacing="0">
+    <thead><tr><th>Component</th><th>What Is Delivered</th><th style="text-align:right;">Amount (INR)</th></tr></thead>
+    <tbody>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Software Deployment</strong></td><td style="background:#FFFFFF;">Install and configure InvenIQ on client's machine or server — full setup</td><td style="background:#FFFFFF;" class="num">8,000</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Product Catalog Setup</strong></td><td style="background:#F9F8F4;">Load client's existing product list into the catalog — up to 100 products</td><td style="background:#F9F8F4;" class="num">5,000</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Customer Data Configuration</strong></td><td style="background:#FFFFFF;">Import existing customer records — mapping, validation, and verification</td><td style="background:#FFFFFF;" class="num">3,000</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">User Training</strong></td><td style="background:#F9F8F4;">Half-day training session (online) covering all 4 modules — recording provided</td><td style="background:#F9F8F4;" class="num">4,000</td></tr>
+      <tr>
+        <td colspan="2" style="background:#0B1929;padding:11px 13px;color:#FFFFFF;font-weight:700;font-size:12px;border:none;"><strong>TOTAL ONE-TIME SETUP</strong></td>
+        <td style="background:#0B1929;padding:11px 13px;text-align:right;font-family:'Courier New',Courier,monospace;font-size:13px;font-weight:700;color:#F6D860;border:none;">INR &nbsp;&nbsp;20,000</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="box box-g">
+    <strong>No development time:</strong> InvenIQ is fully built and tested. The setup fee covers deployment, configuration of client-specific data, and training only. Client is productive within 1–2 working days of engagement start.
+  </div>
+</div>
+
+
+<!-- 04 · COST SUMMARY -->
+<div class="sec sec-alt">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr>
+      <td style="vertical-align:middle;border-left:4px solid #C9A84C;padding-left:14px;">
+        <span class="sh-num gold">04 · Consolidated Cost Summary</span>
+        <span class="sh-t">Year-1 Total Cost of Ownership</span>
+        <span class="sh-sub">All amounts exclusive of GST at 18%</span>
+      </td>
+      <td style="vertical-align:middle;text-align:right;"><span class="badge b-gold">Year-1 TCO</span></td>
+    </tr>
+  </table>
+
+  <table class="tbl" cellspacing="0">
+    <thead><tr><th>Component</th><th>Breakdown</th><th style="text-align:right;">Amount (INR)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td style="background:#EBF6EF;font-weight:600;border-bottom:1px solid #B5D9C4;"><strong class="cel">One-Time Setup &amp; Onboarding</strong></td>
+        <td style="background:#EBF6EF;font-size:11px;color:#9A9590;border-bottom:1px solid #B5D9C4;">Deployment + product setup + customer data + training</td>
+        <td style="background:#EBF6EF;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0C6B3E;border-bottom:1px solid #B5D9C4;white-space:nowrap;">20,000</td>
+      </tr>
+      <tr>
+        <td style="background:#EBF6EF;font-weight:600;border-bottom:1px solid #B5D9C4;"><strong class="cel">Module 01 — Quotation Builder</strong></td>
+        <td style="background:#EBF6EF;font-size:11px;color:#9A9590;border-bottom:1px solid #B5D9C4;">&#8377;2,200 × 12 months</td>
+        <td style="background:#EBF6EF;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0C6B3E;border-bottom:1px solid #B5D9C4;white-space:nowrap;">26,400</td>
+      </tr>
+      <tr>
+        <td style="background:#EBF6EF;font-weight:600;border-bottom:1px solid #B5D9C4;"><strong class="cel">Module 02 — Customer Intelligence</strong></td>
+        <td style="background:#EBF6EF;font-size:11px;color:#9A9590;border-bottom:1px solid #B5D9C4;">&#8377;1,600 × 12 months</td>
+        <td style="background:#EBF6EF;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0C6B3E;border-bottom:1px solid #B5D9C4;white-space:nowrap;">19,200</td>
+      </tr>
+      <tr>
+        <td style="background:#EBF6EF;font-weight:600;border-bottom:1px solid #B5D9C4;"><strong class="cel">Module 03 — Product Catalog</strong></td>
+        <td style="background:#EBF6EF;font-size:11px;color:#9A9590;border-bottom:1px solid #B5D9C4;">&#8377;1,600 × 12 months</td>
+        <td style="background:#EBF6EF;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0C6B3E;border-bottom:1px solid #B5D9C4;white-space:nowrap;">19,200</td>
+      </tr>
+      <tr>
+        <td style="background:#EBF6EF;font-weight:600;border-bottom:1px solid #B5D9C4;"><strong class="cel">Module 04 — AI Business Assistant</strong></td>
+        <td style="background:#EBF6EF;font-size:11px;color:#9A9590;border-bottom:1px solid #B5D9C4;">&#8377;2,800 × 12 months</td>
+        <td style="background:#EBF6EF;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0C6B3E;border-bottom:1px solid #B5D9C4;white-space:nowrap;">33,600</td>
+      </tr>
+      <tr>
+        <td style="background:#EBF6EF;font-weight:600;border-bottom:2px solid #0C6B3E;"><strong class="cel">Platform Base — Support &amp; Updates</strong></td>
+        <td style="background:#EBF6EF;font-size:11px;color:#9A9590;border-bottom:2px solid #0C6B3E;">&#8377;800 × 12 months</td>
+        <td style="background:#EBF6EF;text-align:right;font-family:'Courier New',Courier,monospace;font-weight:700;color:#0C6B3E;border-bottom:2px solid #0C6B3E;white-space:nowrap;">9,600</td>
+      </tr>
+      <tr>
+        <td style="background:#0B1929;padding:12px 13px;color:#FFFFFF;font-weight:700;font-size:13px;border:none;font-family:Georgia,'Times New Roman',serif;" colspan="2"><strong>GRAND TOTAL &nbsp;— &nbsp;YEAR 1</strong></td>
+        <td style="background:#0B1929;padding:12px 13px;text-align:right;font-family:'Courier New',Courier,monospace;font-size:15px;font-weight:700;color:#F6D860;border:none;white-space:nowrap;">INR &nbsp;&nbsp;1,28,000</td>
+      </tr>
+      <tr><td colspan="3" style="padding:8px 13px;font-size:10px;color:#9A9590;font-style:italic;border-top:1px solid #E2DED6;background:#FFFFFF;">All amounts are exclusive of GST (18%). GST will be charged additionally as per applicable tax laws. OpenAI API key provided and managed by client.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Monthly vs Annual breakdown -->
+  <div style="margin-top:16px;font-family:'Courier New',Courier,monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#9A9590;margin-bottom:8px;">Per-Module Monthly Pricing — At a Glance</div>
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+    <tr>
+      <td width="23%" valign="top" style="padding:14px 16px;background:#EBF6EF;border:1px solid #B5D9C4;border-top:3px solid #0C6B3E;margin-right:6px;">
+        <span style="font-family:'Courier New',Courier,monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#0C6B3E;display:block;margin-bottom:4px;">Quotation Builder</span>
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;color:#0B1929;display:block;line-height:1;margin-bottom:2px;">&#8377;2,200</span>
+        <span style="font-size:9px;color:#9A9590;display:block;">/month · 11 features</span>
+      </td>
+      <td width="2%">&nbsp;</td>
+      <td width="23%" valign="top" style="padding:14px 16px;background:#EBF6EF;border:1px solid #B5D9C4;border-top:3px solid #0E7490;">
+        <span style="font-family:'Courier New',Courier,monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#0E7490;display:block;margin-bottom:4px;">Customer Intel.</span>
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;color:#0B1929;display:block;line-height:1;margin-bottom:2px;">&#8377;1,600</span>
+        <span style="font-size:9px;color:#9A9590;display:block;">/month · 10 features</span>
+      </td>
+      <td width="2%">&nbsp;</td>
+      <td width="23%" valign="top" style="padding:14px 16px;background:#EBF6EF;border:1px solid #B5D9C4;border-top:3px solid #0B1929;">
+        <span style="font-family:'Courier New',Courier,monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#0B1929;display:block;margin-bottom:4px;">Product Catalog</span>
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;color:#0B1929;display:block;line-height:1;margin-bottom:2px;">&#8377;1,600</span>
+        <span style="font-size:9px;color:#9A9590;display:block;">/month · 11 features</span>
+      </td>
+      <td width="2%">&nbsp;</td>
+      <td width="23%" valign="top" style="padding:14px 16px;background:#EBF6EF;border:1px solid #B5D9C4;border-top:3px solid #6B21A8;">
+        <span style="font-family:'Courier New',Courier,monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#6B21A8;display:block;margin-bottom:4px;">AI Assistant</span>
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;color:#0B1929;display:block;line-height:1;margin-bottom:2px;">&#8377;2,800</span>
+        <span style="font-size:9px;color:#9A9590;display:block;">/month · 6 features</span>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+<!-- 05 · PAYMENT TERMS -->
+<div class="sec">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr>
+      <td style="vertical-align:middle;border-left:4px solid #0C6B3E;padding-left:14px;">
+        <span class="sh-num">05 · Payment Terms</span>
+        <span class="sh-t">Simple, Transparent Payment Schedule</span>
+        <span class="sh-sub">Setup paid once · subscription billed monthly from go-live · no lock-in, cancel anytime</span>
+      </td>
+      <td style="vertical-align:middle;text-align:right;"><span class="badge b-navy">No Lock-In</span></td>
+    </tr>
+  </table>
+
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+    <tr>
+      <td width="49%" valign="top" style="padding:18px;border:1px solid #E2DED6;border-top:4px solid #0B1929;background:#FFFFFF;">
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;color:#0B1929;display:block;line-height:1;margin-bottom:5px;">&#8377;20,000</span>
+        <span style="font-family:'Courier New',Courier,monospace;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#0B1929;display:block;margin-bottom:6px;">Payment 1 — On Signing</span>
+        <span style="font-size:10.5px;color:#9A9590;line-height:1.55;display:block;">One-time setup fee paid on agreement signing. Deployment and onboarding begins immediately.</span>
+      </td>
+      <td width="2%">&nbsp;</td>
+      <td width="49%" valign="top" style="padding:18px;border:1px solid #E2DED6;border-top:4px solid #0C6B3E;background:#FFFFFF;">
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;color:#0C6B3E;display:block;line-height:1;margin-bottom:5px;">&#8377;9,000 / mo</span>
+        <span style="font-family:'Courier New',Courier,monospace;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#0B1929;display:block;margin-bottom:6px;">Payment 2+ — Monthly Subscription</span>
+        <span style="font-size:10.5px;color:#9A9590;line-height:1.55;display:block;">Billed on the 1st of each month from go-live. Cancel with 30 days written notice — no penalty.</span>
+      </td>
+    </tr>
+  </table>
+  <div class="box box-g">
+    Payment via NEFT / RTGS / UPI. Invoice raised monthly. Annual pre-payment option: pay 10 months, get 2 months free (&#8377;90,000 for 12 months access — saving &#8377;18,000). Late payment (&gt;7 days) attracts 1.5% per month interest.
+  </div>
+</div>
+
+
+<!-- 06 · OPTIONAL ADD-ONS -->
+<div class="sec sec-alt">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr>
+      <td style="vertical-align:middle;border-left:4px solid #0C6B3E;padding-left:14px;">
+        <span class="sh-num">06 · Optional Upgrades</span>
+        <span class="sh-t">Additional Modules — Activate Anytime</span>
+        <span class="sh-sub">Client can upgrade to full platform access at any time — priced per module</span>
+      </td>
+    </tr>
+  </table>
+  <table class="tbl" cellspacing="0">
+    <thead><tr><th>Module / Add-On</th><th>Description</th><th style="text-align:right;">Monthly Add-On (INR)</th></tr></thead>
+    <tbody>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Business Overview Dashboard</strong></td><td style="background:#FFFFFF;">AI intelligence dashboard — stock, sales, finance KPIs at a glance</td><td style="background:#FFFFFF;" class="num">1,800</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Inventory Intelligence</strong></td><td style="background:#F9F8F4;">AI stock analysis, dead stock alerts, reorder recommendations</td><td style="background:#F9F8F4;" class="num">2,200</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Sales Performance Analytics</strong></td><td style="background:#FFFFFF;">Revenue, margin, product velocity, salesperson performance</td><td style="background:#FFFFFF;" class="num">1,800</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Finance &amp; Profitability View</strong></td><td style="background:#F9F8F4;">Cash flow, receivables, P&amp;L intelligence — owner-only view</td><td style="background:#F9F8F4;" class="num">2,000</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Counter POS (Walk-In Billing)</strong></td><td style="background:#FFFFFF;">Fast walk-in customer billing — item scan, quick invoice, daily summary</td><td style="background:#FFFFFF;" class="num">1,500</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Scheme &amp; Promotions Management</strong></td><td style="background:#F9F8F4;">Track supplier promotions, targets, accruals, credit notes</td><td style="background:#F9F8F4;" class="num">1,200</td></tr>
+      <tr><td style="background:#FFFFFF;"><strong class="cel">Warehouse Management</strong></td><td style="background:#FFFFFF;">Capacity tracking, GRN activity, stock distribution across locations</td><td style="background:#FFFFFF;" class="num">1,500</td></tr>
+      <tr><td style="background:#F9F8F4;"><strong class="cel">Priority Support (SLA 4 hr)</strong></td><td style="background:#F9F8F4;">Dedicated channel, 4-hour response guarantee, dedicated account manager</td><td style="background:#F9F8F4;" class="num">3,000</td></tr>
+    </tbody>
+  </table>
+  <div class="box box-a">
+    <strong>Full Platform Access:</strong> All 25 modules available for &#8377;22,000/month (vs &#8377;9,000 for 4 modules). Upgrade at any time with 30 days notice — no penalty for switching tiers.
+  </div>
+</div>
+
+
+<!-- 07 · INCLUSIONS & EXCLUSIONS -->
+<div class="sec">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr><td style="vertical-align:middle;border-left:4px solid #0C6B3E;padding-left:14px;">
+      <span class="sh-num">07 · Inclusions &amp; Exclusions</span>
+      <span class="sh-t">What Is and Is Not Covered</span>
+    </td></tr>
+  </table>
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+    <tr>
+      <td width="49%" valign="top" style="border:1px solid #E2DED6;">
+        <div class="ie-hdr" style="background:#0C6B3E;color:#FFFFFF;">&#10003; &nbsp;Inclusions</div>
+        <ul class="ie-list">
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">All 4 licensed modules — fully functional</span></li>
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">Software updates &amp; bug fixes (monthly)</span></li>
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">Initial data setup (products + customers)</span></li>
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">Half-day online training session</span></li>
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">Email support — P3 bugs within 7 days</span></li>
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">Secure login (JWT) — admin + client account</span></li>
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">CSV/Excel import &amp; export — all modules</span></li>
+          <li><span class="ie-ico" style="color:#0C6B3E;">&#10003;</span><span class="ie-txt">90-day post-deployment warranty</span></li>
+        </ul>
+      </td>
+      <td width="2%">&nbsp;</td>
+      <td width="49%" valign="top" style="border:1px solid #E2DED6;">
+        <div class="ie-hdr" style="background:#7A1C1C;color:#FFFFFF;">&#10005; &nbsp;Exclusions</div>
+        <ul class="ie-list">
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">OpenAI API key — client provides own key</span></li>
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">Cloud / server hosting beyond client machine</span></li>
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">Custom feature development (quoted separately)</span></li>
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">ERP / Tally / SAP integration</span></li>
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">Data entry beyond agreed initial setup</span></li>
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">Physical on-site training</span></li>
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">Modules outside the 4-module package</span></li>
+          <li><span class="ie-ico" style="color:#B91C1C;">&#10005;</span><span class="ie-txt">Legal review of this agreement</span></li>
+        </ul>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+<!-- 08 · LEGAL TERMS -->
+<div class="sec sec-alt">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr><td style="border-left:4px solid #0C6B3E;padding-left:14px;">
+      <span class="sh-num">08 · Legal &amp; Contractual Terms</span>
+      <span class="sh-t">Binding Clauses &amp; Governing Conditions</span>
+    </td></tr>
+  </table>
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+    <tr><td style="padding:11px 0;border-bottom:1px solid #E8E4DC;vertical-align:top;"><span class="l-head">Software Licence</span><span class="l-body">InvenIQ grants the Client a non-exclusive, non-transferable licence to use the 4 licensed modules for internal business operations only. The licence is valid only while the monthly subscription is active and payments are current.</span></td></tr>
+    <tr><td style="padding:11px 0;border-bottom:1px solid #E8E4DC;vertical-align:top;"><span class="l-head">Intellectual Property</span><span class="l-body">InvenIQ retains full ownership of the software, source code, and underlying technology. The Client is granted a usage licence only. Client data entered into the system remains the exclusive property of the Client at all times.</span></td></tr>
+    <tr><td style="padding:11px 0;border-bottom:1px solid #E8E4DC;vertical-align:top;"><span class="l-head">Non-Disclosure Agreement (NDA)</span><span class="l-body">Both parties agree to maintain strict confidentiality of proprietary information, business data, pricing, and technical architecture shared during this engagement for a period of 3 (three) years from signing date.</span></td></tr>
+    <tr><td style="padding:11px 0;border-bottom:1px solid #E8E4DC;vertical-align:top;"><span class="l-head">Service Level Agreement (SLA)</span><span class="l-body">90-day post-deployment warranty on bugs. Critical bugs (P1) resolved within 48 hours. High-priority bugs (P2) within 5 business days. Standard bugs (P3) within 10 business days. Warranty covers software defects, not new feature requests or changes outside agreed scope.</span></td></tr>
+    <tr><td style="padding:11px 0;border-bottom:1px solid #E8E4DC;vertical-align:top;"><span class="l-head">Cancellation &amp; Termination</span><span class="l-body">Client may cancel the subscription with 30 days written notice. No penalty for cancellation. Pro-rata refund will be issued for prepaid periods. Upon cancellation, client retains their data in exported CSV format — InvenIQ will not retain or use client data post-cancellation.</span></td></tr>
+    <tr><td style="padding:11px 0;border-bottom:1px solid #E8E4DC;vertical-align:top;"><span class="l-head">Liability Limitation</span><span class="l-body">InvenIQ's total liability under this agreement shall not exceed the total subscription fees paid in the preceding 3 months. Neither party shall be liable for indirect, incidental, or consequential damages including but not limited to loss of profits, data loss, or business interruption.</span></td></tr>
+    <tr><td style="padding:11px 0;vertical-align:top;"><span class="l-head">Governing Law &amp; Dispute Resolution</span><span class="l-body">This agreement is governed by the laws of India. Any dispute shall first be resolved through mutual negotiation (30 days). Failing that, disputes shall be referred to arbitration under the Arbitration &amp; Conciliation Act, 1996, in Hyderabad jurisdiction.</span></td></tr>
+  </table>
+</div>
+
+
+<!-- 09 · SIGNATURES -->
+<div class="sec">
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:18px;">
+    <tr><td style="border-left:4px solid #0C6B3E;padding-left:14px;">
+      <span class="sh-num">09 · Acceptance &amp; Signature</span>
+      <span class="sh-t">Authorised Sign-Off</span>
+      <span class="sh-sub">By signing below, both parties agree to all terms, scope, pricing, and legal clauses — Ref: IQ-4M-2026-001</span>
+    </td></tr>
+  </table>
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+    <tr>
+      <td width="49%" valign="top" style="padding:22px;border:1px solid #E2DED6;border-top:3px solid #0B1929;background:#FFFFFF;">
+        <span style="font-family:'Courier New',Courier,monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#0B1929;display:block;margin-bottom:20px;">Client Acceptance</span>
+        <span class="sig-lbl">Authorised Signatory</span><div class="sig-line"></div>
+        <span class="sig-lbl">Name &amp; Designation</span><div class="sig-line"></div>
+        <span class="sig-lbl">Company Name &amp; Stamp</span><div style="border-bottom:1.5px solid #C8C4BB;height:50px;margin-bottom:14px;"></div>
+        <span class="sig-lbl">Date</span><div style="border-bottom:1.5px solid #C8C4BB;height:24px;"></div>
+      </td>
+      <td width="2%">&nbsp;</td>
+      <td width="49%" valign="top" style="padding:22px;border:1px solid #E2DED6;border-top:3px solid #0C6B3E;background:#FFFFFF;">
+        <span style="font-family:'Courier New',Courier,monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#0C6B3E;display:block;margin-bottom:20px;">InvenIQ Solutions — Authorised By</span>
+        <span class="sig-lbl">Authorised Signatory</span><div class="sig-line"></div>
+        <span class="sig-lbl">Name &amp; Designation</span><div class="sig-line"></div>
+        <span class="sig-lbl">Company Stamp</span><div style="border-bottom:1.5px solid #C8C4BB;height:50px;margin-bottom:14px;"></div>
+        <span class="sig-lbl">Date</span><div style="border-bottom:1.5px solid #C8C4BB;height:24px;"></div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+<!-- FOOTER -->
+<div style="height:2px;background:linear-gradient(90deg,#C9A84C,rgba(201,168,76,.08));"></div>
+<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#0B1929;">
+  <tr>
+    <td style="padding:13px 52px;font-family:'Courier New',Courier,monospace;font-size:8.5px;color:rgba(255,255,255,.28);letter-spacing:.5px;">InvenIQ Solutions &nbsp;·&nbsp; nikrao246@gmail.com</td>
+    <td style="padding:13px 20px;font-family:'Courier New',Courier,monospace;font-size:8.5px;color:rgba(255,255,255,.28);letter-spacing:.5px;text-align:center;">CONFIDENTIAL &nbsp;·&nbsp; 12 May 2026</td>
+    <td style="padding:13px 52px;font-family:'Courier New',Courier,monospace;font-size:8.5px;color:rgba(255,255,255,.28);letter-spacing:.5px;text-align:right;">Ref: IQ-4M-2026-001</td>
+  </tr>
+</table>
+
+</div>
+</body>
+</html>

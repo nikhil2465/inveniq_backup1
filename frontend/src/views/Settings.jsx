@@ -21,9 +21,11 @@ const MODULE_LIST = [
   { icon: '🗺️',  id: 'projects',   label: 'Project Tracker',        section: 'Projects' },
   { icon: '📝', id: 'quotes',      label: 'Quotation Builder',      section: 'Projects' },
   { icon: '💰', id: 'finance',     label: 'Profitability & Cash',   section: 'Finance' },
-  { icon: '📈', id: 'credit',     label: 'Credit Management',      section: 'Finance' },
+  { icon: '💳', id: 'credit',     label: 'Credit Management',      section: 'Finance' },
   { icon: '🛒', id: 'pos',        label: 'Counter POS',            section: 'Finance' },
   { icon: '⭐', id: 'schemes',    label: 'Scheme Management',      section: 'Sales' },
+  { icon: '🏭', id: 'warehouse',  label: 'Warehouse Management',   section: 'Inventory' },
+  { icon: '📤', id: 'tally',     label: 'Tally Prime Export',      section: 'Integrations' },
   { icon: '🤖', id: 'chatbot',     label: 'AI Assistant',           section: 'AI' },
   { icon: 'ℹ️',  id: 'about',      label: 'About InvenIQ',          section: 'Info' },
   { icon: '⚙️', id: 'settings',   label: 'Settings',               section: 'Info' },
@@ -170,7 +172,7 @@ export default function Settings({ onNavigate, dbStatus }) {
         {[
           { cls: dbOk ? 'sg' : 'sr',  l: 'Database',  v: dbOk ? 'MySQL Live'       : 'Demo Mode',      s: dbOk ? (dbDetail?.database || 'Connected') : 'Set MYSQL_HOST in .env' },
           { cls: aiOk ? 'sg' : 'sb',  l: 'AI Engine', v: aiOk ? 'GPT-4o Active'    : 'No API Key',     s: aiOk ? 'OpenAI configured'                 : 'Set OPENAI_API_KEY in .env' },
-          { cls: 'sg',                 l: 'Modules',   v: '25 Active',                                   s: 'All modules operational' },
+          { cls: 'sg',                 l: 'Modules',   v: `${MODULE_LIST.length} Active`,                s: 'All modules operational' },
           { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.0',                                s: `May 2026 · Checked ${checkedAt || '…'}` },
         ].map(k => (
           <div key={k.l} className={`kc ${k.cls}`}>
@@ -207,11 +209,11 @@ export default function Settings({ onNavigate, dbStatus }) {
                   <Check ok={true}
                     label="FastAPI Backend"
                     value="Running on :8000"
-                    sub="API server healthy — 25 modules · 13 routers · 75+ endpoints · Request logging active" />
+                    sub={`API server healthy — ${MODULE_LIST.length} modules · 15 routers · 84+ endpoints · Request logging active`} />
                   <Check ok={true}
                     label="React Frontend"
-                    value="Running on :3000"
-                    sub="Development server active · Lazy loading · Per-view error isolation" />
+                    value={window.location.port === '3000' ? 'Dev server · :3000' : `Production · :${window.location.port || '80'}`}
+                    sub="React 18 · Lazy loading · Per-view ErrorBoundary · PWA-ready · Dark mode" />
                   <Check ok={aiOk}
                     label="WhatsApp Scanner"
                     value={aiOk ? 'Active — GPT-4o Vision + python-multipart' : 'Requires OpenAI API key'}
@@ -258,10 +260,10 @@ export default function Settings({ onNavigate, dbStatus }) {
               <InfoRow label="History Window"    value="Last 16 messages"                           />
               <InfoRow label="Max Tokens"        value="1,800 per response"                         />
               <InfoRow label="Streaming"         value="SSE (Server-Sent Events)"                   />
-              <InfoRow label="Knowledge Base"    value="13 topics (EOQ, ABC, GMROI, JIT, FIFO…)"   />
-              <InfoRow label="Insights Engine"   value="10 rule types (stock, margin, receivables…)" />
-              <InfoRow label="RCA Templates"     value="8 templates (5-Why, fishbone, action plan)" />
-              <InfoRow label="AI Tools (MCP)"    value="16 structured data tools"                   />
+              <InfoRow label="Knowledge Base"    value="23 topics (EOQ, ABC, GMROI, JIT, FIFO…)"   />
+              <InfoRow label="Insights Engine"   value="13 rule types (stock, margin, receivables…)" />
+              <InfoRow label="RCA Templates"     value="14 templates (5-Why, fishbone, action plan)" />
+              <InfoRow label="AI Tools (MCP)"    value="19 structured data tools"                   />
             </div>
           </div>
         </div>
@@ -269,8 +271,8 @@ export default function Settings({ onNavigate, dbStatus }) {
         {/* Right column — Module Registry */}
         <div className="card">
           <div className="ch">
-            <div><div className="ctit">Module Registry</div><div className="csub">All 25 active modules — click to navigate</div></div>
-            <span className="bdg bg">LIVE</span>
+            <div><div className="ctit">Module Registry</div><div className="csub">All {MODULE_LIST.length} active modules — click to navigate</div></div>
+            <span className={`bdg ${dbOk ? 'bg' : 'ba'}`}>{dbOk ? 'LIVE' : 'DEMO'}</span>
           </div>
           <div style={{ padding: '4px 0 8px' }}>
             {sections.map(section => (
@@ -339,6 +341,13 @@ export default function Settings({ onNavigate, dbStatus }) {
               { keys: ['g', 'm'], desc: 'Claims & Rebates' },
               { keys: ['g', 'n'], desc: 'Discount Calculator' },
               { keys: ['g', 'u'], desc: 'PO & GRN' },
+              { keys: ['g', 'b'], desc: 'Product Catalog' },
+              { keys: ['g', 'k'], desc: 'Credit Management' },
+              { keys: ['g', 'v'], desc: 'Counter POS' },
+              { keys: ['g', 'y'], desc: 'Scheme Management' },
+              { keys: ['g', 'g'], desc: 'Warehouse Management' },
+              { keys: ['g', '1'], desc: 'Tally Prime Export' },
+              { keys: ['g', 'j'], desc: 'About InvenIQ' },
             ]},
           ].map(group => (
             <div key={group.title} style={{ padding: 14, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, borderTop: `3px solid ${group.color}` }}>
@@ -364,7 +373,7 @@ export default function Settings({ onNavigate, dbStatus }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, padding: '4px 0 8px' }}>
           {[
             { step: '1', title: 'Demo Mode — Zero Setup', color: 'var(--green)',
-              items: ['Double-click start.bat (Windows) to auto-start both servers', 'Or: cd backend && uvicorn app.main:app --reload', 'Open http://localhost:3000 — all 25 modules show demo data', 'No database or API key needed'] },
+              items: ['Double-click start.bat (Windows) to auto-start both servers', 'Or: cd backend && uvicorn app.main:app --reload', `Open http://localhost:3000 — all ${MODULE_LIST.length} modules show demo data`, 'No database or API key needed'] },
             { step: '2', title: 'Enable MySQL Live Data', color: 'var(--b2)',
               items: ['Copy backend/.env.example → backend/.env', 'Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB', 'Run database/seed_complete.sql on your MySQL instance', 'Restart backend — DB badge turns green automatically'] },
             { step: '3', title: 'Enable All AI Features', color: '#8b5cf6',

@@ -1,0 +1,87 @@
+##############################################################################
+# InvenIQ v3.0 — Docker Compose Production Stack
+#
+# Services:
+#   frontend  — nginx serving React SPA + proxying /api → backend  (port 80)
+#   backend   — FastAPI + uvicorn 4-workers                        (internal)
+#   mysql     — MySQL 8.0 with persistent volume   (opt-in: --profile mysql)
+#
+# Quick start (demo mode — no MySQL):
+#   docker compose up -d
+#   Open http://localhost
+#
+# Full stack (with MySQL):
+#   docker compose --profile mysql up -d
+#
+# Environment:
+#   Copy backend/.env.example → backend/.env and fill in your values.
+##############################################################################
+
+name: inveniq
+
+services:
+
+  # ── Frontend (nginx + React build) ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - inveniq-net
+
+  # ── Backend (FastAPI + uvicorn) ─────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      # Override ALLOWED_ORIGINS in backend/.env for your domain
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}"
+    expose:
+      - "8000"
+    networks:
+      - inveniq-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+
+  # ── MySQL (optional — activate with --profile mysql) ───────────────────────
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    profiles: ["mysql"]
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-rootchangeme}"
+      MYSQL_DATABASE:      "${MYSQL_DB:-stocksense_inventory}"
+      MYSQL_USER:          "${MYSQL_USER:-stocksense}"
+      MYSQL_PASSWORD:      "${MYSQL_PASSWORD:-StockPass123!}"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d:ro
+    networks:
+      - inveniq-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootchangeme}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  inveniq-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

@@ -1,0 +1,17 @@
+# Ignore everything under node_modules and build artifacts
+**/node_modules
+**/build
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/*.egg-info
+**/.git
+**/.gitignore
+**/Dockerfile*
+**/docker-compose*
+**/.dockerignore
+**/deploy
+**/*.md
+**/.env.example
+**/CLAUDE.md

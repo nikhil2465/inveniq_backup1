@@ -17,6 +17,10 @@ const QUICK_SEARCH_SUGGESTIONS = [
   { label: 'Cash flow status',      view: 'finance',     query: 'What is my current cash flow and working capital?' },
   { label: 'Demand forecast',       view: 'demand',      query: 'What are the demand forecasts for next month?' },
   { label: 'Supplier performance',  view: 'procurement', query: 'How are my suppliers performing this month?' },
+  { label: 'Credit risk accounts',  view: 'credit',      query: 'Which customers are at or over their credit limit? Show me utilisation and overdue aging.' },
+  { label: 'Bounced PDCs',          view: 'credit',      query: 'Are there any bounced post-dated cheques? Show me amounts and next steps.' },
+  { label: 'Counter POS today',     view: 'pos',         query: 'What are today\'s counter sales — total revenue, top products, and transaction count?' },
+  { label: 'Supplier schemes',      view: 'schemes',     query: 'Which supplier schemes am I at risk of missing? Show me target gaps and payout amounts.' },
   { label: 'Grow my business',      view: null,          query: 'How can I grow my revenue by 30% this quarter? Give me a specific action plan.' },
   { label: 'Pricing optimisation',  view: 'discounts',   query: 'Which products am I underpricing? Show me discount leakage and pricing recommendations.' },
   { label: 'Overdue collections',   view: 'customers',   query: 'Give me a prioritised collections call list with recovery scripts for overdue payments.' },
@@ -25,7 +29,7 @@ const QUICK_SEARCH_SUGGESTIONS = [
   { label: 'Business health check', view: null,          query: 'Give me a complete business health check and top priorities for this week.' },
 ];
 
-export default function Topbar({ title, period, onPeriodChange, alerts = [], onGoChat, onNavigate, dbStatus, onToggleSidebar }) {
+export default function Topbar({ title, period, onPeriodChange, alerts = [], onGoChat, onNavigate, dbStatus, onToggleSidebar, onLogout, currentUser }) {
   const [alertOpen, setAlertOpen]   = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -92,6 +96,17 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
     onGoChat?.(query);
     if (!view) onNavigate?.('chatbot');
   };
+
+  // Derive display values from JWT user payload (falls back to sensible defaults)
+  const displayName = currentUser?.display_name || currentUser?.username || 'Admin';
+  const displayEmail = currentUser?.email || '';
+  const displayRole = currentUser?.role ? (currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)) : 'User';
+  const avatarInitials = displayName
+    .split(' ')
+    .map(w => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'IQ';
 
   const filteredSuggestions = searchVal.trim()
     ? QUICK_SEARCH_SUGGESTIONS.filter(s => s.label.toLowerCase().includes(searchVal.toLowerCase()))
@@ -279,7 +294,7 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
       {/* User Profile */}
       <div className="upro-wrap" ref={profileRef}>
         <button className="upro-btn" onClick={() => setProfileOpen(o => !o)} title="User Profile">
-          <div className="ava">NR</div>
+          <div className="ava">{avatarInitials}</div>
           <svg viewBox="0 0 10 6" fill="none" width="9" height="9" style={{color:'var(--text3)',transition:'transform .2s',transform:profileOpen?'rotate(180deg)':'none'}}>
             <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -288,11 +303,11 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
         {profileOpen && (
           <div className="upro-dropdown">
             <div className="upro-header">
-              <div className="upro-avatar">NR</div>
+              <div className="upro-avatar">{avatarInitials}</div>
               <div>
-                <div className="upro-name">Nikhil Rao</div>
-                <div className="upro-email">nikrao246@gmail.com</div>
-                <div className="upro-role">Owner / Admin</div>
+                <div className="upro-name">{displayName}</div>
+                {displayEmail && <div className="upro-email">{displayEmail}</div>}
+                <div className="upro-role">{displayRole}</div>
               </div>
             </div>
             <div className="upro-divider" />
@@ -321,6 +336,15 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
               <div className="upro-meta-row">
                 <span>Build</span><strong>May 2026</strong>
               </div>
+            </div>
+            <div className="upro-divider" />
+            <div className="upro-menu">
+              <button
+                className="upro-item upro-logout"
+                onClick={() => { setProfileOpen(false); onLogout?.(); }}
+              >
+                <span className="upro-item-icon">🚪</span> Sign out
+              </button>
             </div>
           </div>
         )}

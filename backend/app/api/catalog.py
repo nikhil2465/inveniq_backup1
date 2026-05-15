@@ -20,9 +20,14 @@ router = APIRouter(tags=["Product Catalog"])
 # ── Runtime product additions (session-persistent; DB-persistent with MySQL) ──
 _RUNTIME_PRODUCTS: List[dict] = []
 
+try:
+    from app.api.ebco_catalog import EBCO_CATALOG as _EBCO_CATALOG
+except ImportError:
+    _EBCO_CATALOG = []
+
 
 def _get_all_products() -> List[dict]:
-    return CATALOG + _RUNTIME_PRODUCTS
+    return CATALOG + _EBCO_CATALOG + _RUNTIME_PRODUCTS
 
 
 def _next_id() -> int:
@@ -1341,3 +1346,57 @@ async def bulk_add_catalog_products(payload: dict):
         "message":  f"{len(added)} product(s) added to catalog successfully.",
         "data_source": "runtime",
     }
+
+
+@router.post("/catalog/parse-import")
+async def parse_import_file(file: UploadFile = File(...)):
+    """Parse a CSV or Excel file and return raw tabular data (headers + rows) for column mapping."""
+    import csv
+    import io as _sio
+
+    file_bytes   = await file.read()
+    filename     = (file.filename or "").lower()
+    content_type = file.content_type or ""
+
+    headers: list = []
+    rows: list    = []
+
+    if filename.endswith(".csv") or content_type in ("text/csv", "application/csv"):
+        try:
+            text     = file_bytes.decode("utf-8", errors="replace")
+            reader   = csv.reader(_sio.StringIO(text))
+            all_rows = list(reader)
+            if all_rows:
+                headers = [str(h).strip() for h in all_rows[0]]
+                rows    = [
+                    [str(c).strip() for c in r]
+                    for r in all_rows[1:]
+                    if any(str(c).strip() for c in r)
+                ]
+        except Exception as exc:
+            raise HTTPException(400, f"CSV parse error: {exc}") from exc
+
+    elif filename.endswith((".xlsx", ".xls")) or "spreadsheetml" in content_type:
+        try:
+            from openpyxl import load_workbook
+            wb  = load_workbook(_io.BytesIO(file_bytes), read_only=True, data_only=True)
+            ws  = wb.active
+            all_rows = []
+            for row in ws.iter_rows(values_only=True):
+                row_vals = [str(c).strip() if c is not None else "" for c in row]
+                if any(v for v in row_vals):
+                    all_rows.append(row_vals)
+            wb.close()
+            if all_rows:
+                headers = all_rows[0]
+                rows    = [r for r in all_rows[1:] if any(v for v in r)]
+        except Exception as exc:
+            raise HTTPException(400, f"Excel parse error: {exc}") from exc
+
+    else:
+        raise HTTPException(
+            400,
+            "Unsupported file type. Upload a .csv or .xlsx / .xls file.",
+        )
+
+    return {"headers": headers, "rows": rows[:500], "count": len(rows)}

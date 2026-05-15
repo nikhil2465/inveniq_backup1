@@ -303,3 +303,59 @@ async def update_project_stage(project_id: int, req: UpdateProjectStage):
     if req.stage not in VALID_STAGES:
         raise HTTPException(422, f"Stage must be one of {VALID_STAGES}")
     return {"success": True, "project_id": project_id, "stage": req.stage, "demo_mode": True}
+
+
+_MOCK_PROJ_PROCUREMENT: dict = {
+    1: [
+        {
+            "po_number": "PO-20260411-001", "supplier": "Ebco India Pvt. Ltd.",
+            "items": "Soft-Close Hinges 35mm Pk-10 × 50 packs", "value": 242500,
+            "status": "GRN_DONE", "grn_pct": 100, "raised_date": "2026-04-11", "expected_delivery": "2026-04-18",
+        },
+        {
+            "po_number": "PO-20260415-002", "supplier": "Hettich India",
+            "items": "InnoTech Drawer System 400mm × 200 sets", "value": 256000,
+            "status": "IN_TRANSIT", "grn_pct": 0, "raised_date": "2026-04-15", "expected_delivery": "2026-04-28",
+        },
+    ],
+    2: [
+        {
+            "po_number": "PO-20260403-001", "supplier": "Hafele India",
+            "items": "Zinc D-Handle 128mm × 150 pcs", "value": 48000,
+            "status": "GRN_DONE", "grn_pct": 100, "raised_date": "2026-04-03", "expected_delivery": "2026-04-10",
+        },
+    ],
+    3: [],
+    4: [],
+    5: [
+        {
+            "po_number": "PO-20260501-003", "supplier": "Hettich India",
+            "items": "Soft-Close Channel 550mm × 40 sets", "value": 32000,
+            "status": "ORDERED", "grn_pct": 0, "raised_date": "2026-05-01", "expected_delivery": "2026-05-12",
+        },
+    ],
+    6: [],
+    7: [],
+}
+
+
+@router.get("/projects/{project_id}/procurement")
+async def get_project_procurement(project_id: int):
+    p = next((p for p in _mock_projects() if p["project_id"] == project_id), None)
+    if not p:
+        raise HTTPException(404, f"Project {project_id} not found")
+    pos = _MOCK_PROJ_PROCUREMENT.get(project_id, [])
+    total_value = sum(po["value"] for po in pos)
+    received    = sum(po["value"] for po in pos if po["status"] == "GRN_DONE")
+    return {
+        "project_id":    project_id,
+        "project_number": p["project_number"],
+        "purchase_orders": pos,
+        "summary": {
+            "total_pos":     len(pos),
+            "total_value":   total_value,
+            "received_value": received,
+            "pending_value": total_value - received,
+        },
+        "data_source": "mock",
+    }

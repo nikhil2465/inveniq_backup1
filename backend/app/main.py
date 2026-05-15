@@ -3,12 +3,15 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Callable
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -20,6 +23,7 @@ except ImportError:
     _RATE_LIMIT_AVAILABLE = False
     limiter = None
 
+from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.po_grn import router as po_grn_router
 from app.api.dashboard import router as dashboard_router
@@ -33,11 +37,179 @@ from app.api.quotes import router as quotes_router
 from app.api.credit import router as credit_router
 from app.api.pos import router as pos_router
 from app.api.schemes import router as schemes_router
+from app.api.warehouse import router as warehouse_router
+from app.api.tally_export import router as tally_router
 from app.core.config import get_settings
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 logger = logging.getLogger(__name__)
+
+# ── JWT Auth Middleware ────────────────────────────────────────────────────────
+# Pure ASGI middleware — zero impact on streaming responses (no BaseHTTPMiddleware buffering)
+_AUTH_PUBLIC = frozenset({
+    "/api/health", "/api/ready", "/api/db/status",
+    "/", "/docs", "/openapi.json", "/redoc",
+})
+
+# ── Module Access Middleware — maps module IDs → API route prefixes ───────────
+# API paths allowed for each module. Prefixes are matched with startswith().
+_MODULE_API_PREFIXES: dict[str, tuple[str, ...]] = {
+    "overview":    ("/api/overview", "/api/alerts", "/api/data-status", "/api/validate"),
+    "analytics":   ("/api/analytics",),
+    "inventory":   ("/api/inventory",),
+    "catalog":     ("/api/catalog",),
+    "demand":      ("/api/demand",),
+    "deadstock":   ("/api/dead-stock",),
+    "inward":      ("/api/inward",),
+    "warehouse":   ("/api/warehouses", "/api/warehouse", "/api/stock-dispatch", "/api/distributors"),
+    "procurement": ("/api/procurement",),
+    "pogrn":       ("/api/po-grn",),
+    "sales":       ("/api/sales",),
+    "customers":   ("/api/customers",),
+    "louvers":     ("/api/orders", "/api/sales-orders"),
+    "orders":      ("/api/orders",),
+    "freight":     ("/api/freight",),
+    "pos":         ("/api/pos",),
+    "quotes":      ("/api/quotes",),
+    "discounts":   ("/api/discounts",),
+    "schemes":     ("/api/schemes",),
+    "claims":      ("/api/claims",),
+    "finance":     ("/api/finance",),
+    "credit":      ("/api/credit",),
+    "projects":    ("/api/projects",),
+    "chatbot":     ("/api/chat",),
+    "settings":    ("/api/settings",),
+    "about":       (),  # About has no API calls
+    "tally":       ("/api/tally",),
+}
+
+# API paths always accessible regardless of module list (health + auth + settings)
+_MODULE_ALWAYS_ALLOWED: tuple[str, ...] = (
+    "/api/auth/",
+    "/api/health",
+    "/api/ready",
+    "/api/db/status",
+    "/api/settings",
+    "/api/version",
+)
+
+
+class AuthMiddleware:
+    """Validates JWT Bearer tokens on all /api/* requests except public paths."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Pass through non-HTTP scopes (WebSocket, lifespan, etc.)
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path   = scope.get("path", "")
+        method = scope.get("method", "")
+
+        # Always pass: OPTIONS (CORS preflight), non-API paths, auth endpoints, public paths
+        if (
+            method == "OPTIONS"
+            or not path.startswith("/api/")
+            or path.startswith("/api/auth/")
+            or path in _AUTH_PUBLIC
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        # Extract Authorization header (headers are byte tuples, always lowercase in ASGI)
+        headers_dict = {k: v for k, v in scope.get("headers", [])}
+        auth_value   = headers_dict.get(b"authorization", b"").decode("utf-8", errors="ignore")
+
+        if not auth_value.startswith("Bearer "):
+            response = JSONResponse(
+                {"error": "Authentication required. Please log in.", "code": "AUTH_REQUIRED"},
+                status_code=401,
+            )
+            await response(scope, receive, send)
+            return
+
+        from app.core.auth import decode_token_safe  # late import avoids circular at module load
+        payload = decode_token_safe(auth_value[7:])
+        if payload is None:
+            response = JSONResponse(
+                {"error": "Session expired or token invalid. Please log in again.", "code": "AUTH_INVALID"},
+                status_code=401,
+            )
+            await response(scope, receive, send)
+            return
+
+        # Attach decoded user to scope for downstream use
+        scope["user"] = payload
+        await self.app(scope, receive, send)
+
+
+class ModuleAccessMiddleware:
+    """
+    Enforces module-level API access based on `allowed_modules` claim in the JWT.
+    Runs AFTER AuthMiddleware (which sets scope["user"]).
+    - role="admin" or allowed_modules="all" → unrestricted.
+    - Otherwise → only API prefixes matching the allowed module list are permitted.
+    Returns 403 for blocked paths; non-API paths always pass through.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path   = scope.get("path", "")
+        method = scope.get("method", "")
+
+        # Non-API paths (static files, docs) always pass
+        if method == "OPTIONS" or not path.startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+
+        # Always-allowed API paths (health, auth, settings)
+        if any(path.startswith(p) for p in _MODULE_ALWAYS_ALLOWED):
+            await self.app(scope, receive, send)
+            return
+
+        # Read user from scope (set by AuthMiddleware)
+        user = scope.get("user", {})
+        role            = user.get("role", "")
+        allowed_modules = user.get("allowed_modules", "all")
+
+        # Admin role or "all" = unrestricted
+        if role == "admin" or allowed_modules == "all":
+            await self.app(scope, receive, send)
+            return
+
+        # Parse module list (stored as comma-separated string or list in JWT)
+        if isinstance(allowed_modules, str):
+            module_list = [m.strip() for m in allowed_modules.split(",") if m.strip()]
+        else:
+            module_list = list(allowed_modules)
+
+        # Check if path matches any allowed module's API prefixes
+        for module_id in module_list:
+            prefixes = _MODULE_API_PREFIXES.get(module_id, ())
+            if any(path.startswith(p) for p in prefixes):
+                await self.app(scope, receive, send)
+                return
+
+        # Path not covered by any allowed module — deny
+        response = JSONResponse(
+            {
+                "error": "Access denied. This feature is not available in your plan.",
+                "code":  "MODULE_RESTRICTED",
+            },
+            status_code=403,
+        )
+        await response(scope, receive, send)
+
 
 try:
     from app.db.connection import close_pool, get_pool, is_db_available
@@ -68,7 +240,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("  MySQL   : DEMO MODE  (set MYSQL_HOST in .env for live data)")
     logger.info("  OpenAI  : %s", "CONFIGURED" if cfg.openai_api_key else "NOT SET  (set OPENAI_API_KEY for AI features)")
-    logger.info("  Routers : 13  |  Endpoints : 75+")
+    logger.info("  Routers : 17  |  Endpoints : 100+")
     logger.info("  Docs    : http://127.0.0.1:8000/docs")
     logger.info("=" * 52)
     yield
@@ -85,6 +257,7 @@ app = FastAPI(
 )
 
 _cfg = get_settings()
+# Middleware stack (last added = outermost = first to execute on requests)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cfg.get_allowed_origins(),
@@ -92,8 +265,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
-
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(ModuleAccessMiddleware)  # enforces module access (runs after AuthMiddleware sets scope["user"])
+app.add_middleware(AuthMiddleware)  # outermost — validates JWT before any route executes
 
 if _RATE_LIMIT_AVAILABLE and limiter:
     app.state.limiter = limiter
@@ -118,6 +292,7 @@ async def request_logging_middleware(request: Request, call_next):
     return response
 
 
+app.include_router(auth_router,      prefix="/api")
 app.include_router(chat_router,      prefix="/api")
 app.include_router(po_grn_router,    prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
@@ -131,6 +306,8 @@ app.include_router(quotes_router,    prefix="/api")
 app.include_router(credit_router,    prefix="/api")
 app.include_router(pos_router,       prefix="/api")
 app.include_router(schemes_router,   prefix="/api")
+app.include_router(warehouse_router, prefix="/api")
+app.include_router(tally_router,    prefix="/api")
 
 
 @app.exception_handler(Exception)
@@ -142,8 +319,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/", tags=["Health"])
-def root():
+@app.get("/api/version", tags=["Health"])
+def api_root():
     return {"service": "InvenIQ API", "version": "3.0", "docs": "/docs"}
 
 
@@ -157,6 +334,25 @@ async def health():
         "mysql_connected": db_ok,
         "data_source": "mysql" if db_ok else "demo",
     }
+
+
+@app.get("/api/ready", tags=["Health"])
+async def readiness():
+    """Readiness probe — returns 503 if critical services are not available."""
+    cfg = get_settings()
+    issues = []
+    if not cfg.openai_api_key:
+        issues.append("OPENAI_API_KEY not configured — AI chat will not work")
+    if _DB_AVAILABLE and cfg.mysql_host:
+        db_ok = await is_db_available()
+        if not db_ok:
+            issues.append(f"MySQL unreachable at {cfg.mysql_host} — running in demo mode")
+    if issues:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "issues": issues, "ai_enabled": bool(cfg.openai_api_key)},
+        )
+    return {"status": "ready", "ai_enabled": True, "data_source": "mysql" if (_DB_AVAILABLE and cfg.mysql_host) else "demo"}
 
 
 @app.get("/api/db/status", tags=["Health"])
@@ -199,17 +395,29 @@ async def get_settings_info():
             "scanner_model": "gpt-4o (vision)",
             "streaming": "SSE",
             "history_window": 16,
-            "tools_count": 16,
-            "knowledge_topics": 19,
-            "insight_types": 10,
+            "tools_count": 20,
+            "knowledge_topics": 25,
+            "insight_types": 13,
             "rca_templates": 14,
         },
         "modules": [
             "overview", "analytics", "demand", "inventory", "deadstock", "inward",
-            "procurement", "pogrn", "catalog", "customers", "louvers", "orders",
+            "warehouse", "procurement", "pogrn", "catalog", "customers", "louvers", "orders",
             "freight", "sales", "claims", "discounts", "projects", "quotes",
-            "finance", "credit", "pos", "schemes", "chatbot", "about", "settings",
+            "finance", "credit", "pos", "schemes", "chatbot", "about", "settings", "tally",
         ],
-        "api_routers": 11,
-        "total_endpoints": 70,
+        "api_routers": 17,
+        "total_endpoints": 100,
     }
+
+
+# ── Production static file serving ─────────────────────────────────────────
+# When the React build exists (npm run build was run), FastAPI serves the SPA
+# on the same port as the API — no nginx needed for single-machine installs.
+# Dev mode: React runs on :3000 with its own dev server (build dir absent).
+# Docker mode: nginx serves static files; build dir is absent in the container.
+_FRONTEND_BUILD = Path(__file__).resolve().parent.parent.parent / "frontend" / "build"
+if _FRONTEND_BUILD.is_dir():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_BUILD), html=True), name="static")
+    logger.info("  Static : React SPA served from %s", _FRONTEND_BUILD)

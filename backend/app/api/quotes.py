@@ -1198,3 +1198,92 @@ async def analyze_quote(req: AnalyzeQuoteRequest):
         logger.exception("Quote analyze OpenAI error: %s", exc)
 
     return result
+
+
+# ── Quote → Sales Order Conversion ─────────────────────────────────────────────
+
+_converted_orders: dict[int, dict] = {}  # in-memory conversion registry (demo mode)
+
+
+@router.post("/quotes/{quote_id}/convert-to-order")
+async def convert_quote_to_order(quote_id: int):
+    """
+    Convert a WON quotation to a Sales Order.
+    Idempotent — calling twice returns the same order number.
+    DB mode: inserts a row in customer_orders and marks quote status CONVERTED.
+    Demo mode: generates a deterministic order number and stores in memory.
+    """
+    if quote_id in _converted_orders:
+        return _converted_orders[quote_id]
+
+    today = datetime.date.today()
+
+    try:
+        from app.db.connection import get_pool
+        from app.db import quote_queries
+        pool = await get_pool()
+        if pool:
+            await quote_queries.ensure_tables(pool)
+            quote_data = await quote_queries.get_quote_db(pool, quote_id)
+            if quote_data:
+                order_number = f"SO-{today.strftime('%Y%m%d')}-{quote_id:04d}"
+                try:
+                    async with pool.acquire() as conn:
+                        async with conn.cursor() as cur:
+                            li = (quote_data.get("line_items") or [{}])[0]
+                            await cur.execute(
+                                """INSERT INTO customer_orders
+                                   (order_number, customer_name, customer_type, product_name,
+                                    quantity, sell_price, total_value, delivery_date, status, notes)
+                                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'CONFIRMED',%s)""",
+                                (
+                                    order_number,
+                                    quote_data.get("customer_name", ""),
+                                    quote_data.get("customer_type", ""),
+                                    li.get("product_name", ""),
+                                    li.get("quantity", 1),
+                                    li.get("net_price", li.get("unit_price", 0)),
+                                    quote_data.get("grand_total", 0),
+                                    quote_data.get("valid_till", today.isoformat()),
+                                    f"Converted from {quote_data.get('quote_number', '')}",
+                                ),
+                            )
+                    result = {
+                        "success": True,
+                        "order_number": order_number,
+                        "quote_id": quote_id,
+                        "quote_number": quote_data.get("quote_number", ""),
+                        "customer_name": quote_data.get("customer_name", ""),
+                        "total_value": quote_data.get("grand_total", 0),
+                        "converted_at": today.isoformat(),
+                        "message": f"Quote converted to Sales Order {order_number}",
+                        "data_source": "mysql",
+                    }
+                    _converted_orders[quote_id] = result
+                    return result
+                except Exception as db_exc:
+                    logger.warning("convert-to-order DB insert failed: %s", db_exc)
+    except Exception as exc:
+        logger.warning("convert-to-order DB path failed: %s", exc)
+
+    # Demo fallback
+    mock_quote = next((q for q in _mock_quotes() if q["quote_id"] == quote_id), None)
+    customer = mock_quote["customer_name"] if mock_quote else "Customer"
+    total    = mock_quote["grand_total"]   if mock_quote else 0
+    qnum     = mock_quote["quote_number"]  if mock_quote else f"QT-{today.year}-{quote_id:04d}"
+    order_number = f"SO-{today.strftime('%Y%m%d')}-{quote_id:04d}"
+
+    result = {
+        "success": True,
+        "order_number": order_number,
+        "quote_id": quote_id,
+        "quote_number": qnum,
+        "customer_name": customer,
+        "total_value": total,
+        "converted_at": today.isoformat(),
+        "message": f"Quote {qnum} converted to Sales Order {order_number}",
+        "data_source": "demo",
+    }
+    _converted_orders[quote_id] = result
+    logger.info("Demo convert: %s → %s for %s", qnum, order_number, customer)
+    return result

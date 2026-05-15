@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvenIQ v3.0 — Deployment & Client Package Guide</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #1e293b;
+    background: #fff;
+    padding: 40px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    text-align: center;
+    padding: 60px 0 50px;
+    border-bottom: 3px solid #16a34a;
+    margin-bottom: 40px;
+  }
+  .cover-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .cover-logo svg { width: 48px; height: 48px; }
+  .cover-title { font-size: 32px; font-weight: 800; color: #15803d; letter-spacing: -1px; }
+  .cover-sub { font-size: 18px; color: #64748b; margin-top: 6px; }
+  .cover-meta { margin-top: 30px; color: #94a3b8; font-size: 12px; }
+  .cover-badge {
+    display: inline-block;
+    background: #15803d;
+    color: #fff;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ── Sections ── */
+  h1 {
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 36px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h1 .num {
+    background: #15803d;
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  h2 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 20px 0 8px;
+  }
+  h3 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    margin: 14px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  p { margin-bottom: 10px; color: #334155; }
+
+  /* ── Code blocks ── */
+  pre, code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 11.5px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+  pre {
+    padding: 14px 16px;
+    margin: 10px 0;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  code {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 12px;
+  }
+  th {
+    background: #f1f5f9;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 700;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  td {
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+    color: #334155;
+  }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* ── Info boxes ── */
+  .box {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    border-left: 4px solid;
+  }
+  .box-green { background: #f0fdf4; border-color: #16a34a; }
+  .box-blue  { background: #eff6ff; border-color: #3b82f6; }
+  .box-amber { background: #fffbeb; border-color: #f59e0b; }
+  .box-red   { background: #fef2f2; border-color: #ef4444; }
+  .box-title { font-weight: 700; margin-bottom: 6px; }
+  .box-green .box-title { color: #15803d; }
+  .box-blue  .box-title { color: #1d4ed8; }
+  .box-amber .box-title { color: #b45309; }
+  .box-red   .box-title { color: #b91c1c; }
+
+  /* ── Steps ── */
+  .steps { counter-reset: step; margin: 12px 0; }
+  .step {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+  }
+  .step-num {
+    counter-increment: step;
+    background: #15803d;
+    color: #fff;
+    min-width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-body { flex: 1; }
+  .step-body strong { display: block; margin-bottom: 4px; color: #0f172a; }
+
+  /* ── File tree ── */
+  .tree {
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin: 10px 0;
+    line-height: 1.8;
+  }
+  .tree .g { color: #4ade80; }
+  .tree .a { color: #94a3b8; }
+  .tree .y { color: #fbbf24; }
+  .tree .b { color: #60a5fa; }
+
+  /* ── Tags ── */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tag-green  { background: #dcfce7; color: #15803d; }
+  .tag-red    { background: #fee2e2; color: #b91c1c; }
+  .tag-blue   { background: #dbeafe; color: #1d4ed8; }
+  .tag-amber  { background: #fef3c7; color: #b45309; }
+
+  /* ── Print ── */
+  @media print {
+    body { padding: 20px; font-size: 12px; }
+    h1 { page-break-after: avoid; }
+    pre, table, .box { page-break-inside: avoid; }
+    .cover { page-break-after: always; }
+  }
+
+  .divider { border: none; border-top: 1px solid #e2e8f0; margin: 30px 0; }
+  ul, ol { padding-left: 20px; margin: 8px 0; }
+  li { margin-bottom: 4px; color: #334155; }
+  .mono { font-family: 'Consolas', monospace; font-size: 11px; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ══ COVER ══════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-logo">
+    <svg viewBox="0 0 48 48" fill="none">
+      <rect x="2"  y="2"  width="20" height="20" rx="4" fill="#15803d"/>
+      <rect x="26" y="2"  width="20" height="20" rx="4" fill="#16a34a"/>
+      <rect x="2"  y="26" width="20" height="20" rx="4" fill="#16a34a"/>
+      <rect x="26" y="26" width="20" height="20" rx="4" fill="#15803d"/>
+    </svg>
+    <div>
+      <div class="cover-title">InvenIQ</div>
+    </div>
+  </div>
+  <div class="cover-sub">Deployment &amp; Client Package Guide</div>
+  <div class="cover-meta">Version 3.0 &nbsp;·&nbsp; May 2026 &nbsp;·&nbsp; Enterprise Edition</div>
+  <div class="cover-badge">Confidential — Developer Copy</div>
+</div>
+
+
+<!-- ══ SECTION 1 — SYSTEM OVERVIEW ════════════════════════════════════════ -->
+<h1><span class="num">1</span> How the Module Access System Works</h1>
+
+<p>InvenIQ uses a two-account, three-layer access control system. You control exactly which modules a client can see and use — enforced at both the UI and API level.</p>
+
+<h2>Two Accounts</h2>
+<table>
+  <tr>
+    <th>Account</th>
+    <th>Set in .env</th>
+    <th>Purpose</th>
+    <th>Access</th>
+  </tr>
+  <tr>
+    <td><strong>Client account</strong></td>
+    <td><code>AUTH_USERNAME</code> / <code>AUTH_PASSWORD</code></td>
+    <td>What the client logs in with every day</td>
+    <td>Only the modules you list in <code>AUTH_ALLOWED_MODULES</code></td>
+  </tr>
+  <tr>
+    <td><strong>Owner/Developer</strong></td>
+    <td><code>OWNER_USERNAME</code> / <code>OWNER_PASSWORD</code></td>
+    <td>Your private backdoor admin account</td>
+    <td>Full access to all 26 modules, always</td>
+  </tr>
+</table>
+
+<div class="box box-amber">
+  <div class="box-title">Important</div>
+  Leave <code>OWNER_USERNAME</code> blank to disable the backdoor account entirely on installations where you don't need it.
+</div>
+
+<h2>Three Enforcement Layers</h2>
+<table>
+  <tr><th>Layer</th><th>Where</th><th>What it does</th></tr>
+  <tr>
+    <td><strong>1 — Sidebar (UI)</strong></td>
+    <td>Frontend / React</td>
+    <td>Navigation menu only shows allowed modules. Restricted items are completely hidden — not greyed out, just gone.</td>
+  </tr>
+  <tr>
+    <td><strong>2 — Keyboard shortcuts (UI)</strong></td>
+    <td>Frontend / React</td>
+    <td><code>g → letter</code> navigation is filtered. Pressing a shortcut for a restricted module does nothing.</td>
+  </tr>
+  <tr>
+    <td><strong>3 — Backend API (hard wall)</strong></td>
+    <td>Backend / FastAPI</td>
+    <td>Every API call is verified against the JWT token's <code>allowed_modules</code> claim. Blocked calls return 403. No data is returned regardless of what the UI does.</td>
+  </tr>
+</table>
+
+<h2>How the JWT Token Works</h2>
+<p>On login, the server issues a JWT (JSON Web Token) containing the user's role and <code>allowed_modules</code>. Every API call the browser makes includes this token. The backend's <code>ModuleAccessMiddleware</code> reads the token on every request — it never queries the database again for permissions.</p>
+
+<div class="box box-blue">
+  <div class="box-title">Middleware Execution Order</div>
+  <strong>AuthMiddleware</strong> (validates JWT, sets user) → <strong>ModuleAccessMiddleware</strong> (checks allowed modules) → GZip → CORS → Routes
+</div>
+
+<h2>Complete Login Flow for a Restricted Client</h2>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Client enters username + password</strong>POST /api/auth/login</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Server validates credentials</strong>Checks DB → owner account → client account (priority order)</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Server issues JWT containing:</strong><code>role=client, allowed_modules=quotes,customers,catalog,chatbot,settings,about</code></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Frontend stores JWT in localStorage</strong>Persists across page refreshes for 8 hours (configurable)</div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Sidebar filters to show only allowed modules</strong>Quotation Builder · Customer Intelligence · Product Catalog · AI Assistant · Settings · About</div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-body"><strong>Default landing page = Quotation Builder</strong>First preferred module in the allowed list</div></div>
+  <div class="step"><div class="step-num">7</div><div class="step-body"><strong>Every API call is bearer-token authenticated</strong>Backend blocks any call outside the allowed module prefixes with 403</div></div>
+</div>
+
+<h2>Module Access Map — Example Client Config</h2>
+<table>
+  <tr><th>Module</th><th>activeView ID</th><th>Visible in sidebar</th><th>API access</th></tr>
+  <tr><td>Quotation Builder</td><td>quotes</td><td><span class="tag tag-green">YES — default</span></td><td><span class="tag tag-green">ALLOWED</span></td></tr>
+  <tr><td>Customer Intelligence</td><td>customers</td><td><span class="tag tag-green">YES</span></td><td><span class="tag tag-green">ALLOWED</span></td></tr>
+  <tr><td>Product Catalog</td><td>catalog</td><td><span class="tag tag-green">YES</span></td><td><span class="tag tag-green">ALLOWED</span></td></tr>
+  <tr><td>AI Assistant</td><td>chatbot</td><td><span class="tag tag-green">YES</span></td><td><span class="tag tag-green">ALLOWED</span></td></tr>
+  <tr><td>Settings</td><td>settings</td><td><span class="tag tag-green">YES</span></td><td><span class="tag tag-green">ALLOWED</span></td></tr>
+  <tr><td>About</td><td>about</td><td><span class="tag tag-green">YES</span></td><td>Static page</td></tr>
+  <tr><td>All other 20 modules</td><td>—</td><td><span class="tag tag-red">HIDDEN</span></td><td><span class="tag tag-red">BLOCKED 403</span></td></tr>
+</table>
+
+
+<hr class="divider">
+
+<!-- ══ SECTION 2 — ENV CONFIGURATION ══════════════════════════════════════ -->
+<h1><span class="num">2</span> .env Configuration Reference</h1>
+
+<p>All client-specific settings are in <code>backend/.env</code>. Never commit this file to Git.</p>
+
+<pre># ── OpenAI (required for AI chat features) ───────────────────────────
+OPENAI_API_KEY=sk-...your-key-here...
+
+# ── MySQL Database (optional — leave blank for demo mode) ─────────────
+MYSQL_HOST=
+MYSQL_PORT=3306
+MYSQL_USER=stocksense
+MYSQL_PASSWORD=your_db_password
+MYSQL_DB=stocksense_inventory
+
+# ── Security ──────────────────────────────────────────────────────────
+# Generate: python -c "import secrets; print(secrets.token_hex(32))"
+JWT_SECRET_KEY=CHANGE-THIS-TO-UNIQUE-32-CHAR-STRING
+ACCESS_TOKEN_EXPIRE_HOURS=8
+
+# ── Client login account ──────────────────────────────────────────────
+AUTH_USERNAME=client
+AUTH_PASSWORD=strong_client_password
+AUTH_DISPLAY_NAME=Client Company Name
+AUTH_EMAIL=client@company.com
+AUTH_ROLE=client
+AUTH_ALLOWED_MODULES=quotes,customers,catalog,chatbot,settings,about
+
+# ── Developer/owner backdoor (private — never share this) ─────────────
+OWNER_USERNAME=devadmin
+OWNER_PASSWORD=your_private_admin_password
+OWNER_DISPLAY_NAME=Developer
+OWNER_EMAIL=dev@yourcompany.com
+
+# ── CORS ──────────────────────────────────────────────────────────────
+ALLOWED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000</pre>
+
+<h2>AUTH_ALLOWED_MODULES — All Available Module IDs</h2>
+<table>
+  <tr><th>Module ID</th><th>Display Name</th><th>Module ID</th><th>Display Name</th></tr>
+  <tr><td>overview</td><td>Business Overview</td><td>pos</td><td>Counter POS</td></tr>
+  <tr><td>analytics</td><td>Analytics &amp; BI</td><td>quotes</td><td>Quotation Builder</td></tr>
+  <tr><td>inventory</td><td>Stock Intelligence</td><td>discounts</td><td>Discount Calculator</td></tr>
+  <tr><td>catalog</td><td>Product Catalog</td><td>schemes</td><td>Scheme Management</td></tr>
+  <tr><td>demand</td><td>Demand Forecasting</td><td>claims</td><td>Claims &amp; Rebates</td></tr>
+  <tr><td>deadstock</td><td>Dead Stock &amp; Ageing</td><td>finance</td><td>Profitability &amp; Cash</td></tr>
+  <tr><td>inward</td><td>Inward &amp; Outward</td><td>credit</td><td>Credit Management</td></tr>
+  <tr><td>warehouse</td><td>Warehouse Management</td><td>projects</td><td>Project Tracker</td></tr>
+  <tr><td>procurement</td><td>Supplier &amp; Procurement</td><td>chatbot</td><td>AI Assistant</td></tr>
+  <tr><td>pogrn</td><td>PO &amp; GRN</td><td>settings</td><td>Settings &amp; Status</td></tr>
+  <tr><td>sales</td><td>Sales Performance</td><td>about</td><td>About InvenIQ</td></tr>
+  <tr><td>customers</td><td>Customer Intelligence</td><td>louvers</td><td>Sales Orders</td></tr>
+  <tr><td>orders</td><td>Orders &amp; Fulfilment</td><td>freight</td><td>Freight Planning</td></tr>
+</table>
+
+
+<hr class="divider">
+
+<!-- ══ SECTION 3 — SOURCE CODE PROTECTION ═════════════════════════════════ -->
+<h1><span class="num">3</span> Source Code Protection Options</h1>
+
+<table>
+  <tr><th>Option</th><th>Protection</th><th>Client runs offline?</th><th>Effort</th></tr>
+  <tr>
+    <td><strong>Host on your server (SaaS)</strong></td>
+    <td><span class="tag tag-green">MAXIMUM</span> — zero files leave your hands</td>
+    <td>No — needs internet</td>
+    <td>Medium (one-time VPS setup)</td>
+  </tr>
+  <tr>
+    <td><strong>PyInstaller .exe package</strong></td>
+    <td><span class="tag tag-blue">HIGH</span> — no .py files, compiled binary</td>
+    <td>Yes — fully offline</td>
+    <td>Low (run one script)</td>
+  </tr>
+  <tr>
+    <td><strong>Docker image</strong></td>
+    <td><span class="tag tag-blue">HIGH</span> — source inside image layer</td>
+    <td>Yes — needs Docker Desktop</td>
+    <td>Medium</td>
+  </tr>
+  <tr>
+    <td><strong>Copy full folder (current)</strong></td>
+    <td><span class="tag tag-red">NONE</span> — full source exposed</td>
+    <td>Yes</td>
+    <td>Zero</td>
+  </tr>
+</table>
+
+<div class="box box-green">
+  <div class="box-title">Recommended: PyInstaller Package (like InvenIQ2)</div>
+  Client receives a ZIP containing only: <code>InvenIQ-server.exe</code> + <code>web/</code> + <code>.env</code> + <code>START-SERVER.bat</code>. No Python source. No JSX source. Double-click to run.
+</div>
+
+<div class="box box-blue">
+  <div class="box-title">Note on the React frontend</div>
+  <code>npm run build</code> already produces minified, mangled JavaScript. Your JSX/React source is not readable in the build output. The frontend is already partially protected as long as you only give clients the <code>frontend/build/</code> folder, not <code>frontend/src/</code>.
+</div>
+
+
+<hr class="divider">
+
+<!-- ══ SECTION 4 — CLIENT PACKAGE SYSTEM ══════════════════════════════════ -->
+<h1><span class="num">4</span> Client Package System (PyInstaller)</h1>
+
+<p>Based on the InvenIQ2 project. Four files need to be created in InvenIQ to enable this system:</p>
+
+<h2>Files to Create</h2>
+<table>
+  <tr><th>File</th><th>Location</th><th>Purpose</th></tr>
+  <tr><td><code>run.py</code></td><td><code>backend/run.py</code></td><td>PyInstaller entry point — starts uvicorn, loads .env from beside the .exe</td></tr>
+  <tr><td><code>InvenIQ.spec</code></td><td><code>backend/InvenIQ.spec</code></td><td>PyInstaller config — lists all routers, hidden imports, compiles to InvenIQ-server.exe</td></tr>
+  <tr><td><code>create-client-package.bat</code></td><td>project root</td><td>Master build script — builds React + exe + assembles + ZIPs in one command</td></tr>
+  <tr><td><code>.env.template</code></td><td>project root</td><td>Blank .env that goes inside the client ZIP (includes AUTH_* and OWNER_* fields)</td></tr>
+</table>
+
+<h2>How to Build a Client Package (once files exist)</h2>
+<pre>create-client-package.bat "ClientName"</pre>
+<p>This runs 4 automatic steps:</p>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>React build</strong> — <code>npm run build</code> with <code>GENERATE_SOURCEMAP=false</code></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Python compile</strong> — PyInstaller bundles entire backend into <code>InvenIQ-server.exe</code></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Package assembly</strong> — clean folder with no source files, only the built artifacts</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>ZIP creation</strong> — <code>InvenIQ-Client-ClientName.zip</code> ready to send</div></div>
+</div>
+
+<h2>What the Client ZIP Contains</h2>
+<div class="tree">
+  <span class="g">InvenIQ-Client-ClientName.zip</span><br>
+  &nbsp;&nbsp;<span class="y">InvenIQ-server.exe</span> &nbsp;<span class="a">← compiled backend — no .py files</span><br>
+  &nbsp;&nbsp;<span class="b">web\</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← compiled React — no .jsx source</span><br>
+  &nbsp;&nbsp;<span class="y">.env</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← client fills in OpenAI key + credentials</span><br>
+  &nbsp;&nbsp;<span class="g">START-SERVER.bat</span> &nbsp;&nbsp;<span class="a">← double-click to run</span><br>
+  &nbsp;&nbsp;<span class="g">README.txt</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← 5-line instructions</span>
+</div>
+
+<h2>Differences Between InvenIQ2 and InvenIQ (what must be adjusted)</h2>
+<table>
+  <tr><th>Setting</th><th>InvenIQ2</th><th>InvenIQ needs</th></tr>
+  <tr><td>Server port</td><td>8001</td><td>8000</td></tr>
+  <tr><td>Routers in .spec</td><td>14 routers</td><td>15 routers (+ auth, warehouse)</td></tr>
+  <tr><td>Hidden imports</td><td>No jose/bcrypt</td><td>Add: jose, bcrypt, cryptography, pydantic_settings</td></tr>
+  <tr><td>.env.template</td><td>OpenAI + MySQL only</td><td>+ AUTH_*, OWNER_*, JWT_SECRET_KEY</td></tr>
+  <tr><td>Static files path</td><td>Reads INVENIQ_WEB_DIR env var</td><td>Same pattern needed in main.py</td></tr>
+</table>
+
+
+<hr class="divider">
+
+<!-- ══ SECTION 5 — DEPLOYING TO CLIENT DEVICE ════════════════════════════ -->
+<h1><span class="num">5</span> Deploying to a Client's Windows Machine</h1>
+
+<h2>Method A — Full Source (fastest, source exposed)</h2>
+<p>Copy the entire <code>c:\InvenIQ</code> folder to the client machine. Client runs two scripts:</p>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Prerequisites</strong> — Install Python 3.10+ and Node.js 18+ LTS on the client machine. Check "Add Python to PATH" during Python install.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Create backend/.env</strong> — Copy <code>deploy\client.env.example</code> to <code>backend\.env</code>. Fill in OPENAI_API_KEY, AUTH_USERNAME/PASSWORD, AUTH_ROLE=client, AUTH_ALLOWED_MODULES, OWNER_USERNAME/PASSWORD, JWT_SECRET_KEY.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>First-time setup</strong> — Double-click <code>deploy\windows\install.bat</code>. Installs Python packages, builds React. Takes ~2 minutes.</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Daily startup</strong> — Double-click <code>start_prod.bat</code>. Opens browser at <code>http://localhost:8000</code> automatically.</div></div>
+</div>
+
+<h2>Method B — PyInstaller Package (source protected)</h2>
+<p>Client receives only the ZIP file. No Python or Node.js needed on their machine.</p>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>You build the package</strong> (on your machine) — Run <code>create-client-package.bat "ClientName"</code>. Takes ~5 minutes. Produces <code>InvenIQ-Client-ClientName.zip</code>.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Edit .env inside the ZIP</strong> — Before sending, open the ZIP, edit <code>.env</code>, fill in all client-specific credentials and module restrictions.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Send ZIP to client</strong> — Email, USB, file share, Google Drive — any method.</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Client extracts ZIP</strong> — Then double-clicks <code>START-SERVER.bat</code>. Opens browser at <code>http://localhost:8000</code>.</div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Daily startup</strong> — Client double-clicks <code>START-SERVER.bat</code> every time they start work.</div></div>
+</div>
+
+<h2>Method C — Hosted on Your Server (maximum protection)</h2>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Rent a VPS</strong> — DigitalOcean, Hostinger, AWS Lightsail etc. Ubuntu 22.04, ~$6–12/month.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Upload InvenIQ to server</strong> — SSH in, copy the project, run <code>pip install -r requirements.txt</code>, <code>npm run build</code>.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Create backend/.env on server</strong> — Same as Method A but with <code>ALLOWED_ORIGINS=https://yourdomain.com</code>.</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Start server permanently</strong> — Use <code>pm2</code> or <code>systemd</code> to keep it running 24/7.</div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Give client the URL</strong> — e.g. <code>http://yourserver-ip:8000</code> or set up a domain. Client opens in any browser on any device. No files, no installation.</div></div>
+</div>
+
+
+<hr class="divider">
+
+<!-- ══ SECTION 6 — WHERE EVERYTHING IS LOCATED ════════════════════════════ -->
+<h1><span class="num">6</span> File Locations Quick Reference</h1>
+
+<div class="tree">
+  <span class="g">c:\InvenIQ\</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← project root (your machine)</span><br>
+  &nbsp;&nbsp;<span class="b">backend\</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span class="y">.env</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← credentials (never share/commit this)</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span class="y">.env.example</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← blank template (safe to share)</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span class="b">app\</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← Python source (protect this)</span><br>
+  &nbsp;&nbsp;<span class="b">frontend\</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span class="b">src\</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← React source (protect this)</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span class="g">build\</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← compiled React (safe to give clients)</span><br>
+  &nbsp;&nbsp;<span class="b">deploy\</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span class="g">client.env.example</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← client .env template with full docs</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span class="b">windows\</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="g">install.bat</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← run once on client machine</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="g">start.bat</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← start the app</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="g">stop.bat</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← stop the app</span><br>
+  &nbsp;&nbsp;<span class="g">start_prod.bat</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← production launcher (single-port)</span><br>
+  &nbsp;&nbsp;<span class="y">docker-compose.yml</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← Docker deployment</span><br>
+  &nbsp;&nbsp;<span class="y">Dockerfile</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="a">← Docker image definition</span>
+</div>
+
+
+<hr class="divider">
+
+<!-- ══ SECTION 7 — QUICK DECISION GUIDE ══════════════════════════════════ -->
+<h1><span class="num">7</span> Quick Decision Guide</h1>
+
+<table>
+  <tr><th>Your situation</th><th>Best choice</th><th>Status</th></tr>
+  <tr>
+    <td>Client just needs to use the app, you manage everything</td>
+    <td>Method C — Host on your server, give them a URL</td>
+    <td><span class="tag tag-amber">Needs VPS setup</span></td>
+  </tr>
+  <tr>
+    <td>Client must run offline, source protection needed</td>
+    <td>Method B — PyInstaller package ZIP</td>
+    <td><span class="tag tag-amber">4 files to create</span></td>
+  </tr>
+  <tr>
+    <td>Client must run offline, source protection not priority</td>
+    <td>Method A — Copy folder + install.bat</td>
+    <td><span class="tag tag-green">Ready now</span></td>
+  </tr>
+  <tr>
+    <td>Multiple clients, clean separation per client</td>
+    <td>Method C (separate .env per client) or Method B (separate ZIP per client)</td>
+    <td><span class="tag tag-amber">Needs setup</span></td>
+  </tr>
+</table>
+
+<div class="box box-green">
+  <div class="box-title">To create the PyInstaller package system (Method B)</div>
+  Four files need to be created: <code>backend/run.py</code>, <code>backend/InvenIQ.spec</code>, <code>create-client-package.bat</code>, and <code>.env.template</code>. These are already built and tested in the InvenIQ2 project — they just need to be adapted for InvenIQ's additional routers and auth dependencies.
+</div>
+
+
+<hr class="divider">
+
+<!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
+<div style="margin-top:40px; padding-top:20px; border-top:1px solid #e2e8f0; text-align:center; color:#94a3b8; font-size:11px;">
+  InvenIQ v3.0 &nbsp;·&nbsp; Deployment &amp; Client Package Guide &nbsp;·&nbsp; May 2026 &nbsp;·&nbsp; Confidential — Developer Copy
+  <br>
+  To print as PDF: Open in Chrome → Ctrl+P → Save as PDF → Layout: Portrait, Margins: Minimum
+</div>
+
+</body>
+</html>

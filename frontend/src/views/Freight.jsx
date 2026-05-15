@@ -18,9 +18,12 @@ const STATIC_INC   = [9, 11, 8, 10, 12, 0, 0, 9, 11, 10, 8, 12, 10, 0, 0, 11, 9,
 
 const LANE_SC = { BEST: 'bg', OK: 'bb', HIGH: 'ba', WORST: 'br' };
 
+const fmtV = n => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
 export default function Freight({ onGoChat, period = 'MTD' }) {
-  const [d, setD] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [d, setD]                   = useState(null);
+  const [inTransit, setInTransit]   = useState(null);
+  const [loading, setLoading]       = useState(true);
   const ftRef = useRef(null);
 
   const fetchData = useCallback(() => {
@@ -28,8 +31,17 @@ export default function Freight({ onGoChat, period = 'MTD' }) {
     fetch(`/api/freight?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
   }, [period]);
 
+  const fetchInTransit = useCallback(() => {
+    fetch('/api/freight/in-transit')
+      .then(r => r.json())
+      .then(data => setInTransit(data))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchInTransit(); }, [fetchInTransit]);
   useAutoRefresh(fetchData, 5 * 60_000);
+  useAutoRefresh(fetchInTransit, 2 * 60_000);
 
   const src   = d?.data_source ?? 'demo';
   const lanes = d?.outbound_lanes?.length ? d.outbound_lanes : STATIC_LANES;
@@ -99,6 +111,63 @@ export default function Freight({ onGoChat, period = 'MTD' }) {
           </div>
         ))}
       </div>
+
+      {/* ── Deliveries In Transit ───────────────────────────────────────── */}
+      {(() => {
+        const deliveries = inTransit?.deliveries ?? [];
+        const dispatched   = deliveries.filter(o => o.status === 'DISPATCHED');
+        const inProduction = deliveries.filter(o => o.status === 'IN_PRODUCTION');
+        if (deliveries.length === 0) return null;
+        return (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="ch">
+              <div>
+                <div className="ctit">Deliveries In Transit</div>
+                <div className="csub">Live route board — pulled from Sales Orders · Ship-to addresses</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <span className="bdg bb">{dispatched.length} In Transit</span>
+                <span className="bdg ba">{inProduction.length} Preparing</span>
+              </div>
+            </div>
+            <div className="freight-route-board">
+              {deliveries.map((order, i) => {
+                const isDispatched = order.status === 'DISPATCHED';
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const eta   = order.delivery_date ? new Date(order.delivery_date) : null;
+                const daysLeft = eta ? Math.ceil((eta - today) / 86400000) : null;
+                const overdue  = daysLeft !== null && daysLeft < 0;
+                const urgent   = daysLeft !== null && daysLeft <= 1 && !overdue;
+                return (
+                  <div key={order.order_id} className={`freight-delivery-card${isDispatched ? ' fd-transit' : ' fd-prep'}`}>
+                    <div className="fd-status-bar">
+                      <span className={`bdg ${isDispatched ? 'bb' : 'ba'}`}>
+                        {isDispatched ? '🚚 IN TRANSIT' : '🏭 PREPARING'}
+                      </span>
+                      {daysLeft !== null && (
+                        <span style={{ fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, color: overdue ? 'var(--red)' : urgent ? 'var(--amber)' : 'var(--text3)' }}>
+                          {overdue ? `⚠ ${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'Due today' : `ETA ${daysLeft}d`}
+                        </span>
+                      )}
+                    </div>
+                    <div className="fd-order-num">{order.order_number}</div>
+                    <div className="fd-customer">{order.customer_name}</div>
+                    <div className="fd-location">
+                      <svg viewBox="0 0 12 16" fill="none" style={{ width: 10, height: 12, flexShrink: 0 }}>
+                        <path d="M6 1C3.8 1 2 2.8 2 5c0 3 4 8 4 8s4-5 4-8c0-2.2-1.8-4-4-4z" stroke="currentColor" strokeWidth="1.2"/>
+                        <circle cx="6" cy="5" r="1.2" fill="currentColor"/>
+                      </svg>
+                      {order.site_location}
+                    </div>
+                    <div className="fd-value">{fmtV(order.total_value)}</div>
+                    {order.notes && <div className="fd-notes">{order.notes}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="lane-grid">
         {lanes.map(lane => {

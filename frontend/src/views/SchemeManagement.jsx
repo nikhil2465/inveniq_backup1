@@ -58,7 +58,7 @@ export default function SchemeManagement({ onGoChat, dbStatus, period }) {
       <div className="kg g4">
         {[
           { cls: 'sg', l: 'Active Schemes',  v: `${active.length}`, d: '▲ From 3 brands', s: 'Check progress weekly' },
-          { cls: 'sb', l: 'Avg Achievement', v: `${Math.round(active.reduce((s,x)=>s+x.pct,0)/active.length)}%`, d: '▲ On track for 2 schemes', s: 'Push Century BWP 23% more' },
+          { cls: 'sb', l: 'Avg Achievement', v: active.length ? `${Math.round(active.reduce((s,x)=>s+x.pct,0)/active.length)}%` : '—', d: '▲ On track for 2 schemes', s: 'Push Century BWP 23% more' },
           { cls: 'sa', l: 'Schemes Expiring', v: '1 this month', d: '▼ HPL Monsoon Offer', s: 'Deadline: Aug 31' },
           { cls: 'sp', l: 'Reward Potential', v: '₹1.2L+', d: '▲ If all active hit target', s: 'YTD earned: ₹58,400' },
         ].map(k => (

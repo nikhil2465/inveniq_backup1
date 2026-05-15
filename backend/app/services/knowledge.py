@@ -1,5 +1,5 @@
 """
-Inventory Management Knowledge Base — StockSense AI
+Inventory Management Knowledge Base — InvenIQ AI
 Handles conceptual/educational queries about inventory management.
 
 Approach: Structured Knowledge Injection + Live Data Application
@@ -79,7 +79,7 @@ _KNOWLEDGE_KEYWORDS = [
     "kanban inventory", "kanban system",
     "lean inventory", "lean manufacturing inventory",
     "service level inventory", "service level formula",
-    # Product knowledge — hardware & building materials
+    # Product knowledge — hardware fittings
     "ebco", "hafele", "hettich", "blum", "dorset", "ozone handles",
     "drawer slide", "telescopic drawer", "soft-close drawer", "full extension drawer",
     "concealed hinge", "soft close hinge", "clip top hinge", "glass hinge",
@@ -89,13 +89,37 @@ _KNOWLEDGE_KEYWORDS = [
     "led strip", "furniture light", "cabinet light", "wardrobe light",
     "flap stay", "lift up mechanism", "wardrobe fitting", "bed fitting",
     "aluminium profile furniture", "furniture trim profile",
-    "hpl laminate", "compact laminate", "acrylic laminate", "pvc laminate",
-    "aluminium louver", "pvc louver", "operable louver", "motorised louver",
-    "acp panel", "aluminium composite", "exterior cladding", "hpl facade",
     "product catalog", "product catalogue", "what products do we sell",
     "which products should i stock", "best selling hardware",
     "hsn code hinge", "hsn code handle", "hsn code drawer", "hsn code lock",
     "gst on hardware", "gst on furniture fittings", "gst on hinges",
+    # Product knowledge — sanitary fittings & bathware
+    "jaquar", "hindware", "cera", "parryware", "grohe", "american standard", "kohler",
+    "cp fittings", "chrome plated fittings", "sanitary fittings", "sanitary ware",
+    "basin mixer", "wall mixer", "pillar tap", "stop cock", "concealed stop cock",
+    "shower system", "overhead shower", "hand shower", "rain shower",
+    "divertor", "angle valve", "gate valve", "ball valve", "bib cock",
+    "concealed cistern", "flush valve", "urinal", "ewc", "wash basin",
+    "bathroom fittings", "bath faucet", "kitchen faucet", "kitchen sink mixer",
+    "sensor tap", "touchless tap", "electronic faucet",
+    "sanitary hsn code", "cp fittings gst", "hsn code faucet", "hsn code mixer",
+    "gst on sanitary", "hsn 8481", "hsn 6910", "what is cp fittings",
+    "which sanitary brand", "best sanitary brand", "jaquar vs hindware",
+    # Credit Management
+    "credit management", "credit limit", "credit policy", "credit terms",
+    "how to set credit limit", "credit scoring", "credit risk",
+    "overdue collection strategy", "collection strategy", "payment terms policy",
+    "pdc management", "post dated cheque", "cheque bounce",
+    "credit days calculation", "dso credit", "how to collect payment",
+    # Counter POS
+    "pos system", "point of sale", "counter billing", "walk in sales",
+    "retail billing", "counter sales management", "pos management",
+    "how to manage counter sales", "walk in customer management",
+    # Scheme Management
+    "scheme management", "trade scheme", "dealer scheme", "supplier scheme",
+    "volume rebate", "trade rebate", "rebate management", "how to track schemes",
+    "accrual accounting", "scheme accounting", "incentive tracking",
+    "loyalty program management", "dealer incentive program",
 ]
 
 _KNOWLEDGE_STARTS = (
@@ -117,12 +141,34 @@ _KNOWLEDGE_CONCEPTS = {
     "supply chain", "push pull", "consignment", "cross dock",
     "kanban", "lean inventory", "min max", "two bin", "service level",
     "vendor scorecard", "supplier scorecard", "drop ship",
-    # Product catalog concepts
+    # Product catalog concepts — hardware
     "ebco", "hafele", "hettich", "blum", "drawer slide", "concealed hinge",
     "soft close hinge", "glass hinge", "aluminium handle", "pvd handle",
     "cam lock", "minifix", "kitchen basket", "tandem box", "led strip",
     "flap stay", "wardrobe fitting", "aluminium profile furniture",
     "product catalog", "hsn code", "gst hardware", "furniture hardware",
+    # Product catalog concepts — sanitary
+    "jaquar", "hindware", "cera", "parryware", "grohe", "kohler",
+    "cp fittings", "basin mixer", "stop cock", "concealed cistern",
+    "shower", "divertor", "sensor tap", "sanitary", "sanitary ware",
+    "bathroom fittings", "kitchen faucet", "sanitary products",
+    # Credit management concepts
+    "credit limit", "credit management", "credit policy", "credit terms",
+    "credit risk", "credit scoring", "pdc", "overdue", "collection",
+    # POS concepts
+    "pos", "point of sale", "counter sale", "walk in",
+    # Scheme management concepts
+    "scheme", "trade scheme", "dealer scheme", "rebate", "accrual",
+    "loyalty program", "incentive", "volume bonus",
+    # Warehouse / godown management
+    "warehouse management", "godown management", "warehouse best practice",
+    "godown capacity", "warehouse capacity", "warehouse kpi", "godown kpi",
+    "grn accuracy", "putaway", "pick accuracy", "multi-warehouse", "multi-godown",
+    "warehouse utilisation", "godown utilisation", "stock distribution",
+    # Tally Prime export / integration
+    "tally", "tally prime", "tally erp", "tally export", "tally import",
+    "tally integration", "tally csv", "import to tally", "export to tally",
+    "tally stock items", "tally ledger", "tally voucher", "tally gst",
 }
 
 
@@ -160,23 +206,23 @@ KNOWLEDGE_BASE = {
             "H": "Annual holding cost per unit (₹) = unit cost × holding rate (typically 20-30%/year)",
         },
         "applied_to_your_data": {
-            "sku": "18mm BWP (your highest-velocity A-class SKU)",
-            "D": "5,760 sheets/year (480/month × 12)",
-            "S": "₹1,200/order (PO + receiving + inspection time)",
-            "H": "₹341/sheet/year (24% of ₹1,420 buy price)",
-            "EOQ_result": "≈ 201 sheets/order",
-            "calculation": "√(2 × 5760 × 1200 ÷ 341) = √40,528 ≈ 201 sheets",
-            "orders_per_year": "29 orders/year (5760 ÷ 201)",
-            "vs_current": "If you're ordering <150 sheets at a time, you're over-ordering. If >300, under-ordering.",
+            "sku": "Ebco Soft-Close Hinge 35mm Pk-10 (your highest-velocity A-class SKU)",
+            "D": "2,880 packs/year (240/month × 12)",
+            "S": "₹800/order (PO processing + receiving + inspection time)",
+            "H": "₹87/pack/year (24% of ₹365 buy price)",
+            "EOQ_result": "≈ 229 packs/order",
+            "calculation": "√(2 × 2880 × 800 ÷ 87) = √52,966 ≈ 229 packs",
+            "orders_per_year": "≈ 13 orders/year (2880 ÷ 229)",
+            "vs_current": "If ordering <120 packs at a time, you're over-ordering. If >350, under-ordering.",
         },
         "when_to_use": "Minimise total inventory cost (ordering cost + holding cost). Best for stable demand items.",
         "limitations": [
             "Assumes constant demand and lead time",
-            "Ignores quantity discounts (Century may offer 2-3% for 300+ sheet orders)",
+            "Ignores quantity discounts (Ebco may offer 3% for 500+ pack orders)",
             "Doesn't account for stockout cost — add safety stock separately",
         ],
-        "benchmark": "Plywood dealers: 12-20 orders/year for A-class SKUs. EOQ order cycle = 2-4 weeks.",
-        "indian_context": "Century Plyboards typically requires minimum 100-sheet orders for free freight. Run EOQ with quantity discount: if 300-sheet order gives 2% discount, recalculate with adjusted H.",
+        "benchmark": "Hardware/sanitary dealers: 10-18 orders/year for A-class SKUs. EOQ order cycle = 2-4 weeks.",
+        "indian_context": "Ebco typically has minimum ₹5,000 per SKU per order for free freight. Run EOQ with quantity discount: if large order gives 3% off, recalculate with adjusted H (holding cost drops). For Jaquar CP fittings (fragile, high-value), add insurance cost (0.4%) to H.",
     },
 
     "safety_stock": {
@@ -191,55 +237,55 @@ KNOWLEDGE_BASE = {
             "σ_lead_time": "Standard deviation of lead time (use if lead time varies)",
         },
         "applied_to_your_data": {
-            "sku": "18mm BWP",
-            "daily_demand_avg": "17 sheets/day",
-            "demand_stddev": "~4 sheets/day (estimated ±25% variability)",
-            "lead_time_century": "6 days (reliable, σ_LT ≈ 0.5d)",
-            "lead_time_gauri": "10-11 days (unreliable, σ_LT ≈ 3.2d)",
-            "at_95_service_level": "SS = 1.65 × 4 × √6 = 1.65 × 4 × 2.45 ≈ 27 sheets",
-            "gauri_adjusted_SS": "SS = 1.65 × √(11×16 + 289×10.24) = ~52 sheets (Gauri's variability doubles SS need!)",
-            "current_reorder_level": "~120 sheets (from your DMS)",
-            "recommendation": "Your current 120-sheet reorder level is tight — consider raising to 129 (17×6 + 27 SS)",
+            "sku": "Ebco Soft-Close Hinge 35mm Pk-10",
+            "daily_demand_avg": "8 packs/day",
+            "demand_stddev": "~2 packs/day (estimated ±25% variability — spikes pre-Diwali)",
+            "lead_time_ebco": "7 days (reliable, σ_LT ≈ 0.8d)",
+            "lead_time_hindware": "10-12 days (unreliable, σ_LT ≈ 3.4d)",
+            "at_95_service_level": "SS = 1.65 × 2 × √7 = 1.65 × 2 × 2.65 ≈ 9 packs",
+            "hindware_adjusted_SS": "For Hindware SKUs: SS = 1.65 × √(12×4 + 64×11.6) ≈ 22 units (Hindware's variability more than doubles SS need!)",
+            "current_reorder_level": "~62 packs (set manually — needs recalculation)",
+            "recommendation": "Set ROP for Ebco hinges at 8×7 + 9 = 65 packs. Currently at 48 — critically below ROP, order immediately.",
         },
         "service_level_choice": {
-            "A_class_SKUs": "95-99% (18mm BWP, 12mm BWP — these are revenue-critical)",
-            "B_class_SKUs": "90-95% (moderate control)",
-            "C_class_SKUs": "85-90% (minimal holding cost)",
+            "A_class_SKUs": "95-99% (Ebco hinges, Jaquar mixers — revenue-critical, fast-moving)",
+            "B_class_SKUs": "90-95% (Hafele handles, Hettich drawers)",
+            "C_class_SKUs": "85-90% (minimal holding cost — door locks, specialty items)",
         },
-        "benchmark": "For A-class plywood SKUs: Safety stock = 10-20% of average cycle stock. 15-25 sheets for 18mm BWP.",
-        "indian_context": "Monsoon season (Jul-Aug): increase safety stock 30-40% for BWP grades — demand spikes unpredictably. Diwali (Oct-Nov): +50% safety stock 6 weeks before.",
+        "benchmark": "For A-class hardware/sanitary SKUs: Safety stock = 10-15% of average cycle stock.",
+        "indian_context": "Pre-monsoon (May-Jun): increase safety stock 25-35% for plumbing/sanitary SKUs — demand spikes for stop cocks, concealed cisterns. Diwali (Sep-Oct): +40-50% safety stock for kitchen hardware — hinges, drawer systems, handles.",
     },
 
     "reorder_point": {
         "title": "Reorder Point (ROP) — When to Place the Next Order",
         "formula": "ROP = (Average Daily Demand × Lead Time) + Safety Stock",
         "applied_to_your_data": {
-            "18mm BWP": {
-                "daily_demand": "17 sheets/day",
-                "lead_time": "6 days (Century)",
-                "safety_stock": "27 sheets",
-                "ROP": "17 × 6 + 27 = 129 sheets",
-                "current_stock": "140 sheets",
-                "gap_to_rop": "Only 11 sheets above ROP — place order NOW",
-                "days_until_rop": "~0.6 days at current consumption rate",
+            "Ebco Soft-Close Hinge 35mm Pk-10": {
+                "daily_demand": "8 packs/day",
+                "lead_time": "7 days (Ebco India)",
+                "safety_stock": "9 packs",
+                "ROP": "8 × 7 + 9 = 65 packs",
+                "current_stock": "48 packs",
+                "gap_to_rop": "17 packs BELOW ROP — place order immediately",
+                "days_until_rop": "Already past ROP — stockout risk in 6 days",
             },
-            "12mm BWP": {
-                "daily_demand": "20 sheets/day",
-                "lead_time": "6 days",
-                "safety_stock": "32 sheets",
-                "ROP": "20 × 6 + 32 = 152 sheets",
-                "current_stock": "220 sheets",
-                "days_until_rop": "~3.4 days",
+            "Jaquar Lyric Basin Mixer Chrome": {
+                "daily_demand": "1.4 units/day",
+                "lead_time": "8 days (Jaquar)",
+                "safety_stock": "4 units",
+                "ROP": "1.4 × 8 + 4 = 15 units",
+                "current_stock": "12 units",
+                "days_until_rop": "Already 3 below ROP — place PO today",
             },
         },
         "setup_advice": [
             "Set ROP alerts in your DMS/Tally when stock hits this level",
-            "For Gauri-sourced SKUs: use Gauri lead time (11 days) not Century (6 days) — adds 3-4 days coverage",
-            "Review ROPs quarterly — daily demand changes with seasonality",
-            "Keep a printed ROP card at the godown for manual checks",
+            "For Hindware/Parryware SKUs: use their longer lead time (10-12 days) not Ebco (7 days)",
+            "Review ROPs quarterly — demand changes sharply pre-monsoon (plumbing) and pre-Diwali (hardware)",
+            "Keep a printed ROP card at the counter for fast-moving SKUs",
         ],
-        "benchmark": "World-class dealers automate ROP alerts. Manual checking of 50+ SKUs daily is error-prone — 18mm BWP near stockout is the cost of no system.",
-        "indian_context": "Tally ERP supports reorder level alerts per item. Set it up under Stock Items → Reorder Level. Zero excuse for manual checking.",
+        "benchmark": "World-class dealers automate ROP alerts. Manual checking of 200+ SKUs daily is error-prone — Ebco hinge stockout is the cost of no system.",
+        "indian_context": "Tally ERP supports reorder level alerts per item — Stock Items → Reorder Level. For high-value sanitary items (Jaquar mixers ₹4,850+), set tighter ROPs — stockout means lost high-margin sale.",
     },
 
     "abc_analysis": {
@@ -251,14 +297,14 @@ KNOWLEDGE_BASE = {
             "C_class": "Bottom 50% of SKUs → contributes 5% of revenue → Monthly review, 85% service level",
         },
         "your_current_abc": {
-            "A_SKUs": ["18mm BWP", "12mm BWP", "12mm MR Plain", "Laminates Teak"],
-            "A_revenue_share": "78% of total revenue from 4 SKUs",
-            "B_count": "8 SKUs → 17% revenue",
+            "A_SKUs": ["Ebco Soft-Close Hinge 35mm Pk-10", "Jaquar Lyric Basin Mixer", "Hettich InnoTech Drawer 400mm", "Hafele Zinc D-Handle 128mm"],
+            "A_revenue_share": "76% of total revenue from top hardware/sanitary SKUs",
+            "B_count": "12 SKUs → 19% revenue",
             "C_count": "30 SKUs → 5% revenue",
             "insight": "30 C-class SKUs are tying up cash and attention for only 5% revenue — rationalise these",
         },
         "action_by_class": {
-            "A_class": "Daily physical count, dedicated shelf with bin card, direct Century relationship, 95% service level",
+            "A_class": "Daily physical count, dedicated shelf with bin card, direct Ebco/Jaquar relationship, 95%+ service level",
             "B_class": "Weekly stock review, standard reorder cycle, dual sourcing for top B-SKUs",
             "C_class": "Monthly review, order only when customer demand confirmed, auto-10% discount after 60d no movement",
         },
@@ -268,8 +314,8 @@ KNOWLEDGE_BASE = {
             "Z": "Sporadic demand (σ/avg >50%) — order only to confirmed demand",
             "best_combo": "AX = tightest control + JIT possible. CZ = candidate for discontinuation",
         },
-        "benchmark": "World-class: A-class SKUs = <25% of SKU count, >80% revenue. Dead stock < 3%. You have 10.9% dead stock — rationalise C-class buying.",
-        "indian_context": "In plywood trade, seasonal SKUs (monsoon-proof BWP) should be classified as AY or AZ depending on demand variability — don't apply standard ABC without seasonality overlay.",
+        "benchmark": "World-class: A-class SKUs = <25% of SKU count, >80% revenue. Dead stock < 3%. Hardware/sanitary dealers with good range have 150-300 SKUs — strict ABC is essential.",
+        "indian_context": "In hardware/sanitary trade, seasonal SKUs (plumbing items before monsoon, kitchen hardware before Diwali) should be classified AY or AZ depending on variability — don't apply standard ABC without seasonality overlay.",
     },
 
     "gmroi": {
@@ -282,23 +328,23 @@ KNOWLEDGE_BASE = {
             "below_1.0": "Poor — inventory costs more to hold than it earns",
         },
         "your_current_data": {
-            "gross_margin_annual": "₹76.3L (22.4% × ₹340L annual revenue)",
-            "avg_inventory_value": "₹38.6L",
-            "GMROI": "1.98 — Acceptable, 1% below target",
-            "target": "2.2+ (achievable by clearing dead stock + improving 8mm Flexi margin)",
+            "gross_margin_annual": "₹84.5L (24.8% × ₹340L annual revenue)",
+            "avg_inventory_value": "₹42.6L",
+            "GMROI": "2.14 — Good, above 2.0 target",
+            "target": "2.4+ (achievable by clearing dead stock + improving Hindware-sourced margin)",
         },
         "how_to_improve": [
-            "Clear ₹4.2L dead stock → reduces denominator → GMROI improves to ~2.18",
-            "Fix 8mm Flexi margin (6.7% → 22% by switching from Gauri to Century) → increases numerator",
-            "Faster turnover on A-class SKUs → both metrics improve",
-            "Reduce overstock ₹7.8L by 50% → denominator drops → GMROI ~2.35",
+            "Clear ₹3.8L dead stock → reduces denominator → GMROI improves to ~2.28",
+            "Shift Hindware volume to Jaquar (better margin + reliability) → increases numerator",
+            "Faster turnover on A-class hardware/sanitary SKUs → both metrics improve",
+            "Negotiate better inbound freight rates for Jaquar (currently ₹3.8/unit) → direct margin improvement",
         ],
         "by_sku": {
-            "18mm BWP": "GMROI ≈ 4.2 (22.2% margin, 4.2× turnover) — star performer",
-            "8mm Flexi": "GMROI ≈ 0.47 (6.7% true margin) — destroying value",
-            "Dead stock SKUs": "GMROI = 0 — pure cost",
+            "Jaquar Lyric Basin Mixer": "GMROI ≈ 5.8 (34.2% margin, 5.2× turnover) — star performer",
+            "Parryware Sensor Tap": "GMROI = 0 — dead stock, pure cost",
+            "Hindware Sanitary Ware": "GMROI ≈ 1.62 (27.8% margin, but slow turns + high freight)",
         },
-        "benchmark": "Plywood/hardware dealers India: GMROI 1.5-2.5. Target 2.0+. Best-in-class organised dealers: 2.5-3.5.",
+        "benchmark": "Hardware/sanitary dealers India: GMROI 1.8-2.8. Target 2.2+. Best-in-class with focused range: 2.5-3.5.",
     },
 
     "jit": {
@@ -312,11 +358,12 @@ KNOWLEDGE_BASE = {
             "Near-zero defect rates (no time to reject and reorder)",
         ],
         "jit_applicability_your_business": {
-            "Century Plyboards": "PARTIAL JIT FEASIBLE — 96% on-time, 6-day lead time. Reduce safety stock to 7 days only.",
-            "Gauri Laminates": "NOT RECOMMENDED — 68% on-time, 3.2-day avg delay. Full safety stock needed.",
-            "Greenply": "CONDITIONAL — 88% on-time, acceptable for B-class SKUs only",
+            "Ebco India":    "PARTIAL JIT FEASIBLE — 94% on-time, 7-day lead time. Reduce safety stock to 8-10 days.",
+            "Hafele India":  "PARTIAL JIT FEASIBLE — 92% on-time, 8-day lead time. Good for B-class hardware.",
+            "Jaquar India":  "CONDITIONAL — 88% on-time, use for B-class CP fittings only, not A-class mixers.",
+            "Hindware":      "NOT RECOMMENDED — 76% on-time, 3.2-day avg delay. Full safety stock mandatory.",
         },
-        "modified_jit_recommendation": "Apply 'lean inventory' approach: Keep 7-day safety stock for A-class (not 15-day), order via EOQ from Century only, eliminate C-class from stock entirely (order-on-demand only).",
+        "modified_jit_recommendation": "Apply 'lean inventory' approach: Keep 10-day safety stock for A-class hardware/sanitary (not 20-day), order via EOQ from Ebco/Hafele, eliminate C-class from stock entirely (order-on-demand only).",
         "risks": [
             "Supply disruption = immediate stockout (no buffer)",
             "Demand spike = cannot be absorbed",
@@ -335,20 +382,20 @@ KNOWLEDGE_BASE = {
             "DPO": "Days Payable Outstanding = (Accounts Payable ÷ COGS) × 365",
         },
         "your_current_data": {
-            "DIO": "22 days (inventory turns 16.6× per year — good)",
-            "DSO": "34 days (customers taking too long to pay)",
+            "DIO": "20 days (inventory turns 18.3× per year — good for hardware/sanitary)",
+            "DSO": "32 days (customers taking average 32 days to pay — contractors slower at 45-78 days)",
             "DPO": "8 days (you're paying suppliers too fast — losing float)",
-            "CCC": "22 + 34 − 8 = 48 days (target <40 days)",
-            "excess_days": "8 days above target = ~₹6.2L extra cash tied up (₹28.4L/month ÷ 30 × 8)",
+            "CCC": "20 + 32 − 8 = 44 days (target <38 days)",
+            "excess_days": "6 days above target = ~₹5.7L extra cash tied up (₹28.4L/month ÷ 30 × 6)",
         },
         "improvement_actions": {
-            "Reduce DSO by 9 days": "Offer 1.5% early payment discount → get paid in 20 days vs 34 → frees ₹4.3L cash",
-            "Increase DPO by 14 days": "Negotiate NET-30 with Century (vs current NET-8) → hold cash 22 more days → ₹2.6L more cash in hand",
-            "Reduce DIO by 4 days": "Clear dead stock ₹4.2L → DIO drops from 22 to 18 → ₹1.9L freed",
-            "combined_impact": "All 3 actions: CCC from 48 → 26 days = ₹8.8L more cash available",
+            "Reduce DSO by 8 days": "Offer 1.5% early payment discount to kitchen studios and bath studios → get paid in 22 days vs 32 → frees ₹3.8L cash",
+            "Increase DPO by 14 days": "Negotiate NET-30 with Ebco/Jaquar (vs current NET-8) → hold cash 22 more days → ₹2.4L more cash in hand",
+            "Reduce DIO by 4 days": "Clear dead stock ₹3.8L → DIO drops from 20 to 16 → ₹1.7L freed",
+            "combined_impact": "All 3 actions: CCC from 44 → 22 days = ₹7.9L more cash available",
         },
-        "benchmark": "Building materials dealers India: CCC 35-50 days. Best-in-class: 25-35 days. Yours at 48 days has clear improvement path.",
-        "indian_context": "GST credit terms (ITC available T+1 month) effectively extend your DPO by 30 days on tax value. Factor this into cash flow planning. GSTR-3B pending 20 Apr — file now to avoid interest cost.",
+        "benchmark": "Hardware/sanitary dealers India: CCC 32-48 days. Best-in-class: 22-32 days. Yours at 44 days has clear improvement path.",
+        "indian_context": "GST credit terms (ITC available T+1 month) effectively extend your DPO by 30 days on tax value. For Jaquar and Ebco — both have formal dealer portal payment terms; negotiate NET-30 in writing as part of annual business review.",
     },
 
     "inventory_turnover": {
@@ -397,7 +444,7 @@ KNOWLEDGE_BASE = {
             "best_for": "Fungible commodities, raw materials, standard grades",
         },
         "recommendation_for_you": "Your Tally ERP uses WAC by default — this is correct and compliant. For management reporting, calculate FIFO-equivalent margin by tracking latest purchase price separately. Your 8mm Flexi margin issue (23.8% stated vs 6.7% true) is partly a WAC vs true-cost problem — WAC averages away Gauri's high freight.",
-        "indian_context": "Tally ERP → Stock Summary uses WAC. For true margin analysis, export to Excel and apply FIFO/landed cost method manually. This is exactly what StockSense AI does in the margin analysis reports.",
+        "indian_context": "Tally ERP → Stock Summary uses WAC. For true margin analysis, export to Excel and apply FIFO/landed cost method manually. This is exactly what InvenIQ AI does in the margin analysis reports.",
     },
 
     "demand_forecasting": {
@@ -421,7 +468,7 @@ KNOWLEDGE_BASE = {
                 "best_for": "Most inventory items — good balance of smoothing and responsiveness",
                 "example": "α=0.2, current demand 480, previous forecast 460 → F = 0.2×480 + 0.8×460 = 464",
             },
-            "AI/ML (Used in StockSense AI)": {
+            "AI/ML (Used in InvenIQ AI)": {
                 "approach": "Gradient boosting model trained on 13 months of your data + external signals",
                 "signals_used": ["Historical demand by SKU", "Seasonal index (Diwali +28%, monsoon -15%)", "Construction permit activity in HSR/Koramangala", "Competitor stockout signals"],
                 "accuracy": "MAE ≈ 8-12% on your data — better than manual forecast by 3×",
@@ -463,17 +510,19 @@ KNOWLEDGE_BASE = {
             },
         },
         "your_supplier_scores": {
-            "Century Plyboards": "Score: 94/100 — PREFERRED (On-time 96%, Price -3%, GRN 100%)",
-            "Greenply Industries": "Score: 79/100 — GOOD (On-time 88%, Price +1%, GRN 94%)",
-            "Gauri Laminates": "Score: 52/100 — ACTION REQUIRED (On-time 68%, Price +11% landed, GRN 82%)",
+            "Ebco India":    "Score: 94/100 — PREFERRED (On-time 94%, Price -2%, GRN 99%)",
+            "Hafele India":  "Score: 91/100 — PREFERRED (On-time 92%, premium price +3%, GRN 97%)",
+            "Hettich India": "Score: 89/100 — GOOD (On-time 90%, Price +2%, GRN 96%)",
+            "Jaquar India":  "Score: 86/100 — GOOD (On-time 88%, Price -1%, GRN 94%)",
+            "Hindware":      "Score: 61/100 — ACTION REQUIRED (On-time 76%, hidden freight cost +18% landed, GRN 86%)",
         },
         "action_thresholds": {
-            "above_85": "Preferred — expand volume",
-            "70_to_85": "Conditional — monitor quarterly",
-            "below_70": "Improvement plan (30 days) or replace",
+            "above_85": "Preferred — expand volume, negotiate better terms",
+            "70_to_85": "Conditional — monitor quarterly, dual-source critical SKUs",
+            "below_70": "30-day improvement plan or begin supplier replacement",
         },
-        "benchmark": "World-class: Top 2 suppliers cover 70-80% of volume. Gauri at 52/100 should be placed on 30-day improvement plan. If no improvement, replace with alternate source for 8mm grades.",
-        "indian_context": "Many Indian dealers use informal relationships instead of scorecards — this is why hidden costs (Gauri freight ₹110/sheet) go undetected for years. Formalize at least a quarterly review.",
+        "benchmark": "World-class: Top 2-3 suppliers cover 70-80% of volume. Hindware at 61/100 must be on improvement plan — their freight cost is reducing your margin by ~2pp on sanitary SKUs.",
+        "indian_context": "Many Indian dealers use informal relationships instead of scorecards — this is why hidden costs (Hindware heavy-goods freight ₹5.4/unit) go undetected for years. Formalise at least a quarterly vendor review with Jaquar and Ebco — they both have structured dealer programs.",
     },
 
     "dead_stock_strategy": {
@@ -485,30 +534,30 @@ KNOWLEDGE_BASE = {
             "space_cost": "Dead stock occupies prime godown space (you have 82% capacity at Main WH)",
         },
         "your_current_situation": {
-            "total_dead": "₹4.2L (10.9% of inventory — 3.6× above industry benchmark)",
+            "total_dead": "₹3.8L (8.9% of inventory — 3× above industry benchmark)",
             "items": [
-                "6mm Gurjan BWP: ₹1.79L, 118 days, 186 sheets",
-                "4mm MR Plain: ₹1.39L, 97 days, 240 sheets",
-                "19mm Commercial: ₹0.99L, 91 days, 102 sheets",
+                "Parryware Pilot EV Sensor Tap: ₹1.84L, 95 days, 44 units",
+                "Dorset Euro Cylinder Lock (old model): ₹1.21L, 87 days, 72 units",
+                "Ebco LED Cabinet Light (old model): ₹0.78L, 76 days, 58 units",
             ],
-            "urgency": "Every 30 additional days adds ₹7,700 in holding cost on this ₹4.2L",
+            "urgency": "Every 30 additional days adds ₹7,000 in holding cost on this ₹3.8L",
         },
         "clearance_strategies": {
-            "Contractor Discount (fastest)": "12-15% discount to Mehta, Patel, Kumar & Sons → target ₹2.5L cleared in 2 weeks",
-            "Bundle Selling": "Bundle 4mm MR Plain with 18mm BWP orders (popular item = sales attachment) → clear at near-full price",
-            "Interior Firm Targeting": "6mm Gurjan → target Design Studio Patel (uses thin grades for interior panels) → offer 10% + priority delivery",
-            "Supplier Return": "19mm Commercial → check if Century/Greenply have return policy (<90 days) → avoid discount entirely",
-            "Secondary Market": "If above fails → liquidator at 25-30% discount → better than 0%",
+            "Plumber/Contractor Discount (fastest)": "10-12% discount to Raju Plumbing and Mehta Construction → target ₹1.5L cleared in 2 weeks",
+            "Bundle Selling": "Bundle Ebco LED Cabinet Light (old model) with new Ebco hinge sets — kitchen studios buy both; clear at near-full price",
+            "Plumber Targeting": "Parryware sensor tap → target electrical contractors and plumbers; 12% discount + offer as project bundle for commercial washrooms",
+            "Supplier Return": "Dorset old model locks → check if Dorset has return/exchange policy; offer upgrade to new Euro Cylinder at reduced incremental cost",
+            "Secondary Market": "If above fails → liquidator at 25-30% discount — better than holding cost eating margin",
             "Price Automation": "Set Tally alert: auto-apply 10% discount if 60 days no movement, 15% at 90 days",
         },
         "prevention": [
             "Monthly SKU velocity review — flag any item with <2 movements in 30 days",
-            "ABC-based buying discipline — no C-class order without customer demand in hand",
-            "Seasonal demand review — don't stock monsoon-sensitive grades in April (buy Oct-Nov instead)",
-            "Trial orders for new SKUs — max 50 sheets first order, then scale on proven demand",
+            "ABC-based buying discipline — no C-class order without confirmed customer demand",
+            "Don't over-buy sanitary ware models — style trends change fast; stock minimum 30-45 days cover",
+            "Trial orders for new SKUs — max 5-10 units first order for sanitary, max 50 packs for hardware",
         ],
-        "benchmark": "Dead stock target: <3% of inventory value. Your 10.9% is high-risk. Industry best: <2%. Every 1% reduction = ₹38,600 freed (on ₹38.6L inventory).",
-        "indian_context": "Karnataka GST: If you return goods to supplier, ensure credit note is raised within 30 days of supply date to claim ITC reversal correctly. Late credit notes create GST compliance issues.",
+        "benchmark": "Dead stock target: <3% of inventory value. Your 8.9% needs urgent attention. Industry best: <2%. Every 1% reduction = ₹42,600 freed (on ₹42.6L inventory).",
+        "indian_context": "If returning goods to Jaquar/Hindware, credit note must be raised within 30 days of original supply date for correct ITC reversal. Hindware's return policy is stricter — check dealer agreement before purchasing slow-moving models.",
     },
 
     "industry_benchmarks": {
@@ -546,12 +595,12 @@ KNOWLEDGE_BASE = {
             "QC Pass Rate": ">97%",
         },
         "your_performance_vs_benchmarks": {
-            "Gross Margin 22.4%": "WITHIN RANGE (but degraded by 8mm Flexi at 6.7% true margin)",
-            "Working Capital 48d": "ABOVE TARGET (target <40d — 8 days to improve)",
-            "Dead Stock 10.9%": "HIGH RISK (target <3% — urgent clearance needed)",
-            "Stock Turnover 4.2x": "BELOW TARGET (target 5-6×)",
-            "GMROI 1.98": "BORDERLINE (target 2.0+ — close but improvable)",
-            "Dispatch SLA 87%": "BELOW TARGET (target 95% — QC bottleneck on MR grades)",
+            "Gross Margin 24.8%": "ABOVE RANGE (hardware/sanitary delivers 24-34% vs plywood 18-24% — strong)",
+            "Working Capital 44d": "ABOVE TARGET (target <38d — 6 days to improve; Sharma Constructions 78d overdue is the drag)",
+            "Dead Stock 8.9%": "HIGH RISK (target <3% — Parryware sensor tap and old Dorset lock need urgent clearance)",
+            "Stock Turnover 5.2x": "WITHIN TARGET (target 5-6× — on track, keep A-class replenishment tight)",
+            "GMROI 2.14": "GOOD (target 2.0+ — clear dead stock to push to 2.3+)",
+            "Dispatch SLA 87%": "BELOW TARGET (target 95% — Ebco hinge stockout is the main cause of delays)",
         },
     },
 
@@ -795,6 +844,308 @@ KNOWLEDGE_BASE = {
             "target_customers": "Modular kitchen fabricators, furniture manufacturers, carpenters, interior designers — all need hardware regularly. Monthly account relationships are ideal.",
         },
     },
+
+    "sanitary_products": {
+        "title": "Sanitary Fittings & Bathware — Product Knowledge for Dealers",
+        "overview": "Sanitary fittings (CP fittings = chrome-plated fittings) and sanitaryware are among the highest-margin product categories for building materials dealers. Gross margin 28–38% is achievable vs 18–26% for hardware. Key segments: CP fittings (faucets, mixers, showers), concealed cisterns, sanitaryware (wash basins, EWCs), and accessories.",
+        "sanitary_brands": {
+            "Jaquar": "India's largest CP fittings brand. Premium quality, architect-preferred, strong retail presence. Full range: basin mixers, wall mixers, shower systems, divertors, concealed cisterns. Trade discount 25-30% from MRP. HSN 8481 for CP fittings (18% GST). Best for bathroom studios and premium residential projects.",
+            "Hindware": "Mid-to-premium sanitaryware and CP fittings. Strong in concealed cisterns and wash basins. Pricing ~15-20% below Jaquar. Delivery reliability lower (76% on-time vs Jaquar 88%). HSN 6910 for sanitaryware (18% GST).",
+            "Cera": "Budget-to-mid CP fittings and sanitaryware. Good value for mass residential projects. Dealer margins 26-30%. Distribution strength in Tier-2 cities.",
+            "Parryware": "One of India's oldest sanitaryware brands. Strong in EWCs, wash basins. Mid-range pricing. Sensor tap series (Pilot EV) has lower demand — evaluate before stocking.",
+            "GROHE": "German premium CP fittings. Architect-specified for luxury projects (5-star hotels, premium residential). Margins 30-38%. Long lead times from import. Keep limited stock — order against confirmed projects.",
+            "American Standard": "US brand, premium sanitaryware and faucets. Targeted at luxury segment. Good for project sales to star hotels and premium developers.",
+        },
+        "product_categories": {
+            "Basin & Pillar Taps": {
+                "types": "Pillar tap (hot/cold separate), Basin mixer (single lever), Wall mixer, Sensor/touchless tap",
+                "hsn": "8481", "gst": "18%",
+                "pricing": "Pillar tap: ₹400-1200 (Hindware/Cera). Basin mixer: ₹1800-6500 (Jaquar). Sensor tap: ₹3500-12000.",
+                "tip": "Always stock both pillar taps (economy) and basin mixers (premium) — different buyer segments.",
+            },
+            "Kitchen Sink Mixers": {
+                "types": "Single-lever wall-mounted, Pillar-mounted, Pull-out spray",
+                "hsn": "8481", "gst": "18%",
+                "pricing": "₹1,500-4,500 (Jaquar). ₹800-2,200 (Hindware/Cera).",
+                "tip": "Kitchen faucets sold with modular kitchen packages — pair with Ebco/Hettich kitchen hardware for complete order.",
+            },
+            "Shower Systems": {
+                "types": "Overhead/rain shower (wall/ceiling mount), Hand shower + holder, Thermostatic shower panel, Multi-jet divertor",
+                "hsn": "8481", "gst": "18%",
+                "pricing": "Overhead shower 200mm: ₹1,800-4,500 (Jaquar). Thermostatic panel: ₹8,000-25,000.",
+                "tip": "Jaquar Lyric and Allied series are fast movers. Bundle overhead + hand shower + divertor for higher AOV.",
+            },
+            "Stop Cocks & Angle Valves": {
+                "types": "Concealed stop cock DN15/DN20, Exposed stop cock, Angle valve, Gate valve, Ball valve",
+                "hsn": "8481", "gst": "18%",
+                "pricing": "Stop cock DN15: ₹450-900 (Hindware/Jaquar). Ball valve: ₹180-480.",
+                "tip": "Plumbers buy stop cocks in volume — keep 150+ units stock. Pre-monsoon demand surges 25-40%.",
+            },
+            "Concealed Cisterns": {
+                "types": "Concealed wall-hung cistern, In-wall slim cistern, Flush valve (sensor + manual)",
+                "hsn": "3922 (plastic cistern) / 7324 (metal parts)", "gst": "18%",
+                "pricing": "Hindware concealed cistern: ₹2,800-4,200. Jaquar Cistern: ₹3,500-5,500.",
+                "tip": "Growing demand with wall-hung EWC adoption. Requires skilled installation — maintain list of trusted plumbers for customer referrals.",
+            },
+            "Sanitaryware (Wash Basins, EWCs, Urinals)": {
+                "types": "Wash basin (table-top, wall-hung, under-counter), EWC (Western Commode — floor/wall-hung), Urinal",
+                "hsn": "6910", "gst": "18%",
+                "pricing": "Wash basin: ₹1,400-8,500. EWC floor: ₹3,500-12,000. Wall-hung EWC + cistern combo: ₹8,000-22,000.",
+                "tip": "High-value, bulky items — stock limited quantities (5-10 of fast-moving models). Order to project specs for premium ranges.",
+            },
+        },
+        "selling_tips": {
+            "bundle_strategy": "Basin mixer + overhead shower + stop cock + angle valve = complete bathroom CP set. Bundle gives 18-22% AOV uplift vs individual sale.",
+            "segment_targeting": "Plumbers/installers: stop cocks, angle valves, pillar taps in bulk. Bathroom studios: mixer + shower combos. Contractors: mid-range full sets. Premium projects: Jaquar / GROHE specification.",
+            "brand_positioning": "Jaquar: premium/aspirational (always recommend for bathroom studio customers). Hindware/Cera: value residential (contractor bulk orders). GROHE: luxury specification (hold only on confirmed project).",
+            "avoid_dead_stock": "Avoid stocking sensor taps unless you have institutional buyer. Avoid specialty colours (gold, rose gold CP) without confirmed order — these become dead stock.",
+        },
+        "hsn_gst_quick_ref": {
+            "8481": "Taps, cocks, valves, faucets, mixers, shower heads, stop cocks — GST 18%",
+            "6910": "Ceramic sanitaryware (wash basins, EWCs, urinals, shower trays) — GST 18%",
+            "3922": "Plastic cisterns, shower enclosures, plastic sanitaryware — GST 18%",
+            "7324": "Sanitary ware of iron/steel (metal cisterns, SS sinks) — GST 18%",
+        },
+        "benchmark": "Sanitary CP fittings margin: 28-38% (best category in hardware/sanitary trade). Jaquar dealers: net margin 8-14% (industry-high). Stock turnover for CP fittings: 6-10× per year. Fast-movers are stop cocks, angle valves, basin mixers.",
+    },
+
+    "seasonal_demand_hardware_sanitary": {
+        "title": "Seasonal Demand Patterns — Hardware & Sanitary Trade (India)",
+        "overview": "Hardware and sanitary trade follows two distinct seasonal cycles: pre-monsoon plumbing surge and pre-Diwali kitchen/furniture hardware peak. Understanding these cycles prevents stockouts during peaks and dead stock during troughs.",
+        "seasonal_calendar": {
+            "Jan-Feb (Post-Diwali construction completions)": {
+                "demand": "+12-18% above baseline",
+                "hot_categories": "CP fittings, sanitary ware, bathroom accessories — new homes being finished",
+                "action": "Stock up bathroom fittings in December. Ensure Jaquar/Hindware POs placed by Dec 10.",
+            },
+            "Mar-Apr (New FY buying + summer construction)": {
+                "demand": "Baseline",
+                "hot_categories": "General hardware, kitchen systems — moderate construction activity",
+                "action": "Run scheme audit for new FY. Negotiate fresh terms with Ebco/Jaquar for FY targets.",
+            },
+            "May-Jun (Pre-monsoon plumbing surge)": {
+                "demand": "+25-35% for sanitary/plumbing, +8-12% for general hardware",
+                "hot_categories": "Stop cocks, concealed stop cocks, angle valves, gate valves, concealed cisterns",
+                "action": "Increase stop cock and angle valve stock 3× from April levels. Pre-order Jaquar/Hindware plumbing SKUs by April 15.",
+            },
+            "Jul-Aug (Monsoon — mixed signals)": {
+                "demand": "Plumbing +15%, Kitchen hardware -20%",
+                "hot_categories": "Waterproofing accessories, CP fittings for repairs, stop cocks",
+                "action": "Reduce kitchen hardware orders (modular kitchen installs slow down). Maintain plumbing stock for emergency repairs demand.",
+            },
+            "Sep-Oct (Pre-Diwali peak — best months)": {
+                "demand": "+28-40% for kitchen hardware, +15-20% for all categories",
+                "hot_categories": "Soft-close hinges, drawer slides, kitchen basket systems, handles, LED cabinet lights",
+                "action": "Place Ebco and Hettich orders by August 15. Increase soft-close hinge stock 4× baseline. Stock all handle finishes. Hire temporary counter staff.",
+            },
+            "Nov-Dec (Post-Diwali — continuation + gifting)": {
+                "demand": "+15-20% for premium ranges, moderate for basics",
+                "hot_categories": "Premium handles (PVD gold/black), luxury CP fittings (GROHE, Jaquar premium), LED furniture lights",
+                "action": "Stock premium/aspirational SKUs — customers upgrade during this period. Good time to push Blum and GROHE if you stock them.",
+            },
+        },
+        "key_insights": [
+            "Kitchen hardware follows Diwali (Sep-Oct) seasonality; plumbing/sanitary follows pre-monsoon (May-Jun) — these are DIFFERENT cycles",
+            "Software close hinge demand spikes 4× in Sep-Oct — maintain safety stock of 120+ packs from August",
+            "Stop cock demand is relatively year-round with pre-monsoon spike; never go below 50 units stock",
+            "Jaquar CP fittings have consistent year-round demand with slight spike Jan-Feb and Sep-Oct",
+            "Sensor taps and touchless faucets: post-pandemic demand is growing but still project-driven; avoid speculative stock",
+        ],
+        "stocking_strategy": {
+            "year_round_A_class": "Ebco soft-close hinges, Jaquar basin mixers, Hafele handles, Hindware stop cocks — never below 21 days cover",
+            "seasonal_pre_buy": "Concealed stop cocks (Apr 15), Drawer systems (Aug 15), Soft-close hinges (Aug 15), Shower systems (Dec 10)",
+            "avoid_overstocking": "Sensor taps, wall-hung EWCs (design-specific), PVD gold handles (style-specific) — order only on confirmed demand",
+        },
+        "benchmark": "Best-in-class dealers: seasonal forecast accuracy within ±15%. Pre-buying 45-60 days before seasonal peak (not 2 weeks) is the single biggest lever to prevent stockouts during Diwali and pre-monsoon.",
+    },
+
+    "credit_management": {
+        "title": "Credit Management — Limits, Overdue & Collections",
+        "definition": "Credit management is the process of setting, monitoring, and enforcing customer credit limits to minimise bad debt while enabling sales growth. The key tension: too tight = lost sales; too loose = cash flow crisis.",
+        "credit_limit_formula": {
+            "method_1_sales_based": "Credit Limit = (Average Monthly Sales × Credit Period in months) × Safety Factor (0.8–1.2 based on payment history)",
+            "method_2_financial": "Credit Limit = (Customer's Net Worth × 10–20%) assessed from ITR/audited financials",
+            "method_3_simple": "Start new customers at ₹1–2L, review after 3 clean payments, increase in ₹1L steps.",
+            "applied_to_your_data": "BuildRight averages ₹8L/month, 45-day credit → limit should be ₹12L. Current limit ₹15L (set too high). Recommend reducing to ₹12L.",
+        },
+        "credit_risk_scoring": {
+            "scoring_factors": [
+                "Payment history (40% weight): paid on time last 6 months",
+                "Credit utilisation (25%): >85% = risky",
+                "Business size & stability (20%): years in business, number of employees",
+                "Overdue aging (15%): any invoice >60 days overdue = RED flag",
+            ],
+            "risk_tiers": {
+                "GREEN":  "Payment within terms, utilisation <70%, no overdue >30d — standard credit",
+                "AMBER":  "Occasional delay, utilisation 70–85%, overdue up to 60d — require PDC",
+                "RED":    "Frequent delay, utilisation >85%, overdue >60d — block orders, escalate",
+                "BLACK":  "Overdue >90d or bounced cheque — stop all supply, legal notice",
+            },
+        },
+        "overdue_management": {
+            "0_30_days":  "Send polite SMS reminder. Sales rep follows up. No supply impact.",
+            "31_60_days": "Formal letter from MD. Require PDC for next order. Sales rep + accounts team call.",
+            "61_90_days": "Hold all new dispatches. Offer settlement discount (1–3% for immediate payment). Escalate to business owner.",
+            "90_plus_days": "Legal notice via advocate. No further credit. Consider selling debt to collection agency at 70–80p/rupee.",
+        },
+        "pdc_best_practices": [
+            "Collect PDCs for all credit >₹2L (at least one cheque per invoice)",
+            "Track PDC by date — present on date (never early, never late by >5 days)",
+            "Bounced PDC: Section 138 NI Act — 30-day notice period, then criminal complaint",
+            "Never accept PDC >90 days forward — increases liquidity risk",
+            "Digital PDC (NACH mandate) is more reliable than paper cheques — recommend NACH for top 10 accounts",
+        ],
+        "dso_kpi": {
+            "formula": "DSO = (Total Receivables ÷ Revenue MTD) × 30",
+            "target_for_building_materials": "<35 days (best-in-class: <25 days)",
+            "your_current": "Your DSO ≈ 34 days (₹12.8L receivables ÷ ₹28.4L MTD × 30). Target <30 days.",
+            "impact": "Every 10 days DSO reduction = ₹9.5L freed from working capital at your revenue level",
+        },
+        "benchmark": "Building materials dealers India: DSO 28–45 days. Bad debt ratio <0.5% revenue = excellent; >2% = systemic credit problem.",
+        "indian_context": "In India, 30/60/90-day credit is standard. Contractors pay slower (45–75 days avg) vs interior firms (21–35 days). GST e-invoice mandates now help — every invoice has a traceable IRN number. Link your credit tracking to invoice IRN for clean audit trail.",
+    },
+
+    "counter_pos": {
+        "title": "Counter POS — Walk-In Sales & Retail Billing Management",
+        "definition": "Counter POS (Point of Sale) covers all walk-in, over-the-counter transactions as opposed to credit/B2B order-based sales. For building material dealers, counter sales are typically 15–30% of revenue but 40–60% of gross margin contribution because walk-in buyers pay full price with no credit risk.",
+        "counter_vs_wholesale": {
+            "counter_margin":    "Counter walk-in: 18–24% gross margin (no credit risk, no volume discount)",
+            "wholesale_margin":  "Credit B2B: 12–18% gross margin (credit risk + volume discounts + freight)",
+            "counter_advantage": "Immediate cash/UPI payment, no overdue risk, higher margin per unit",
+            "wholesale_advantage": "Higher volume per transaction, predictable demand, relationship-based reorders",
+        },
+        "kpis_to_track": {
+            "daily_revenue_target":  "Set counter revenue target = 20–30% of total daily revenue target",
+            "avg_bill_value":        "Target ₹6,000–₹12,000 for plywood/laminate counter. Below ₹3,000 = no upselling happening.",
+            "items_per_transaction": "Target 2.5+ items/bill. Below 1.5 = pure commodity buying, no add-on selling.",
+            "payment_mode_split":    "Healthy: 40–50% cash, 40–50% UPI, <15% card. Cash >70% = working capital risk.",
+            "return_rate":           "Target <3% returns by value. Above 5% = product quality or wrong-grade dispatching issue.",
+        },
+        "counter_stock_management": [
+            "Stock fast-moving SKUs at counter in small quantities (3–5 days cover only)",
+            "Daily replenishment from main warehouse — never weekly for high-velocity items",
+            "Counter display: show at least one sample of each finish/grade to aid upselling",
+            "Keep counter stock value <8% of total inventory (don't lock capital in showroom)",
+        ],
+        "upselling_at_counter": {
+            "hardware_with_ply": "Sell hinges + drawer slides + handles with every plywood purchase. Adds ₹2,000–5,000 per bill.",
+            "laminate_with_ply": "Always show matching laminate when customer buys shutters/furniture ply",
+            "brand_upgrade": "Offer BWP over MR for 15–20% premium — explain durability benefit",
+            "soft_close_upsell": "Upgrade from standard to soft-close hinges — ₹300/door premium for huge satisfaction improvement",
+        },
+        "peak_hour_strategy": [
+            "Staff counter fully during peak 10AM–12PM and 4–6PM",
+            "Avoid billing delays during peak — queue >5 min loses walk-ins to competitors",
+            "Assign dedicated counter person — don't share with warehouse picking team",
+        ],
+        "benchmark": "Best-in-class building materials counter: 20–30 transactions/day, ₹8,000–₹15,000 avg bill, >3 items/bill, <3% returns. Counter margin should be 5–8pp higher than wholesale margin.",
+        "indian_context": "In India, Saturday is the peak counter day (contractors + carpenters finalise weekend purchases). Ensure full stock and staffing on Saturdays. GST invoice mandatory for all counter sales above ₹200 (B2C). UPI (PhonePe/GPay) is now preferred — accept all UPI apps.",
+    },
+
+    "scheme_management": {
+        "title": "Scheme Management — Supplier Promotions, Volume Targets & Accruals",
+        "definition": "Scheme management tracks supplier-offered promotional schemes (volume bonuses, loyalty programs, seasonal promotions) that provide dealers with additional income beyond gross margin. Scheme income often represents 2–5% of purchase value — for a dealer buying ₹1Cr/year, that's ₹2–5L of additional income.",
+        "scheme_types": {
+            "volume_target":    "Supplier offers cash bonus/rebate if dealer purchases X units in a period. E.g., 3.5% cash on ₹80L quarterly target.",
+            "accrual_scheme":   "Fixed % accrued on every rupee purchased throughout year, settled annually. E.g., 1.5% on all Greenply purchases = ₹54K on ₹36L annual purchases.",
+            "promo_monthly":    "Short-window (1 month) push scheme on specific SKU. Highest urgency, often overlooked. E.g., ₹500/carton bonus for 40 cartons HPL in May.",
+            "loyalty_annual":   "Long-term relationship scheme — maintain purchase volume for 3–5 year loyalty tier status. Highest absolute value but longest horizon.",
+            "project_scheme":   "Bonus for winning specific projects (residential complexes, commercial). Requires purchase tracking against project code.",
+        },
+        "scheme_tracking_formula": {
+            "achievement_pct":  "Achievement % = (Actual Purchases ÷ Target) × 100",
+            "daily_run_rate":   "Required Daily = (Target − Achieved) ÷ Days Remaining",
+            "payout_at_risk":   "Payout at Risk = (1 − Achievement%) × Scheme Payout Amount",
+            "accrual_formula":  "Accrual = Purchase Value × Accrual Rate %",
+        },
+        "applied_to_your_data": {
+            "ebco_q1_bonus":         "Target ₹18L, achieved ₹13.4L, 49 days left → need ₹93,900/day (current rate ~₹90K/day). Close but needs final push — focus Ebco hinges and drawer slides.",
+            "hindware_may_promo":    "Target 60 units concealed cisterns, achieved 27, 19 days left → need 1.74 units/day vs current 1.42/day. AT RISK — call top 5 plumbers and bathroom contractors today.",
+            "jaquar_annual_loyalty": "72% of ₹30L target achieved at ₹21.6L. On track at current pace. ₹60K+ accrual secured. Maintain ₹5.5L+/month to close FY.",
+            "hettich_q1_bonus":      "91% of ₹10L target achieved at ₹9.1L, 49 days left → need just ₹0.9L more → place one PO to lock ₹40K credit note.",
+        },
+        "maximisation_strategy": [
+            "Map scheme targets to specific customers who can absorb the volume",
+            "Offer a portion of scheme benefit as customer discount to accelerate purchasing",
+            "Track scheme achievement weekly, not monthly — monthly review leaves too little time to correct",
+            "Prioritise at-risk short-window schemes (monthly promos) over long-term ones",
+            "Never chase scheme volume at negative net margin — scheme benefit must exceed extra discount given",
+        ],
+        "accounting_for_schemes": [
+            "Accruals must be tracked as 'Supplier Receivable' in books — not just as benefit when received",
+            "Settlement may come as credit note, cash transfer, or free goods — track all forms",
+            "GST on scheme settlements: typically a credit note reduces GST liability (consult CA for complex schemes)",
+            "Tally ERP: create a 'Scheme Accrual' ledger under Current Assets for clean tracking",
+        ],
+        "benchmark": "Top hardware/sanitary dealers earn 3–6% of their purchase value from schemes. If your scheme income is <1%, you are under-claiming. Review all supplier agreements and claim missed accruals from last 2 years.",
+        "indian_context": "Most small dealers miss scheme payouts due to poor tracking. Ebco, Hafele, Jaquar, and Hettich all have formal dealer portal schemes — register and track online. Jaquar's Premier Partner program is particularly lucrative for high-volume dealers. Keep all scheme communications (emails + PDFs) in a dedicated folder. Claim within scheme deadline (typically 30–45 days after period end).",
+    },
+
+    "warehouse_management": {
+        "title": "Multi-Warehouse / Godown Management Best Practices",
+        "key_concepts": {
+            "godown": "Physical storage location. Hardware dealers typically have: Main Godown (bulk), Transit Hub (city delivery staging), Counter Stock (showroom floor).",
+            "capacity_utilisation": "% of capacity used. Optimal range: 65–80%. Below 50% = paying for unused space. Above 85% = operational risk (picking errors, safety hazards).",
+            "stock_distribution": "Spreading inventory across godowns. Balance: keep fast movers near counter/delivery points, slow movers in bulk storage.",
+            "grn_three_way_match": "GRN vs PO vs Invoice. All three must match: quantity, price, and product spec. Discrepancies trigger credit notes or returns.",
+        },
+        "your_setup": {
+            "main_godown": "Whitefield Industrial Area — 5000 sheet capacity, 76.8% utilised (3840 sheets, ₹38.6L value)",
+            "transit_hub": "Koramangala 6th Block — 1000 sheet capacity, 32% utilised (staging area for city deliveries)",
+            "counter_stock": "Showroom Floor — 200 sheet capacity, 82% utilised (replenished daily from main godown)",
+            "overall_utilisation": "69.7% across all locations — healthy range",
+        },
+        "optimisation_rules": [
+            "Replenish counter stock daily from main godown — never let counter stock drop below 70%",
+            "Review slow movers in main godown monthly — move to clearance or return to supplier",
+            "Transit hub should never exceed 60% utilisation — it is a flow-through node, not storage",
+            "GRN mismatches > ₹5,000 must be resolved before next PO with same supplier",
+            "Run cycle counting on high-value SKUs (Jaquar, Hettich) weekly; full physical count quarterly",
+        ],
+        "kpis_to_track": {
+            "space_utilisation": "Target 65–80% across main godown",
+            "grn_accuracy": "Target 95%+ match rate (invoice vs goods received)",
+            "stock_accuracy": "Target 98%+ (system qty vs physical count)",
+            "putaway_time": "Target <2 hours for GRN to shelved",
+            "pick_accuracy": "Target 99%+ for outbound orders",
+        },
+        "benchmark": "Best-in-class hardware distributors maintain 97%+ GRN accuracy, <2% shrinkage, and 72-hour GRN-to-shelved cycle. Counter stock should never be the bottleneck for walk-in sales.",
+        "indian_context": "Hardware dealers in India typically operate 2–4 godowns. Biggest inefficiency is poor bin/bay labelling — invest ₹15,000–25,000 in labelling and barcode bins for 30–40% faster picking. Consider WMS software (Marg ERP, Tally with inventory add-on) when managing 3+ godowns or 500+ SKUs.",
+    },
+
+    "tally_prime_export": {
+        "title": "Tally Prime Data Export & Integration — InvenIQ",
+        "what_it_does": "InvenIQ exports inventory, customer, supplier, and transaction data in Tally-compatible CSV format for direct import into Tally Prime.",
+        "export_types": {
+            "stock_items": "Product masters with HSN codes, GST rates, opening quantities, values → Gateway of Tally → Import → Masters → Stock Items",
+            "customer_ledgers": "Customer accounts under Sundry Debtors with GSTIN, address, opening balance → Import → Masters → Ledgers",
+            "supplier_ledgers": "Supplier accounts under Sundry Creditors with GSTIN, payment terms, opening balance",
+            "sales_vouchers": "Sales transactions as Tally sales vouchers with full GST breakdown (CGST/SGST/IGST)",
+            "purchase_vouchers": "Purchase transactions as Tally purchase vouchers linked to reference PO numbers",
+        },
+        "import_steps": [
+            "1. Export CSV from InvenIQ → Tally Prime Export module",
+            "2. Open Tally Prime → Gateway of Tally → Import",
+            "3. Select Masters or Transactions type",
+            "4. Browse to the exported CSV file",
+            "5. Tally validates — fix any errors shown",
+            "6. Confirm import — data appears immediately",
+        ],
+        "hsn_gst_reference": {
+            "hardware_fittings": "HSN 8302 — Hinges, handles, slides, drawer systems → 18% GST",
+            "cp_sanitary_fittings": "HSN 8481 — Taps, mixers, stop cocks, valves → 18% GST",
+            "locks_cylinders": "HSN 8301 — Padlocks, locks, cylinders → 18% GST",
+            "aluminium_profiles": "HSN 7604 — Aluminium architectural profiles → 18% GST",
+            "laminates_panels": "HSN 3921/4411 — Laminates, MDF, boards → 12–18% GST",
+        },
+        "best_practices": [
+            "Always import masters before transactions — ledgers must exist before vouchers reference them",
+            "Verify GSTIN format before import — Tally validates; invalid GSTINs block entire import",
+            "Test with 5 records first; verify in Tally; then do full import",
+            "Keep exported CSVs as backup — they serve as audit trail for any disputes",
+        ],
+        "indian_context": "Most hardware/sanitary dealers use Tally ERP or Tally Prime for accounting and GST returns. InvenIQ's export bridges the gap: use InvenIQ for AI-powered operations intelligence, export to Tally for statutory compliance, GST filing (GSTR-1, GSTR-3B), and formal P&L reporting.",
+    },
 }
 
 
@@ -866,9 +1217,28 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
         "product catalog", "hsn code hinge", "hsn code handle", "hsn code drawer",
         "gst on hardware", "gst furniture", "furniture hardware",
         "what products do we sell", "which products", "product range",
-        "hpl laminate", "compact laminate", "acrylic laminate", "pvc laminate",
     ]):
         relevant_keys.append("product_catalog")
+
+    if any(w in q for w in [
+        "jaquar", "hindware", "cera", "parryware", "grohe", "american standard", "kohler",
+        "cp fittings", "sanitary fittings", "sanitary ware", "basin mixer", "wall mixer",
+        "pillar tap", "stop cock", "concealed stop cock", "shower system", "overhead shower",
+        "hand shower", "divertor", "angle valve", "bib cock", "concealed cistern",
+        "flush valve", "ewc", "wash basin", "bathroom fittings", "kitchen faucet",
+        "kitchen sink mixer", "sensor tap", "touchless tap", "sanitary products",
+        "sanitary brand", "cp fittings gst", "hsn 8481", "gst on sanitary",
+        "what is cp", "bathroom products", "sanitary hsn",
+    ]):
+        relevant_keys.append("sanitary_products")
+
+    if any(w in q for w in [
+        "seasonal demand hardware", "seasonal demand sanitary", "diwali stock",
+        "pre monsoon stock", "when to stock hinges", "when to buy cp fittings",
+        "seasonal buying", "peak season hardware", "peak season sanitary",
+        "monsoon plumbing demand", "diwali kitchen hardware", "seasonal inventory hardware",
+    ]):
+        relevant_keys.append("seasonal_demand_hardware_sanitary")
 
     if any(w in q for w in ["kanban", "kanban system", "kanban inventory", "two bin", "two-bin", "pull system"]):
         relevant_keys.append("kanban")
@@ -884,6 +1254,34 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
 
     if any(w in q for w in ["cycle count", "cycle counting", "perpetual inventory", "inventory accuracy", "stock accuracy"]):
         relevant_keys.append("cycle_counting")
+
+    if any(w in q for w in ["credit limit", "credit management", "credit policy", "credit terms",
+                             "credit risk", "credit scoring", "pdc", "post dated cheque",
+                             "cheque bounce", "collection strategy", "overdue collection",
+                             "how to collect payment", "dso credit", "bad debt"]):
+        relevant_keys.append("credit_management")
+
+    if any(w in q for w in ["pos", "point of sale", "counter sale", "walk in", "walk-in",
+                             "counter billing", "retail billing", "counter management",
+                             "walk in customer", "counter pos"]):
+        relevant_keys.append("counter_pos")
+
+    if any(w in q for w in ["scheme", "trade scheme", "dealer scheme", "supplier scheme",
+                             "volume rebate", "rebate management", "accrual scheme",
+                             "loyalty program", "incentive tracking", "scheme tracking",
+                             "scheme management", "volume bonus"]):
+        relevant_keys.append("scheme_management")
+
+    if any(w in q for w in ["warehouse", "godown", "warehouse management", "godown management",
+                             "warehouse capacity", "godown capacity", "warehouse kpi", "grn accuracy",
+                             "putaway", "pick accuracy", "multi-warehouse", "multi-godown",
+                             "warehouse utilisation", "stock distribution", "where is stock"]):
+        relevant_keys.append("warehouse_management")
+
+    if any(w in q for w in ["tally", "tally prime", "tally erp", "tally export", "tally import",
+                             "tally integration", "tally csv", "import to tally", "export to tally",
+                             "tally stock", "tally ledger", "tally voucher", "tally gst"]):
+        relevant_keys.append("tally_prime_export")
 
     # ── Fallback: general best practices ─────────────────────────────────────
     if not relevant_keys:
@@ -942,6 +1340,19 @@ def get_tools_for_knowledge_query(query: str) -> list:
 
     if any(w in q for w in ["vendor scorecard", "supplier", "jit", "lead time", "reorder"]):
         tools.append("supplier")
+
+    if any(w in q for w in ["credit", "overdue", "pdc", "collection", "bad debt"]):
+        tools.append("credit")
+
+    if any(w in q for w in ["pos", "counter sale", "walk in", "retail billing", "walk-in"]):
+        tools.append("pos")
+
+    if any(w in q for w in ["scheme", "rebate", "accrual", "loyalty", "incentive", "volume bonus"]):
+        tools.append("schemes")
+
+    if any(w in q for w in ["warehouse", "godown", "warehouse capacity", "godown capacity",
+                             "grn accuracy", "putaway", "pick accuracy", "stock distribution"]):
+        tools.append("warehouse")
 
     # Default: stock + finance are always useful for context
     if not tools:

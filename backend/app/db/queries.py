@@ -1,5 +1,5 @@
 """
-Async MySQL query functions for StockSense AI.
+Async MySQL query functions for InvenIQ AI.
 Each function maps to one MCP tool domain.
 All functions accept a pool and return dict — same shape as mock data.
 """

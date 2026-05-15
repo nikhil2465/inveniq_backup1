@@ -5,6 +5,269 @@ import { ExportButton } from '../utils/exportUtils';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
 import Pagination from '../components/Pagination';
 
+// ── Customer import helpers ───────────────────────────────────────────────────
+function parseCustCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i <= text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else if (ch !== undefined) { field += ch; }
+    } else if (ch === '"') {
+      inQ = true;
+    } else if (ch === ',') {
+      row.push(field.trim()); field = '';
+    } else if (ch === '\n' || ch === undefined || (ch === '\r' && text[i + 1] === '\n')) {
+      if (ch === '\r') i++;
+      row.push(field.trim()); field = '';
+      if (row.some(v => v)) rows.push(row);
+      row = [];
+    } else {
+      field += ch;
+    }
+  }
+  if (!rows.length) return { headers: [], rows: [] };
+  return { headers: rows[0], rows: rows.slice(1).filter(r => r.some(v => v)) };
+}
+
+function suggestCustMapping(headers) {
+  const norm = headers.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const HINTS = {
+    name:             ['customername','name','customer','company','clientname','client','firmname'],
+    segment:          ['segment','type','category','customertype','clienttype'],
+    monthly_value:    ['monthlyvalue','revenue','monthlyrevenue','value','sales','monthlysales'],
+    score:            ['score','aiscore','creditscore','rating'],
+    outstanding:      ['outstanding','overdue','balance','pending','dueamount'],
+    days_since_order: ['days','dayssince','dayssilent','lastorder','dayssinceorder'],
+    risk:             ['risk','risklevel','riskrating','riskstatus'],
+    email:            ['email','mail','emailid'],
+    phone:            ['phone','mobile','contact','tel'],
+  };
+  const result = {};
+  for (const [field, hints] of Object.entries(HINTS)) {
+    result[field] = null;
+    for (const hint of hints) {
+      const idx = norm.findIndex(h => h === hint || h.includes(hint) || hint.includes(h));
+      if (idx !== -1) { result[field] = idx; break; }
+    }
+  }
+  return result;
+}
+
+const CUSTOMER_IMPORT_FIELDS = [
+  { key: 'name',             label: 'Customer Name *', required: true },
+  { key: 'segment',          label: 'Segment' },
+  { key: 'monthly_value',    label: 'Monthly Revenue' },
+  { key: 'outstanding',      label: 'Outstanding Amount' },
+  { key: 'days_since_order', label: 'Days Since Last Order' },
+  { key: 'risk',             label: 'Risk (LOW/MEDIUM/HIGH)' },
+  { key: 'score',            label: 'Score (0–100)' },
+  { key: 'email',            label: 'Email' },
+  { key: 'phone',            label: 'Phone' },
+];
+
+function CustomerImportModal({ onClose, onImported }) {
+  const [step,     setStep]     = useState(0);
+  const [file,     setFile]     = useState(null);
+  const [headers,  setHeaders]  = useState([]);
+  const [rows,     setRows]     = useState([]);
+  const [mapping,  setMapping]  = useState({});
+  const [loading,  setLoading]  = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState('');
+  const [done,     setDone]     = useState(0);
+
+  const handleFile = async (f) => {
+    if (!f) return;
+    setFile(f);
+    setError('');
+    const name = f.name.toLowerCase();
+    try {
+      if (name.endsWith('.csv')) {
+        const text = await f.text();
+        const { headers: h, rows: r } = parseCustCSV(text);
+        if (!h.length) { setError('File appears empty or could not be parsed.'); return; }
+        setHeaders(h); setRows(r); setMapping(suggestCustMapping(h)); setStep(1);
+      } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        setLoading(true);
+        const form = new FormData();
+        form.append('file', f);
+        const res = await fetch('/api/catalog/parse-import', { method: 'POST', body: form });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const d = await res.json();
+        if (!d.headers?.length) { setError('File appears empty or has no header row.'); return; }
+        setHeaders(d.headers); setRows(d.rows); setMapping(suggestCustMapping(d.headers)); setStep(1);
+      } else {
+        setError('Unsupported format. Please upload a .csv, .xlsx, or .xls file.');
+      }
+    } catch (e) {
+      setError(e.message || 'Failed to read file. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    const customers = rows.map(row => {
+      const c = {};
+      for (const [field, colIdx] of Object.entries(mapping)) {
+        if (colIdx === null || colIdx === undefined) continue;
+        const val = (row[colIdx] ?? '').trim();
+        if (val) c[field] = val;
+      }
+      return c.name ? c : null;
+    }).filter(Boolean);
+    if (!customers.length) { alert('No valid rows found. Make sure "Customer Name" column is mapped and not empty.'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/customers/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customers }),
+      });
+      const d = await res.json();
+      setDone(d.added || 0);
+      setStep(2);
+      onImported();
+    } catch (e) {
+      alert('Import failed: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="qb-modal-overlay" onClick={onClose}>
+      <div className="pc-add-modal" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg, #0f4c81 0%, #1a6ba0 100%)', borderRadius: '12px 12px 0 0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>📥 Import Customers</div>
+            <div style={{ color: 'rgba(255,255,255,.75)', fontSize: 12, marginTop: 2 }}>
+              Upload CSV or Excel to add customer records to Customer Intelligence
+            </div>
+          </div>
+          <button className="qb-close-btn" onClick={onClose} style={{ color: '#fff', opacity: .8 }}>×</button>
+        </div>
+
+        <div style={{ padding: 20, overflowY: 'auto', maxHeight: 'calc(85vh - 80px)' }}>
+          {step === 2 ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--green)', marginBottom: 8 }}>{done} Customer{done !== 1 ? 's' : ''} Imported!</div>
+              <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 24 }}>
+                The Customer Intelligence view now shows your imported data. Refresh to see the updated list.
+              </div>
+              <button className="btn-primary" onClick={onClose}>Close</button>
+            </div>
+          ) : step === 0 ? (
+            <div>
+              <div style={{ marginBottom: 12, color: 'var(--text2)', fontSize: 13 }}>
+                Upload a CSV or Excel file with your customer data. Columns can be in any order — you'll map them in the next step.
+              </div>
+              <label
+                htmlFor="cust-imp-file"
+                onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
+                onDragOver={e => e.preventDefault()}
+                style={{ border: '2px dashed var(--border)', borderRadius: 10, padding: 36, textAlign: 'center', cursor: 'pointer', background: 'var(--bg)', display: 'block' }}
+              >
+                <div style={{ fontSize: 40, marginBottom: 8 }}>📥</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text1)' }}>
+                  {file ? `📄 ${file.name}` : 'Drop your CSV or Excel file here'}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>or click to browse · .csv · .xlsx · .xls</div>
+              </label>
+              <input id="cust-imp-file" type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files[0]; e.target.value = ''; handleFile(f); }} />
+              {loading && <div style={{ textAlign: 'center', padding: 16, color: 'var(--text2)', fontSize: 13 }}>⏳ Parsing file…</div>}
+              {error && <div style={{ color: 'var(--red)', background: 'var(--r5)', borderRadius: 8, padding: 12, marginTop: 12, fontSize: 13 }}>⚠ {error}</div>}
+              <div style={{ marginTop: 16, padding: 12, background: 'var(--s3)', borderRadius: 8, fontSize: 12, color: 'var(--text2)' }}>
+                <strong>Recommended columns:</strong> Customer Name · Segment · Monthly Revenue · Outstanding · Days Since Last Order · Risk · Score · Email · Phone
+                <br /><span style={{ color: 'var(--text3)', fontSize: 11 }}>Only "Customer Name" is required. All other columns are optional.</span>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <button onClick={() => { setStep(0); setFile(null); setHeaders([]); setRows([]); setError(''); }}
+                  style={{ fontSize: 12, padding: '4px 12px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', cursor: 'pointer', color: 'var(--text2)' }}>
+                  ← Change File
+                </button>
+                <span style={{ color: 'var(--text2)', fontSize: 13 }}>
+                  <strong>{file?.name}</strong> · {rows.length} rows · {headers.length} columns
+                </span>
+              </div>
+
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
+                Map Columns to Customer Fields
+                <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text3)', marginLeft: 8 }}>(auto-suggested — adjust as needed)</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 20 }}>
+                {CUSTOMER_IMPORT_FIELDS.map(({ key, label }) => {
+                  const mapped = mapping[key] !== null && mapping[key] !== undefined;
+                  return (
+                    <div key={key}>
+                      <div style={{ fontSize: 11, color: mapped ? 'var(--green)' : 'var(--text2)', fontWeight: 600, marginBottom: 3 }}>
+                        {label} {mapped && '✓'}
+                      </div>
+                      <select
+                        value={mapping[key] ?? ''}
+                        onChange={e => setMapping(m => ({ ...m, [key]: e.target.value === '' ? null : Number(e.target.value) }))}
+                        style={{ width: '100%', padding: '5px 8px', border: `1.5px solid ${mapped ? 'var(--b3)' : 'var(--border)'}`, borderRadius: 6, fontSize: 12, background: 'var(--bg)', color: 'var(--text1)' }}
+                      >
+                        <option value="">— skip —</option>
+                        {headers.map((h, i) => (
+                          <option key={i} value={i}>{h}{rows[0]?.[i] ? ` (e.g. "${rows[0][i]}")` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Preview — First {Math.min(3, rows.length)} Row{rows.length !== 1 ? 's' : ''}</div>
+              <div style={{ overflowX: 'auto', marginBottom: 20, borderRadius: 8, border: '1px solid var(--border)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {CUSTOMER_IMPORT_FIELDS.filter(f => mapping[f.key] !== null && mapping[f.key] !== undefined).map(f => (
+                        <th key={f.key} style={{ padding: '6px 10px', background: 'var(--s3)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text2)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                          {f.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.slice(0, 3).map((row, ri) => (
+                      <tr key={ri} style={{ background: ri % 2 === 0 ? 'transparent' : 'var(--s3)' }}>
+                        {CUSTOMER_IMPORT_FIELDS.filter(f => mapping[f.key] !== null && mapping[f.key] !== undefined).map(f => (
+                          <td key={f.key} style={{ padding: '5px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text1)' }}>
+                            {row[mapping[f.key]] || <span style={{ color: 'var(--text3)' }}>—</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button className="btn-primary" disabled={saving || mapping.name === null || mapping.name === undefined} onClick={handleConfirm}>
+                  {saving ? '⏳ Importing…' : `✓ Import ${rows.length} Customer${rows.length !== 1 ? 's' : ''}`}
+                </button>
+                {(mapping.name === null || mapping.name === undefined) && (
+                  <span style={{ fontSize: 12, color: 'var(--amber)' }}>⚠ Map "Customer Name *" to continue</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const STATIC_CUSTS = [
   { name: 'Mehta Constructions',  segment: 'Contractor',    monthly_value: '₹3.8L', score: 92, outstanding: '₹0',    days_since_order: 2,  risk: 'LOW' },
   { name: 'City Interiors',       segment: 'Interior Firm', monthly_value: '₹2.4L', score: 88, outstanding: '₹0',    days_since_order: 47, risk: 'MEDIUM' },
@@ -24,12 +287,13 @@ function riskStatus(c) {
 }
 
 export default function Customers({ onGoChat, period = 'MTD' }) {
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [page, setPage]     = useState(1);
+  const [filter, setFilter]       = useState('all');
+  const [search, setSearch]       = useState('');
+  const [page, setPage]           = useState(1);
   const PAGE_SIZE = 20;
-  const [d, setD]           = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [d, setD]                 = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [showImport, setShowImport] = useState(false);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -67,6 +331,9 @@ export default function Customers({ onGoChat, period = 'MTD' }) {
           </div>
         </div>
         <div className="ph-actions">
+          <button className="btn-secondary" onClick={() => setShowImport(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            📥 Import Customers
+          </button>
           {onGoChat && (
             <button className="btn-primary" onClick={() => onGoChat('Give me a full customer health report — who are my top accounts, who is at risk of churning, and who has overdue payments that need follow-up today?')}>
               ✨ AI Customer Brief
@@ -162,6 +429,13 @@ export default function Customers({ onGoChat, period = 'MTD' }) {
           <span>✨</span>
           <span>Ask AI: Customer priority list — who to call this week and why →</span>
         </div>
+      )}
+
+      {showImport && (
+        <CustomerImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => { fetchData(); setTimeout(() => setShowImport(false), 2000); }}
+        />
       )}
     </div>
   );
