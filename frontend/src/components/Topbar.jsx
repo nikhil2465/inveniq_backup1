@@ -29,7 +29,10 @@ const QUICK_SEARCH_SUGGESTIONS = [
   { label: 'Business health check', view: null,          query: 'Give me a complete business health check and top priorities for this week.' },
 ];
 
-export default function Topbar({ title, period, onPeriodChange, alerts = [], onGoChat, onNavigate, dbStatus, onToggleSidebar, onLogout, currentUser }) {
+export default function Topbar({ title, period, onPeriodChange, alerts = [], onGoChat, onNavigate, dbStatus, onToggleSidebar, onLogout, currentUser, allowedModules = null, aiPanelOpen = false, aiPanelMin = false }) {
+  // canNav: returns true if the user is allowed to navigate to a given module.
+  // null allowedModules = admin/unrestricted = all modules accessible.
+  const canNav = (v) => !allowedModules || allowedModules.includes(v);
   const [alertOpen, setAlertOpen]   = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -120,7 +123,7 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
   };
 
   return (
-    <div className="topbar">
+    <div className={`topbar${aiPanelOpen ? ' sp-open' : ''}${aiPanelMin ? ' sp-min' : ''}`}>
       {/* Hamburger for mobile sidebar toggle */}
       <button className="hamburger" onClick={onToggleSidebar} title="Toggle sidebar" aria-label="Toggle navigation">
         <svg viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
@@ -128,7 +131,7 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
 
       {/* Left: Title area */}
       <div className="tl">
-        <div className="tc">InvenIQ · Enterprise Intelligence Platform · v3.0</div>
+        <div className="tc">InvenIQ · Business Intelligence Platform</div>
         <div className="tt">{title}</div>
       </div>
 
@@ -282,14 +285,18 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
         }
       </button>
 
-      {/* Status badges */}
-      {dbStatus?.status === 'live'
-        ? <div className="conn-badge"><span className="dot dg"></span>MySQL Live</div>
-        : dbStatus?.status === 'checking'
-          ? <div className="conn-badge" style={{opacity:.6}}><span className="dot" style={{background:'#9ca3af'}}></span>Checking…</div>
-          : <div className="conn-badge" style={{opacity:.75}}><span className="dot da"></span>Demo Mode</div>
-      }
-      <div className="ai-badge"><span className="dot dg"></span>AI Active</div>
+      {/* Status badges — admin only */}
+      {!allowedModules && (
+        <>
+          {dbStatus?.status === 'live'
+            ? <div className="conn-badge"><span className="dot dg"></span>Live Data</div>
+            : dbStatus?.status === 'checking'
+              ? <div className="conn-badge" style={{opacity:.6}}><span className="dot" style={{background:'#9ca3af'}}></span>Connecting…</div>
+              : <div className="conn-badge" style={{opacity:.75}}><span className="dot da"></span>Demo Mode</div>
+          }
+          <div className="ai-badge"><span className="dot dg"></span>AI Active</div>
+        </>
+      )}
 
       {/* User Profile */}
       <div className="upro-wrap" ref={profileRef}>
@@ -312,21 +319,31 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
             </div>
             <div className="upro-divider" />
             <div className="upro-menu">
-              <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('overview'); }}>
-                <span className="upro-item-icon">🏠</span> Dashboard
-              </button>
-              <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('chatbot'); }}>
-                <span className="upro-item-icon">🤖</span> AI Assistant
-              </button>
-              <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('finance'); }}>
-                <span className="upro-item-icon">📊</span> Financial Reports
-              </button>
-              <button className="upro-item" onClick={() => { setProfileOpen(false); handleAskAI('How can I grow my revenue by 30% this quarter?'); }}>
-                <span className="upro-item-icon">📈</span> Growth Strategy
-              </button>
-              <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('settings'); }}>
-                <span className="upro-item-icon">⚙️</span> Settings & Status
-              </button>
+              {canNav('overview') && (
+                <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('overview'); }}>
+                  <span className="upro-item-icon">🏠</span> Dashboard
+                </button>
+              )}
+              {canNav('chatbot') && (
+                <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('chatbot'); }}>
+                  <span className="upro-item-icon">🤖</span> AI Assistant
+                </button>
+              )}
+              {canNav('finance') && (
+                <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('finance'); }}>
+                  <span className="upro-item-icon">📊</span> Financial Reports
+                </button>
+              )}
+              {canNav('chatbot') && (
+                <button className="upro-item" onClick={() => { setProfileOpen(false); handleAskAI('How can I grow my revenue by 30% this quarter?'); }}>
+                  <span className="upro-item-icon">📈</span> Growth Strategy
+                </button>
+              )}
+              {canNav('settings') && (
+                <button className="upro-item" onClick={() => { setProfileOpen(false); onNavigate?.('settings'); }}>
+                  <span className="upro-item-icon">⚙️</span> Settings & Status
+                </button>
+              )}
             </div>
             <div className="upro-divider" />
             <div className="upro-meta">

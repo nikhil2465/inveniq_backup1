@@ -3,6 +3,7 @@ Quotation Builder API — InvenIQ
 Professional quotation management for louvers, laminates & building materials.
 Covers full quote lifecycle: Draft → Sent → Negotiating → Won/Lost.
 """
+import asyncio
 import base64
 import datetime
 import json
@@ -492,13 +493,13 @@ def _build_suggested_lines(matched: list) -> list:
         p   = mp["best_match"]
         req = mp["required"]
         lines.append({
-            "product_id":    str(p["product_id"]),
-            "product_name":  p["name"],
-            "category":      p["category"],
+            "product_id":    str(p.get("product_id", "")),
+            "product_name":  p.get("name", ""),
+            "category":      p.get("category", ""),
             "quantity":      req.get("quantity") or 1,
-            "unit":          p["unit"],
-            "unit_price":    p["sell_price"],
-            "buy_price":     p["buy_price"],
+            "unit":          p.get("unit", "pc"),
+            "unit_price":    p.get("sell_price", 0),
+            "buy_price":     p.get("buy_price", 0),
             "discount_pct":  0,
             "specifications": req.get("specifications", ""),
         })
@@ -948,31 +949,34 @@ async def scan_whatsapp_requirement(
     if not has_file and not has_text:
         return _demo_scan_result("No input provided — showing demo extraction.")
 
-    file_bytes, content_type, filename = b"", "", ""
-    if has_file:
-        file_bytes   = await file.read()
-        content_type = file.content_type or ""
-        filename     = (file.filename or "").lower()
-
-    text_content, is_image, image_b64, image_ct = _extract_file_content(
-        file_bytes, content_type, filename
-    ) if has_file else ("", False, "", "")
-
-    # Scanned PDF guard — pypdf returned sentinel, no text layer present
-    if text_content == "__scanned_pdf__":
-        return {
-            "extracted":        {"customer_name": "", "customer_type": "Retailer", "contact_person": "", "contact_phone": "", "contact_email": "", "project_name": "", "site_location": "", "required_products": [], "special_requirements": "", "delivery_notes": "", "budget_indication": ""},
-            "matched_products": [],
-            "suggested_lines":  [],
-            "data_source":      "error",
-            "demo_note":        "This PDF appears to be scanned (image-based) — no text layer found. Please take a screenshot of the page and upload the image instead.",
-        }
-
-    # Merge typed text with extracted file text
-    combined_text = "\n\n".join(filter(None, [text_input.strip(), text_content]))
-
     try:
         from openai import AsyncOpenAI
+
+        file_bytes, content_type, filename = b"", "", ""
+        if has_file:
+            file_bytes   = await file.read()
+            content_type = file.content_type or ""
+            filename     = (file.filename or "").lower()
+            if len(file_bytes) > 20 * 1024 * 1024:
+                return _demo_scan_result("File is too large (max 20 MB) — try a compressed JPG or paste the text instead.")
+
+        text_content, is_image, image_b64, image_ct = _extract_file_content(
+            file_bytes, content_type, filename
+        ) if has_file else ("", False, "", "")
+
+        # Scanned PDF guard — pypdf returned sentinel, no text layer present
+        if text_content == "__scanned_pdf__":
+            return {
+                "extracted":        {"customer_name": "", "customer_type": "Retailer", "contact_person": "", "contact_phone": "", "contact_email": "", "project_name": "", "site_location": "", "required_products": [], "special_requirements": "", "delivery_notes": "", "budget_indication": ""},
+                "matched_products": [],
+                "suggested_lines":  [],
+                "data_source":      "error",
+                "demo_note":        "This PDF appears to be scanned (image-based) — no text layer found. Please take a screenshot of the page and upload the image instead.",
+            }
+
+        # Merge typed text with extracted file text
+        combined_text = "\n\n".join(filter(None, [text_input.strip(), text_content]))
+
         client = AsyncOpenAI(api_key=api_key, timeout=60.0)
 
         if is_image and not has_text:
@@ -1008,24 +1012,28 @@ async def scan_whatsapp_requirement(
         raw = response.choices[0].message.content
         extracted = json.loads(raw)
 
-    except Exception as exc:
+        required_products = extracted.get("required_products", [])
+        matched = _match_to_catalog(required_products)
+
+        note = ""
+        if not required_products:
+            note = "No product requirements found in this input. Try adding more detail — e.g. product names, quantities, specifications."
+
+        return {
+            "extracted":        extracted,
+            "matched_products": matched,
+            "suggested_lines":  _build_suggested_lines(matched),
+            "data_source":      "openai",
+            **({"demo_note": note} if note else {}),
+        }
+
+    except asyncio.CancelledError:
+        raise
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException as exc:
         logger.exception("scan-whatsapp error: %s", exc)
         return _demo_scan_result(f"AI extraction failed ({type(exc).__name__}) — showing demo result.")
-
-    required_products = extracted.get("required_products", [])
-    matched = _match_to_catalog(required_products)
-
-    note = ""
-    if not required_products:
-        note = "No product requirements found in this input. Try adding more detail — e.g. product names, quantities, specifications."
-
-    return {
-        "extracted":        extracted,
-        "matched_products": matched,
-        "suggested_lines":  _build_suggested_lines(matched),
-        "data_source":      "openai",
-        **({"demo_note": note} if note else {}),
-    }
 
 
 # ── Quote Analyzer helpers ─────────────────────────────────────────────────────
@@ -1287,3 +1295,149 @@ async def convert_quote_to_order(quote_id: int):
     _converted_orders[quote_id] = result
     logger.info("Demo convert: %s → %s for %s", qnum, order_number, customer)
     return result
+
+
+# ── /quotes/{quote_id}/send-email ─────────────────────────────────────────────
+
+@router.post("/quotes/{quote_id}/send-email")
+async def send_quote_email(quote_id: int, payload: dict):
+    """
+    Send a quotation by email.
+    payload: { recipient_email, recipient_name, subject, message }
+    Uses SMTP_USER / SMTP_PASSWORD / SMTP_HOST / SMTP_PORT from .env.
+    Falls back to a success-simulation response if SMTP is not configured.
+    """
+    recipient_email = (payload.get("recipient_email") or "").strip()
+    recipient_name  = (payload.get("recipient_name")  or "Customer").strip()
+    subject         = (payload.get("subject")         or "").strip()
+    message_body    = (payload.get("message")         or "").strip()
+
+    if not recipient_email:
+        raise HTTPException(status_code=422, detail="recipient_email is required.")
+
+    # Resolve quote details for email body
+    quote_data: dict = {}
+    try:
+        from app.db.connection import get_pool
+        from app.db import quote_queries
+        pool = await get_pool()
+        if pool:
+            await quote_queries.ensure_tables(pool)
+            quote_data = await quote_queries.get_quote_db(pool, quote_id) or {}
+    except Exception:
+        pass
+
+    if not quote_data:
+        mock_q = next((q for q in _mock_quotes() if q["quote_id"] == quote_id), None)
+        if mock_q:
+            quote_data = mock_q
+
+    quote_number = quote_data.get("quote_number") or f"QT-{datetime.date.today().year}-{quote_id:04d}"
+    customer     = quote_data.get("customer_name") or recipient_name
+    total        = quote_data.get("grand_total") or quote_data.get("total") or 0
+
+    if not subject:
+        subject = f"Quotation {quote_number} from InvenIQ — Building Materials"
+
+    # Build HTML email
+    custom_para = f"<p style='margin:0 0 16px'>{message_body}</p>" if message_body else ""
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'></head>
+<body style='font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px'>
+  <div style='max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0'>
+    <div style='background:linear-gradient(135deg,#0f2744,#15803d);padding:24px 28px'>
+      <div style='font-size:24px;font-weight:900;color:#fff;letter-spacing:-1px'>IQ</div>
+      <div style='color:rgba(255,255,255,.8);font-size:13px;margin-top:4px'>InvenIQ — Building Materials</div>
+    </div>
+    <div style='padding:28px'>
+      <p style='margin:0 0 16px;font-size:15px;color:#0f172a'>Dear {recipient_name},</p>
+      {custom_para}
+      <p style='margin:0 0 16px;color:#475569;font-size:14px'>
+        Please find attached our quotation <strong style='color:#0f172a'>{quote_number}</strong>
+        for <strong style='color:#0f172a'>{customer}</strong>.
+      </p>
+      <div style='background:#f1f5f9;border-radius:8px;padding:16px 20px;margin:20px 0;border-left:4px solid #15803d'>
+        <div style='font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px'>Quotation Summary</div>
+        <div style='font-size:18px;font-weight:900;color:#0f172a;font-family:monospace'>
+          {quote_number}
+        </div>
+        {'<div style="font-size:22px;font-weight:900;color:#15803d;font-family:monospace;margin-top:4px">₹{:,.0f}</div>'.format(total) if total else ''}
+      </div>
+      <p style='color:#475569;font-size:14px;margin:0 0 16px'>
+        Please review the quotation and feel free to contact us with any questions or to proceed with the order.
+      </p>
+      <p style='color:#94a3b8;font-size:12px;margin:0'>
+        Best regards,<br>
+        <strong style='color:#0f172a'>InvenIQ — Building Materials Team</strong>
+      </p>
+    </div>
+    <div style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 28px;font-size:11px;color:#94a3b8'>
+      Sent via InvenIQ Quotation Builder · Auto-generated
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
+    # Generate PDF attachment from quote data
+    pdf_bytes: bytes | None = None
+    pdf_filename = f"{quote_number}.pdf"
+    try:
+        from app.services.pdf_service import generate_quote_pdf
+        pdf_bytes = generate_quote_pdf(quote_data)
+        logger.info("PDF generated for quote %s (%d bytes)", quote_number, len(pdf_bytes))
+    except Exception as pdf_err:
+        logger.warning("PDF generation failed for %s — sending email without attachment: %s", quote_number, pdf_err)
+
+    if not smtp_user or not smtp_pass:
+        # SMTP not configured — return simulated success with PDF info
+        logger.info("SMTP not configured — simulating email send to %s for quote %s", recipient_email, quote_number)
+        return {
+            "success": True,
+            "simulated": True,
+            "has_pdf": pdf_bytes is not None,
+            "message": f"Email to {recipient_email} simulated (SMTP not configured). Add SMTP_USER / SMTP_PASSWORD to backend/.env to send real emails.",
+            "quote_number": quote_number,
+            "recipient": recipient_email,
+        }
+
+    try:
+        from app.services.email_service import _smtp_send, _smtp_hint
+        import asyncio
+        await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: _smtp_send(
+                smtp_host, smtp_port, smtp_user, smtp_pass,
+                recipient_email, subject, html_body,
+                attachment=pdf_bytes,
+                attachment_filename=pdf_filename,
+            ),
+        )
+        logger.info("Quote email sent with PDF: quote=%s recipient=%s", quote_number, recipient_email)
+        return {
+            "success": True,
+            "simulated": False,
+            "has_pdf": pdf_bytes is not None,
+            "message": f"Email sent successfully to {recipient_email}.",
+            "quote_number": quote_number,
+            "recipient": recipient_email,
+        }
+    except Exception as exc:
+        hint = ""
+        try:
+            from app.services.email_service import _smtp_hint
+            hint = _smtp_hint(exc)
+        except Exception:
+            pass
+        logger.exception("send-quote-email failed: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Email delivery failed: {exc}. {hint}".strip(),
+        )

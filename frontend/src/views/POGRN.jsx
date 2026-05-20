@@ -84,6 +84,10 @@ const LAMINATES = {
 
 const CONDITION_OPTIONS = ['Good — Accepted', 'Minor Damage — Accepted with Note', 'Partial Damage — Partial Accept', 'Damaged — Rejected', 'Short Delivery', 'Wrong Grade / Specification'];
 const QUALITY_OPTIONS = ['Passed ✓', 'Partially Passed ⚠', 'Failed / Rejected ✗'];
+const OPERATION_TYPES = [
+  'Regular Purchase', 'Emergency Purchase', 'Import Purchase',
+  'Project Purchase', 'Sample Purchase', 'Capital Purchase', 'Inter-branch Transfer',
+];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +97,7 @@ const plusDays = (n) => new Date(Date.now() + n * 86400000).toISOString().split(
 const blankPO = () => ({
   supplier_name: '', supplier_contact: '', payment_terms: '',
   delivery_location: '', expected_date: plusDays(7), notes: '',
+  operation_type: 'Regular Purchase',
   // Louvers
   lv_category: '', lv_blade_width: '', lv_pitch: '', lv_finish: '',
   lv_system: '', lv_grade: '', lv_color: '',
@@ -111,6 +116,8 @@ const blankGRN = () => ({
   quality_status: 'Passed ✓', vehicle_number: '',
   received_by: '', invoice_value: '', grn_value: '',
   notes: '',
+  // Landing cost charges
+  lc_freight: '', lc_insurance: '', lc_loading: '', lc_transport: '', lc_other: '',
 });
 
 // ── STYLES ────────────────────────────────────────────────────────────────────
@@ -201,12 +208,19 @@ function Inp({ label, value, onChange, type = 'text', placeholder = '', required
 
 function SuccessCard({ result, type, onClose, onAskAI }) {
   const isMatch = result.match_status === 'MATCH';
+  const isDraftPO = type === 'po' && (result.status === 'DRAFT' || result.demo_mode);
   return (
     <div style={{ textAlign: 'center', padding: '32px 24px' }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>{type === 'po' ? '📋' : '📦'}</div>
-      <div style={{ fontSize: 17, fontWeight: 800, color: type === 'po' ? 'var(--b2)' : 'var(--green)', marginBottom: 6 }}>
-        {type === 'po' ? 'Purchase Order Created' : 'GRN Recorded Successfully'}
+      <div style={{ fontSize: 17, fontWeight: 800, color: isDraftPO ? '#d97706' : type === 'po' ? 'var(--b2)' : 'var(--green)', marginBottom: 6 }}>
+        {isDraftPO ? 'Draft PO Created — Pending Approval' : type === 'po' ? 'Purchase Order Created' : 'GRN Recorded Successfully'}
       </div>
+      {isDraftPO && (
+        <div style={{ fontSize: 11.5, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 16px', marginBottom: 12, lineHeight: 1.5 }}>
+          This PO is saved as <strong>Draft</strong> and requires <strong>Sales &amp; Finance approval</strong> before it can be issued to the supplier.<br />
+          Go to the <strong>Pending Approvals</strong> tab to review and approve.
+        </div>
+      )}
       <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)', marginBottom: 16 }}>
         {type === 'po' ? result.po_number : result.grn_number}
       </div>
@@ -217,6 +231,7 @@ function SuccessCard({ result, type, onClose, onAskAI }) {
           <Row label="Quantity" val={`${result.quantity} units`} />
           <Row label="Total Value" val={`₹${Number(result.total_value || 0).toLocaleString('en-IN')}`} />
           <Row label="Expected Date" val={result.expected_date} />
+          {result.operation_type && <Row label="Operation Type" val={result.operation_type} />}
         </>}
         {type === 'grn' && <>
           <Row label="Supplier" val={result.supplier} />
@@ -230,6 +245,14 @@ function SuccessCard({ result, type, onClose, onAskAI }) {
             </span>
           } />
           {!isMatch && <Row label="Discrepancy" val={`₹${Number(result.discrepancy_amt || 0).toLocaleString('en-IN')}`} />}
+          {result.total_landed_cost > 0 && <>
+            <Row label="Total Landed Cost" val={
+              <span style={{ color: 'var(--b2)', fontWeight: 700 }}>
+                ₹{Number(result.total_landed_cost).toLocaleString('en-IN')}
+              </span>
+            } />
+            {result.landing_cost_per_unit > 0 && <Row label="Landed Cost / Unit" val={`₹${Number(result.landing_cost_per_unit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />}
+          </>}
         </>}
         {result.demo_mode && (
           <div style={{ fontSize: 10, color: 'var(--text3)', textAlign: 'center', fontFamily: 'var(--mono)', marginTop: 4 }}>
@@ -295,6 +318,7 @@ function CreatePOModal({ industry, onClose, onSuccess, prefill }) {
           quantity: Number(form.quantity),
           unit_price: form.unit_price ? Number(form.unit_price) : null,
           expected_date: form.expected_date || undefined,
+          operation_type: form.operation_type || 'Regular Purchase',
           notes: notes.trim(),
         }),
       });
@@ -344,6 +368,9 @@ function CreatePOModal({ industry, onClose, onSuccess, prefill }) {
             <Sel label="Payment Terms" value={form.payment_terms} onChange={set('payment_terms')} options={cat.payment} />
             <Inp label="Delivery Location" value={form.delivery_location} onChange={set('delivery_location')} placeholder="e.g. Whitefield, Bengaluru" />
             <Inp label="Expected Delivery Date" value={form.expected_date} onChange={set('expected_date')} type="date" required />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <Sel label="Operation Type *" value={form.operation_type} onChange={set('operation_type')} options={OPERATION_TYPES} required />
           </div>
 
           {/* Industry-specific product fields */}
@@ -430,6 +457,7 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
   const [form, setForm]               = useState(blankGRN());
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState('');
+  const [showLandingCost, setShowLandingCost] = useState(false);
   // Open POs (unreceived)
   const [openPos, setOpenPos]         = useState([]);
   const [posLoading, setPosLoading]   = useState(true);
@@ -554,6 +582,11 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
           industry: industry,
           godown_id: godownId ? Number(godownId) : null,
           godown_name: godownName || null,
+          freight_charges:   form.lc_freight   ? Number(form.lc_freight)   : 0,
+          insurance_charges: form.lc_insurance ? Number(form.lc_insurance) : 0,
+          loading_unloading: form.lc_loading   ? Number(form.lc_loading)   : 0,
+          local_transport:   form.lc_transport ? Number(form.lc_transport) : 0,
+          other_charges:     form.lc_other     ? Number(form.lc_other)     : 0,
           notes: [
             form.condition !== 'Good — Accepted' ? `Condition: ${form.condition}` : '',
             `Quality: ${form.quality_status}`,
@@ -741,6 +774,64 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
           {invoiceMismatch && (
             <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 8, padding: '9px 13px', fontSize: 12, color: 'var(--r2)', marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
               ⚠ Price variance detected: ₹{Math.abs(Number(form.invoice_value) - Number(form.grn_value)).toLocaleString('en-IN')}. AI will flag this as MISMATCH and suggest payment action.
+            </div>
+          )}
+
+          {/* Landing Cost */}
+          <div
+            style={{ ...SECTION_TITLE, cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => setShowLandingCost(v => !v)}
+          >
+            <span>📦 Landing Cost Breakdown {showLandingCost ? '▲' : '▼'}</span>
+            {(() => {
+              const total = [form.lc_freight, form.lc_insurance, form.lc_loading, form.lc_transport, form.lc_other]
+                .reduce((s, v) => s + (Number(v) || 0), 0);
+              return total > 0 ? (
+                <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', color: 'var(--b2)', fontSize: 11 }}>
+                  +₹{total.toLocaleString('en-IN')} charges
+                </span>
+              ) : (
+                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>
+                  Optional — click to expand
+                </span>
+              );
+            })()}
+          </div>
+          {showLandingCost && (
+            <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+              <div style={ROW3}>
+                <Inp label="Freight / Shipping (₹)" value={form.lc_freight} onChange={set('lc_freight')} type="number" placeholder="0" />
+                <Inp label="Insurance (₹)" value={form.lc_insurance} onChange={set('lc_insurance')} type="number" placeholder="0" />
+                <Inp label="Loading / Unloading (₹)" value={form.lc_loading} onChange={set('lc_loading')} type="number" placeholder="0" />
+              </div>
+              <div style={ROW2}>
+                <Inp label="Local Transport (₹)" value={form.lc_transport} onChange={set('lc_transport')} type="number" placeholder="0" />
+                <Inp label="Other Charges (₹)" value={form.lc_other} onChange={set('lc_other')} type="number" placeholder="0" />
+              </div>
+              {(() => {
+                const grnVal = Number(form.grn_value) || 0;
+                const totalCharges = [form.lc_freight, form.lc_insurance, form.lc_loading, form.lc_transport, form.lc_other]
+                  .reduce((s, v) => s + (Number(v) || 0), 0);
+                const totalLanded = grnVal + totalCharges;
+                const qtyRec = Number(form.qty_received) || 0;
+                const perUnit = qtyRec > 0 ? (totalLanded / qtyRec).toFixed(2) : '—';
+                return (
+                  <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)', textTransform: 'uppercase', marginBottom: 3 }}>Total Charges</div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--b2)', fontFamily: 'var(--mono)' }}>₹{totalCharges.toLocaleString('en-IN')}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)', textTransform: 'uppercase', marginBottom: 3 }}>Total Landed Cost</div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--green)', fontFamily: 'var(--mono)' }}>₹{totalLanded.toLocaleString('en-IN')}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)', textTransform: 'uppercase', marginBottom: 3 }}>Landed Cost / Unit</div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', fontFamily: 'var(--mono)' }}>₹{perUnit}</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -978,16 +1069,736 @@ function QuotationsSection({ goChat, onRaisePO, industry }) {
   );
 }
 
+// ── PO SCANNER MODAL ─────────────────────────────────────────────────────────
+
+function POScannerModal({ onClose, onPreview }) {
+  const [mode, setMode]           = useState('image');
+  const [file, setFile]           = useState(null);
+  const [fileUrl, setFileUrl]     = useState(null);
+  const [textInput, setTextInput] = useState('');
+  const [scanning, setScanning]   = useState(false);
+  const [dragOver, setDragOver]   = useState(false);
+  const [error, setError]         = useState('');
+  const [scanResult, setScanResult] = useState(null);
+  const [editData, setEditData]   = useState({
+    supplier_name: '', payment_terms: '', expected_date: '', notes: '', items: [],
+  });
+  const [suppliers, setSuppliers]   = useState([]);
+  const [suppOpen, setSuppOpen]     = useState(false);
+  const fileRef    = useRef(null);
+  const suppRef    = useRef(null);
+
+  useEffect(() => {
+    fetch('/api/procurement/suppliers')
+      .then(r => r.json())
+      .then(d => setSuppliers(d.suppliers || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const close = (e) => { if (suppRef.current && !suppRef.current.contains(e.target)) setSuppOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  useEffect(() => {
+    if (!scanResult) return;
+    setEditData({
+      supplier_name: scanResult.supplier_name || '',
+      payment_terms: scanResult.payment_terms || '',
+      expected_date: scanResult.expected_date || plusDays(7),
+      notes: scanResult.notes || '',
+      items: (scanResult.items || []).map((it, i) => ({ ...it, _key: i })),
+    });
+  }, [scanResult]);
+
+  const pickFile = (f) => { setFile(f); setFileUrl(URL.createObjectURL(f)); setScanResult(null); setError(''); };
+  const handleDrop = (e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) pickFile(f); };
+
+  const doScan = async () => {
+    if (mode === 'image' && !file) return setError('Upload an image first.');
+    if (mode === 'text' && !textInput.trim()) return setError('Paste product text first.');
+    setScanning(true); setError(''); setScanResult(null);
+    try {
+      const fd = new FormData();
+      if (mode === 'image' && file) fd.append('file', file);
+      if (textInput.trim()) fd.append('text_input', textInput.trim());
+      const res = await fetch('/api/po/scan', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) { setScanResult(data); }
+      else { setError(data.error || 'Extraction failed — please try again.'); }
+    } catch { setError('Network error — could not reach server.'); }
+    finally { setScanning(false); }
+  };
+
+  const setE = (field) => (val) => setEditData(d => ({ ...d, [field]: val }));
+  const updItem = (idx, field, val) =>
+    setEditData(d => ({ ...d, items: d.items.map((it, i) => i === idx ? { ...it, [field]: val } : it) }));
+  const removeItem = (idx) =>
+    setEditData(d => ({ ...d, items: d.items.filter((_, i) => i !== idx) }));
+  const addItem = () =>
+    setEditData(d => ({ ...d, items: [...d.items, { sku_name: '', category: '', quantity: '', unit: 'Sheets', unit_price: '', specifications: '', _key: Date.now() }] }));
+
+  const canScan = mode === 'image' ? !!file : textInput.trim().length > 0;
+
+  return (
+    <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...MODAL_BOX, maxWidth: 780 }}>
+        <div style={MODAL_HDR}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>📷 Scan to Create PO</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>
+              Upload a product image or paste text — AI extracts PO details automatically
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+
+        <div style={MODAL_BODY}>
+          {/* Mode tabs */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'var(--s3)', padding: 3, borderRadius: 8, border: '1px solid var(--border)', width: 'fit-content' }}>
+            {[{ id: 'image', label: '📷 Image / Photo' }, { id: 'text', label: '📝 Paste Text' }].map(t => (
+              <button key={t.id} onClick={() => { setMode(t.id); setScanResult(null); setError(''); }}
+                style={{ padding: '6px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'all .15s', background: mode === t.id ? 'var(--surface)' : 'transparent', color: mode === t.id ? 'var(--b2)' : 'var(--text3)', boxShadow: mode === t.id ? 'var(--sh)' : 'none' }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Image upload drop zone */}
+          {mode === 'image' && (
+            <>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => fileRef.current?.click()}
+                style={{ border: `2px dashed ${dragOver ? 'var(--b2)' : 'var(--border)'}`, borderRadius: 10, padding: fileUrl ? 0 : '36px 24px', textAlign: 'center', cursor: 'pointer', marginBottom: 10, background: dragOver ? 'rgba(59,130,246,.05)' : 'var(--s3)', transition: 'all .15s', overflow: 'hidden' }}>
+                {fileUrl ? (
+                  <div style={{ position: 'relative' }}>
+                    <img src={fileUrl} alt="Upload preview" style={{ maxWidth: '100%', maxHeight: 240, display: 'block', margin: '0 auto', borderRadius: 8 }} />
+                    <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 4 }}>Click to replace</div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>📷</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Drop product image here or click to browse</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Product photos, catalog pages, labels, brochures — JPG / PNG / WebP up to 10 MB</div>
+                  </>
+                )}
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files[0] && pickFile(e.target.files[0])} />
+              </div>
+              {file && <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)', marginBottom: 14 }}>{file.name} · {(file.size / 1024).toFixed(0)} KB</div>}
+            </>
+          )}
+
+          {/* Text paste area */}
+          {mode === 'text' && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={LABEL}>Product text, catalog listing, or description</label>
+              <textarea value={textInput} onChange={e => setTextInput(e.target.value)} rows={7}
+                placeholder={'Paste product details here.\n\nExamples:\n• Merino HPL 1mm Matte BW-8071 8×4 — 50 Sheets @ ₹480\n• Greenlam Compact 6mm White 8×4 — 20 Sheets @ ₹1,200\n• Supplier: Merino Industries | Payment: NET-30 Days'}
+                style={{ ...INPUT, resize: 'vertical', lineHeight: 1.6, fontSize: 12 }} />
+            </div>
+          )}
+
+          {/* Extract button */}
+          {!scanResult && (
+            <button onClick={doScan} disabled={scanning || !canScan}
+              style={{ ...BTN_PRIMARY, background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', width: '100%', justifyContent: 'center', marginBottom: 10, padding: '11px 24px', opacity: (!scanning && !canScan) ? 0.45 : 1, cursor: (!scanning && !canScan) ? 'not-allowed' : 'pointer' }}>
+              {scanning ? '⏳ AI is extracting PO details…' : '✨ Extract PO Details with AI'}
+            </button>
+          )}
+
+          {error && (
+            <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 7, padding: '9px 13px', fontSize: 12, color: 'var(--r2)', marginBottom: 14 }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          {/* Extracted & editable results */}
+          {scanResult && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, padding: '8px 12px', background: 'var(--g5)', border: '1px solid var(--g4)', borderRadius: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, color: 'var(--green)' }}>✓</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+                    AI Extraction Complete — {editData.items.length} item{editData.items.length !== 1 ? 's' : ''} found
+                    {scanResult.demo && <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400, marginLeft: 6 }}>(demo mode)</span>}
+                  </span>
+                </div>
+                <button onClick={() => { setScanResult(null); setError(''); }}
+                  style={{ fontSize: 11, padding: '3px 9px', background: 'none', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+                  ↺ Re-scan
+                </button>
+              </div>
+
+              {/* Editable supplier / order fields */}
+              <div style={ROW3}>
+                {/* ── Supplier combo-box (searchable from Procurement Intelligence) ── */}
+                <div style={FIELD} ref={suppRef}>
+                  <label style={LABEL}>
+                    Supplier Name
+                    {suppliers.length > 0 && (
+                      <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--b2)', marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
+                        {suppliers.length} from Procurement
+                      </span>
+                    )}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      value={editData.supplier_name}
+                      onChange={e => { setE('supplier_name')(e.target.value); setSuppOpen(true); }}
+                      onFocus={() => setSuppOpen(true)}
+                      style={{ ...INPUT, paddingRight: 28 }}
+                      placeholder="Type or select supplier…"
+                      autoComplete="off"
+                    />
+                    <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text3)', pointerEvents: 'none' }}>▾</span>
+                    {suppOpen && (() => {
+                      const q = editData.supplier_name.toLowerCase();
+                      const filtered = suppliers.filter(s => s.name.toLowerCase().includes(q));
+                      if (!filtered.length) return null;
+                      return (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.18)', marginTop: 2, maxHeight: 220, overflowY: 'auto' }}>
+                          {filtered.map(s => {
+                            const isPref  = s.recommendation === 'PREFERRED';
+                            const isGood  = s.recommendation === 'GOOD';
+                            const badgeC  = isPref ? { bg: 'var(--g3)', txt: 'var(--green)', border: 'var(--g4)' }
+                                          : isGood ? { bg: 'var(--b5,#eff6ff)', txt: 'var(--b2)', border: 'var(--b4,#bfdbfe)' }
+                                          : { bg: 'var(--a3)', txt: 'var(--a2)', border: 'var(--a4)' };
+                            return (
+                              <div key={s.name}
+                                onMouseDown={e => { e.preventDefault(); setE('supplier_name')(s.name); setSuppOpen(false); }}
+                                style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid var(--border)', transition: 'background .1s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--s3)'}
+                                onMouseLeave={e => e.currentTarget.style.background = ''}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                  <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
+                                  <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 700, fontFamily: 'var(--mono)', background: badgeC.bg, color: badgeC.txt, border: `1px solid ${badgeC.border}`, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                    {s.recommendation}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: s.on_time_pct >= 90 ? 'var(--green)' : s.on_time_pct >= 80 ? 'var(--a2)' : 'var(--r2)', fontWeight: 700, flexShrink: 0 }}>
+                                  {s.on_time_pct}% OT
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+                <div style={FIELD}>
+                  <label style={LABEL}>Payment Terms</label>
+                  <input value={editData.payment_terms} onChange={e => setE('payment_terms')(e.target.value)} style={INPUT} placeholder="e.g. NET-30 Days" />
+                </div>
+                <div style={FIELD}>
+                  <label style={LABEL}>Expected Date</label>
+                  <input type="date" value={editData.expected_date} onChange={e => setE('expected_date')(e.target.value)} style={INPUT} />
+                </div>
+              </div>
+              <div style={FIELD}>
+                <label style={LABEL}>Notes / Instructions</label>
+                <input value={editData.notes} onChange={e => setE('notes')(e.target.value)} style={INPUT} placeholder="Grade requirements, certifications, handling notes…" />
+              </div>
+
+              {/* Line items */}
+              <div style={{ ...SECTION_TITLE, marginTop: 4 }}>📦 Extracted Line Items</div>
+              {editData.items.map((item, idx) => (
+                <div key={item._key ?? idx} style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 9, padding: '12px 14px 8px', marginBottom: 10, position: 'relative' }}>
+                  <button onClick={() => removeItem(idx)}
+                    style={{ position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--r2)', lineHeight: 1, padding: '0 2px' }}>×</button>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text3)', fontFamily: 'var(--mono)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Line Item {idx + 1}
+                  </div>
+                  <div style={ROW2}>
+                    <div style={FIELD}>
+                      <label style={LABEL}>SKU / Product Name</label>
+                      <input value={item.sku_name || ''} onChange={e => updItem(idx, 'sku_name', e.target.value)} style={INPUT} placeholder="Full product name" />
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LABEL}>Category</label>
+                      <input value={item.category || ''} onChange={e => updItem(idx, 'category', e.target.value)} style={INPUT} placeholder="e.g. Laminates" />
+                    </div>
+                  </div>
+                  <div style={ROW3}>
+                    <div style={FIELD}>
+                      <label style={LABEL}>Quantity</label>
+                      <input type="number" value={item.quantity ?? ''} onChange={e => updItem(idx, 'quantity', e.target.value)} style={INPUT} placeholder="0" />
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LABEL}>Unit</label>
+                      <input value={item.unit || ''} onChange={e => updItem(idx, 'unit', e.target.value)} style={INPUT} placeholder="Sheets" />
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LABEL}>Unit Price (₹)</label>
+                      <input type="number" value={item.unit_price ?? ''} onChange={e => updItem(idx, 'unit_price', e.target.value)} style={INPUT} placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div style={FIELD}>
+                    <label style={LABEL}>Specifications</label>
+                    <input value={item.specifications || ''} onChange={e => updItem(idx, 'specifications', e.target.value)} style={INPUT} placeholder="Size, finish, grade, design code…" />
+                  </div>
+                  {item.quantity && item.unit_price && (
+                    <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--green)', fontWeight: 700, marginBottom: 4 }}>
+                      = ₹{(Number(item.quantity) * Number(item.unit_price)).toLocaleString('en-IN')} total
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button onClick={addItem}
+                style={{ width: '100%', padding: '8px 16px', background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 7, cursor: 'pointer', fontSize: 12, color: 'var(--text3)', fontWeight: 600, marginBottom: 4 }}>
+                + Add Line Item
+              </button>
+            </>
+          )}
+        </div>
+
+        <div style={MODAL_FTR}>
+          <button onClick={onClose} style={BTN_GHOST}>Cancel</button>
+          {scanResult && (
+            <button onClick={() => onPreview(editData)} disabled={editData.items.length === 0}
+              style={{ ...BTN_PRIMARY, background: 'var(--b2)', opacity: editData.items.length === 0 ? 0.45 : 1, cursor: editData.items.length === 0 ? 'not-allowed' : 'pointer' }}>
+              👁 Preview PO →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PO PREVIEW MODAL ──────────────────────────────────────────────────────────
+
+function POPreviewModal({ scanResult, onEdit, onClose, onSuccess }) {
+  const [creating, setCreating] = useState(false);
+  const [error, setError]       = useState('');
+
+  const items      = scanResult?.items || [];
+  const grandTotal = items.reduce((s, it) => s + Number(it.quantity || 0) * Number(it.unit_price || 0), 0);
+  const poDate     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const handleCreate = async () => {
+    if (!items.length) return;
+    setCreating(true); setError('');
+    const results = [];
+    for (const item of items) {
+      try {
+        const noteParts = [
+          scanResult.payment_terms ? `Payment: ${scanResult.payment_terms}` : '',
+          item.category             ? `Category: ${item.category}`           : '',
+          item.specifications       ? `Specs: ${item.specifications}`         : '',
+        ].filter(Boolean);
+        const res = await fetch('/api/po', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supplier_name: scanResult.supplier_name || 'Unknown Supplier',
+            sku_name:      item.sku_name || 'Product',
+            quantity:      Number(item.quantity) || 1,
+            unit_price:    item.unit_price != null ? Number(item.unit_price) : null,
+            expected_date: scanResult.expected_date || undefined,
+            notes:         noteParts.join(' | ') || undefined,
+            category:      item.category || undefined,
+            unit:          item.unit || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) results.push({ ...data, sku_name: item.sku_name });
+      } catch { /* non-blocking: continue with next item */ }
+    }
+    setCreating(false);
+    if (results.length > 0) { onSuccess(results); }
+    else { setError('Could not create POs — please try again.'); }
+  };
+
+  return (
+    <div style={{ ...MODAL_OVERLAY, zIndex: 1100 }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...MODAL_BOX, maxWidth: 760 }}>
+        <div style={MODAL_HDR}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>📋 Purchase Order Preview</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>
+              {items.length} line item{items.length !== 1 ? 's' : ''} · Estimated total ₹{grandTotal.toLocaleString('en-IN')}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+
+        <div style={MODAL_BODY}>
+          {/* PO Document */}
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+            {/* Header banner */}
+            <div style={{ background: 'var(--b2)', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: 0.4 }}>PURCHASE ORDER</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,.7)', fontFamily: 'var(--mono)', marginTop: 3 }}>Draft · {poDate}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, color: '#fff', fontWeight: 700 }}>{scanResult?.supplier_name || '—'}</div>
+                {scanResult?.expected_date && (
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.75)', fontFamily: 'var(--mono)', marginTop: 2 }}>ETA: {scanResult.expected_date}</div>
+                )}
+                {scanResult?.payment_terms && (
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.75)', fontFamily: 'var(--mono)', marginTop: 1 }}>{scanResult.payment_terms}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Line items table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table className="tbl" style={{ marginBottom: 0 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 32 }}>#</th>
+                    <th>Product / SKU</th>
+                    <th>Category</th>
+                    <th>Specifications</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
+                    <th>Rate (₹)</th>
+                    <th>Total (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, idx) => {
+                    const rowTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
+                    return (
+                      <tr key={idx}>
+                        <td style={{ fontFamily: 'var(--mono)', color: 'var(--text3)', textAlign: 'center', fontSize: 11 }}>{idx + 1}</td>
+                        <td style={{ fontWeight: 600 }}>{item.sku_name || '—'}</td>
+                        <td style={{ fontSize: 11, color: 'var(--text3)' }}>{item.category || '—'}</td>
+                        <td style={{ fontSize: 11, color: 'var(--text3)', maxWidth: 150 }}>{item.specifications || '—'}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, textAlign: 'right' }}>{item.quantity ?? '—'}</td>
+                        <td style={{ fontSize: 11 }}>{item.unit || '—'}</td>
+                        <td style={{ fontFamily: 'var(--mono)', textAlign: 'right' }}>{item.unit_price != null ? Number(item.unit_price).toLocaleString('en-IN') : '—'}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, textAlign: 'right', color: rowTotal > 0 ? 'var(--green)' : 'var(--text3)' }}>
+                          {rowTotal > 0 ? rowTotal.toLocaleString('en-IN') : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Grand total row */}
+            <div style={{ padding: '12px 18px', background: 'var(--s3)', borderTop: '2px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              {scanResult?.notes
+                ? <div style={{ fontSize: 11, color: 'var(--text3)', maxWidth: '55%', fontStyle: 'italic' }}>📝 {scanResult.notes}</div>
+                : <div />}
+              <div>
+                <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>Grand Total:&nbsp;</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', fontFamily: 'var(--mono)' }}>
+                  ₹{grandTotal.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 7, padding: '9px 13px', fontSize: 12, color: 'var(--r2)', marginBottom: 12 }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', textAlign: 'center' }}>
+            Clicking Create will raise {items.length} PO{items.length !== 1 ? 's' : ''} (one per line item) to {scanResult?.supplier_name || 'the supplier'}.
+          </div>
+        </div>
+
+        <div style={MODAL_FTR}>
+          <button onClick={onEdit} style={BTN_GHOST} disabled={creating}>✏ Edit</button>
+          <button onClick={onClose} style={BTN_GHOST} disabled={creating}>Cancel</button>
+          <button onClick={handleCreate} disabled={creating || !items.length}
+            style={{ ...BTN_GREEN, opacity: (creating || !items.length) ? 0.65 : 1, cursor: (creating || !items.length) ? 'not-allowed' : 'pointer' }}>
+            {creating
+              ? `⏳ Creating ${items.length} PO${items.length !== 1 ? 's' : ''}…`
+              : `📋 Create ${items.length} PO${items.length !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PO APPROVAL MODAL ─────────────────────────────────────────────────────────
+
+function POApproveModal({ po, action, level, onClose, onDone }) {
+  // action: 'approve' | 'reject' | 'release'
+  const [approverName, setApproverName] = useState('');
+  const [comments, setComments]         = useState('');
+  const [busy, setBusy]                 = useState(false);
+  const [err, setErr]                   = useState('');
+
+  const isRelease = action === 'release';
+  const isReject  = action === 'reject';
+
+  const levelLabel = level === 'sales' ? 'Sales' : 'Finance';
+  const accentColor = isReject ? '#dc2626' : isRelease ? '#16a34a' : '#2563eb';
+
+  const handle = async () => {
+    if (!isRelease && !approverName.trim()) { setErr('Approver name is required.'); return; }
+    if (isReject && !comments.trim()) { setErr('Rejection reason is required.'); return; }
+    setBusy(true); setErr('');
+    try {
+      let url, method, body;
+      if (isRelease) {
+        url    = `/api/po/${po.po_number}/release`;
+        method = 'POST';
+        body   = null;
+      } else if (isReject) {
+        url    = `/api/po/${po.po_number}/reject`;
+        method = 'PATCH';
+        body   = JSON.stringify({ level, approver_name: approverName.trim(), reason: comments.trim() });
+      } else {
+        url    = `/api/po/${po.po_number}/approve`;
+        method = 'PATCH';
+        body   = JSON.stringify({ level, approver_name: approverName.trim(), comments: comments.trim() });
+      }
+      const res = await fetch(url, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+      onDone(data);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...MODAL_BOX, maxWidth: 420, marginTop: 100 }}>
+        <div style={{ ...MODAL_HDR, borderLeft: `4px solid ${accentColor}` }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
+              {isRelease ? '🚀 Release PO to Supplier' : isReject ? '✗ Reject Purchase Order' : `✓ Approve as ${levelLabel} Team`}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, fontFamily: 'var(--mono)' }}>
+              {po.po_number} · {po.supplier} · ₹{Number(po.total_value).toLocaleString('en-IN')}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text3)', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ padding: '18px 22px' }}>
+          {isRelease ? (
+            <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 8 }}>
+              Both Sales and Finance have approved this PO. Releasing it will change its status to <strong>OPEN</strong> and make it visible to the supplier. This action cannot be undone.
+            </div>
+          ) : (
+            <>
+              <div style={FIELD}>
+                <label style={LABEL}>{isReject ? 'Rejected by' : 'Approved by'} <span style={{ color: 'var(--r2)' }}>*</span></label>
+                <input value={approverName} onChange={e => setApproverName(e.target.value)}
+                  placeholder="Enter your name" style={INPUT} />
+              </div>
+              <div style={FIELD}>
+                <label style={LABEL}>{isReject ? 'Rejection Reason' : 'Comments'}{isReject && <span style={{ color: 'var(--r2)' }}> *</span>}</label>
+                <textarea value={comments} onChange={e => setComments(e.target.value)}
+                  placeholder={isReject ? 'State the reason for rejection…' : 'Optional approval remarks…'}
+                  style={{ ...INPUT, resize: 'vertical', minHeight: 72 }} />
+              </div>
+            </>
+          )}
+          {err && (
+            <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: 'var(--r2)', marginBottom: 10 }}>
+              ⚠ {err}
+            </div>
+          )}
+        </div>
+        <div style={MODAL_FTR}>
+          <button onClick={onClose} style={BTN_GHOST} disabled={busy}>Cancel</button>
+          <button onClick={handle} disabled={busy}
+            style={{ ...BTN_PRIMARY, background: accentColor, opacity: busy ? 0.7 : 1 }}>
+            {busy ? '⏳ Processing…' : isRelease ? '🚀 Release to Supplier' : isReject ? '✗ Confirm Reject' : `✓ Confirm Approval`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PO APPROVAL PANEL ─────────────────────────────────────────────────────────
+
+const APPROVAL_STATUS_STYLES = {
+  approved: { bg: '#dcfce7', color: '#15803d', icon: '✓' },
+  rejected: { bg: '#fee2e2', color: '#dc2626', icon: '✗' },
+  pending:  { bg: '#fef3c7', color: '#92400e', icon: '⏳' },
+};
+const PO_STATUS_COLORS = {
+  DRAFT:            { bg: '#f3f4f6', color: '#374151' },
+  PENDING_APPROVAL: { bg: '#fef3c7', color: '#92400e' },
+  APPROVED:         { bg: '#dcfce7', color: '#15803d' },
+  REJECTED:         { bg: '#fee2e2', color: '#dc2626' },
+};
+
+function POApprovalPanel({ pendingApprovals, loading, onRefresh, goChat }) {
+  const [modal, setModal] = useState(null); // { po, action, level }
+
+  const handleDone = () => {
+    setModal(null);
+    onRefresh();
+  };
+
+  if (loading) return (
+    <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text3)', fontSize: 13 }}>
+      Loading pending approvals…
+    </div>
+  );
+
+  if (!pendingApprovals.length) return (
+    <div style={{ textAlign: 'center', padding: '48px', color: 'var(--green)', fontSize: 13 }}>
+      ✓ No POs pending approval. All purchase orders are up to date.
+    </div>
+  );
+
+  return (
+    <>
+      {modal && (
+        <POApproveModal
+          po={modal.po}
+          action={modal.action}
+          level={modal.level}
+          onClose={() => setModal(null)}
+          onDone={handleDone}
+        />
+      )}
+
+      <div className="poa-grid">
+        {pendingApprovals.map(po => {
+          const salesApproval   = po.approvals?.sales   || { status: 'pending' };
+          const financeApproval = po.approvals?.finance || { status: 'pending' };
+          const poStatusStyle   = PO_STATUS_COLORS[po.status] || PO_STATUS_COLORS.DRAFT;
+          const fullyApproved   = salesApproval.status === 'approved' && financeApproval.status === 'approved';
+          const isRejected      = po.status === 'REJECTED';
+
+          return (
+            <div key={po.po_number} className="poa-card">
+              {/* Card header */}
+              <div className="poa-card-header">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 13, color: 'var(--b2)' }}>
+                      {po.po_number}
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                      background: poStatusStyle.bg, color: poStatusStyle.color }}>
+                      {po.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 2 }}>{po.supplier}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text3)', marginBottom: 2 }}>{po.sku}</div>
+                  <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                    <span>₹{Number(po.total_value).toLocaleString('en-IN')}</span>
+                    {po.expected_date && <span>ETA: {po.expected_date}</span>}
+                    {po.po_date && <span>Created: {po.po_date}</span>}
+                  </div>
+                </div>
+                <button onClick={() => goChat(`Analyse PO ${po.po_number} from ${po.supplier} worth ₹${Number(po.total_value).toLocaleString('en-IN')} and advise if I should approve it.`)}
+                  style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', color: 'var(--b2)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  🤖 Ask AI
+                </button>
+              </div>
+
+              {/* Approval levels */}
+              <div className="poa-approval-levels">
+                {[
+                  { key: 'sales',   label: 'Sales Team',   data: salesApproval },
+                  { key: 'finance', label: 'Finance Team', data: financeApproval },
+                ].map(({ key, label, data }) => {
+                  const style = APPROVAL_STATUS_STYLES[data.status] || APPROVAL_STATUS_STYLES.pending;
+                  return (
+                    <div key={key} className="poa-level-badge" style={{ background: style.bg, borderColor: style.color + '44' }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: style.color }}>{style.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: style.color }}>{label}</div>
+                        {data.status === 'approved' && data.approver && (
+                          <div style={{ fontSize: 10, color: '#166534', fontFamily: 'var(--mono)' }}>
+                            {data.approver}{data.approved_at ? ` · ${data.approved_at.slice(0, 10)}` : ''}
+                          </div>
+                        )}
+                        {data.status === 'rejected' && data.comments && (
+                          <div style={{ fontSize: 10, color: '#991b1b', fontStyle: 'italic' }}>{data.comments}</div>
+                        )}
+                        {data.status === 'pending' && (
+                          <div style={{ fontSize: 10, color: '#92400e', fontFamily: 'var(--mono)' }}>Awaiting approval</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Notes */}
+              {po.notes && (
+                <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic', padding: '4px 0' }}>
+                  📝 {po.notes}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              {!isRejected && (
+                <div className="poa-actions">
+                  {salesApproval.status === 'pending' && (
+                    <button onClick={() => setModal({ po, action: 'approve', level: 'sales' })}
+                      style={{ padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      ✓ Sales Approve
+                    </button>
+                  )}
+                  {financeApproval.status === 'pending' && (
+                    <button onClick={() => setModal({ po, action: 'approve', level: 'finance' })}
+                      style={{ padding: '6px 12px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      ✓ Finance Approve
+                    </button>
+                  )}
+                  {fullyApproved && (
+                    <button onClick={() => setModal({ po, action: 'release', level: null })}
+                      style={{ padding: '6px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      🚀 Release to Supplier
+                    </button>
+                  )}
+                  <button onClick={() => setModal({ po, action: 'reject', level: salesApproval.status !== 'approved' ? 'sales' : 'finance' })}
+                    style={{ padding: '6px 12px', background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    ✗ Reject
+                  </button>
+                </div>
+              )}
+              {isRejected && (
+                <div style={{ fontSize: 11, color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 12px', fontStyle: 'italic' }}>
+                  This PO has been rejected. Create a new PO or revise and resubmit.
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
 export default function POGRN({ onGoChat }) {
-  const [data, setData]           = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
-  const [industry, setIndustry]   = useState('laminates');
-  const [modal, setModal]         = useState(null);   // null | 'po' | 'grn'
-  const [success, setSuccess]     = useState(null);   // { type, result }
-  const [poPreFill, setPoPreFill] = useState(null);   // { supplier, item, rate, industry }
+  const [data, setData]                     = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState(null);
+  const [industry, setIndustry]             = useState('laminates');
+  const [modal, setModal]                   = useState(null);   // null | 'po' | 'grn'
+  const [success, setSuccess]               = useState(null);   // { type, result }
+  const [poPreFill, setPoPreFill]           = useState(null);   // { supplier, item, rate, industry }
+  const [showPOScanner, setShowPOScanner]   = useState(false);
+  const [poScanResult, setPoScanResult]     = useState(null);
+  const [showPOPreview, setShowPOPreview]   = useState(false);
+  const [activeTab, setActiveTab]           = useState('open');
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [approvalLoading, setApprovalLoading]   = useState(false);
 
   const fetchData = useCallback(async () => {
     setError(null);
@@ -999,7 +1810,18 @@ export default function POGRN({ onGoChat }) {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchPendingApprovals = useCallback(async () => {
+    setApprovalLoading(true);
+    try {
+      const res = await fetch('/api/po/pending-approvals');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setPendingApprovals(json.pending_approvals || []);
+    } catch (e) { /* non-fatal — keep existing list */ }
+    finally { setApprovalLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchData(); fetchPendingApprovals(); }, [fetchData, fetchPendingApprovals]);
   useAutoRefresh(fetchData, 5 * 60_000);
 
   const goChat = (q) => { if (onGoChat) onGoChat(q); };
@@ -1016,6 +1838,7 @@ export default function POGRN({ onGoChat }) {
     setPoPreFill(null);
     setSuccess({ type: 'po', result });
     fetchData();
+    fetchPendingApprovals();
   };
   const handleGRNSuccess = (result) => {
     setModal(null);
@@ -1031,6 +1854,24 @@ export default function POGRN({ onGoChat }) {
         : `GRN ${result.grn_number} from ${result.supplier} has been recorded successfully with a full match. Any follow-up actions needed?`;
     setSuccess(null);
     goChat(q);
+  };
+
+  const handleScanPreview = (result) => {
+    setPoScanResult(result);
+    setShowPOPreview(true);
+  };
+
+  const handleScanCreate = (results) => {
+    setShowPOScanner(false);
+    setShowPOPreview(false);
+    setPoScanResult(null);
+    if (results.length > 0) {
+      const firstResult = results.length > 1
+        ? { ...results[0], po_number: `${results[0].po_number} +${results.length - 1} more` }
+        : results[0];
+      setSuccess({ type: 'po', result: firstResult });
+    }
+    fetchData();
   };
 
   if (loading) return (
@@ -1072,6 +1913,21 @@ export default function POGRN({ onGoChat }) {
       {modal === 'grn' && (
         <CreateGRNModal industry={industry} onClose={() => setModal(null)} onSuccess={handleGRNSuccess} />
       )}
+      {showPOScanner && (
+        <POScannerModal
+          onClose={() => { setShowPOScanner(false); setShowPOPreview(false); setPoScanResult(null); }}
+          onPreview={handleScanPreview}
+        />
+      )}
+      {showPOPreview && poScanResult && (
+        <POPreviewModal
+          scanResult={poScanResult}
+          industry={industry}
+          onEdit={() => setShowPOPreview(false)}
+          onClose={() => { setShowPOScanner(false); setShowPOPreview(false); setPoScanResult(null); }}
+          onSuccess={handleScanCreate}
+        />
+      )}
 
       {/* ── Success overlay ─────────────────────────────────────────────── */}
       {success && (
@@ -1104,6 +1960,10 @@ export default function POGRN({ onGoChat }) {
           <button onClick={() => setModal('grn')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--green)', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
             📦 Record GRN
+          </button>
+          <button onClick={() => setShowPOScanner(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+            📷 Scan to PO
           </button>
           <button onClick={() => setModal('po')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: 'var(--b2)', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
@@ -1166,14 +2026,48 @@ export default function POGRN({ onGoChat }) {
           { cls: 'sr', l: 'Overdue POs', v: String(kpis.overdue_pos ?? 2), d: kpis.overdue_po_list ? `▼ ${kpis.overdue_po_list.slice(0, 38)}…` : '▼ 2 suppliers behind', s: 'Follow up required today' },
           { cls: 'sg', l: 'GRN Match Rate', v: kpis.grn_match_rate ?? '96%', d: `▲ ${kpis.grn_mismatches_mtd ?? 3} mismatches MTD`, s: `${kpis.grn_variance_value ?? '₹8,400'} variance flagged` },
           { cls: 'sa', l: 'Partial POs', v: String(kpis.partial_pos ?? 3), d: '▲ Partially delivered', s: 'Check fill rates below' },
-          { cls: 'st', l: 'GRN Issues', v: String(discrepancies.length), d: '▲ AI flagged', s: 'Review discrepancy log' },
+          {
+            cls: 'st', l: 'Pending Approval',
+            v: String(pendingApprovals.filter(p => p.status !== 'APPROVED').length || 0),
+            d: pendingApprovals.some(p => p.status === 'APPROVED') ? '▲ Ready to release' : '▲ Awaiting review',
+            s: 'Sales & Finance sign-off required',
+            onClick: () => setActiveTab('approvals'),
+          },
         ].map(k => (
-          <div key={k.l} className={`kc ${k.cls}`} onClick={() => goChat(`Explain the current status of ${k.l} and what action I should take`)} style={{ cursor: 'pointer' }}>
+          <div key={k.l} className={`kc ${k.cls}`}
+            onClick={k.onClick || (() => goChat(`Explain the current status of ${k.l} and what action I should take`))}
+            style={{ cursor: 'pointer' }}>
             <div className="kt"><div className="kl">{k.l}</div></div>
             <div className="kv">{k.v}</div>
             <div className="kd wn">{k.d}</div>
             <div className="ks">{k.s}</div>
           </div>
+        ))}
+      </div>
+
+      {/* ── Tab Bar ─────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 3, background: 'var(--s3)', borderRadius: 10, padding: 4, border: '1px solid var(--border)', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        {[
+          { id: 'open',         label: '📋 Open POs',           count: openPOs.length },
+          { id: 'approvals',    label: '⏳ Pending Approvals',   count: pendingApprovals.filter(p => p.status !== 'APPROVED' && p.status !== 'REJECTED').length },
+          { id: 'discrepancies',label: '⚠ GRN Issues',          count: discrepancies.length },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '8px 18px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, transition: 'all .15s', display: 'inline-flex', alignItems: 'center', gap: 7,
+              background: activeTab === tab.id ? 'var(--surface)' : 'transparent',
+              color:      activeTab === tab.id ? 'var(--b2)' : 'var(--text3)',
+              boxShadow:  activeTab === tab.id ? 'var(--sh)' : 'none',
+            }}>
+            {tab.label}
+            {tab.count > 0 && (
+              <span style={{
+                background: tab.id === 'approvals' ? '#d97706' : tab.id === 'discrepancies' ? '#dc2626' : 'var(--b2)',
+                color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 800,
+              }}>{tab.count}</span>
+            )}
+          </button>
         ))}
       </div>
 
@@ -1212,8 +2106,46 @@ export default function POGRN({ onGoChat }) {
         ))}
       </div>
 
+      {/* ── Pending Approvals Panel ─────────────────────────────────────── */}
+      {activeTab === 'approvals' && (
+        <div className="card">
+          <div className="ch" style={{ marginBottom: 14 }}>
+            <div>
+              <div className="ctit">PO Approval Workflow</div>
+              <div className="csub">Draft POs awaiting Sales &amp; Finance sign-off before issuing to supplier</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className={`bdg ${pendingApprovals.filter(p => p.status !== 'APPROVED' && p.status !== 'REJECTED').length > 0 ? 'ba' : 'bg'}`}>
+                {pendingApprovals.filter(p => p.status !== 'APPROVED' && p.status !== 'REJECTED').length} Pending
+              </span>
+              {pendingApprovals.some(p => p.status === 'APPROVED') && (
+                <span className="bdg bg">{pendingApprovals.filter(p => p.status === 'APPROVED').length} Ready to Release</span>
+              )}
+              <button onClick={() => { fetchPendingApprovals(); fetchData(); }}
+                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', color: 'var(--text3)', fontSize: 11, padding: '3px 9px', fontFamily: 'var(--mono)' }}>
+                ↻ Refresh
+              </button>
+            </div>
+          </div>
+          {/* Workflow legend */}
+          <div style={{ display: 'flex', gap: 16, marginBottom: 16, padding: '10px 14px', background: 'var(--s3)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, color: 'var(--text2)' }}>Workflow:</span>
+            <span>📋 <strong>DRAFT</strong> → PO created, awaiting review</span>
+            <span>⏳ <strong>PENDING</strong> → At least one team has approved</span>
+            <span>✅ <strong>APPROVED</strong> → Both approved, ready to release</span>
+            <span>🚀 <strong>OPEN</strong> → Released to supplier</span>
+          </div>
+          <POApprovalPanel
+            pendingApprovals={pendingApprovals}
+            loading={approvalLoading}
+            onRefresh={() => { fetchPendingApprovals(); fetchData(); }}
+            goChat={goChat}
+          />
+        </div>
+      )}
+
       {/* ── Open POs Table ──────────────────────────────────────────────── */}
-      <div className="card">
+      {activeTab === 'open' && <div className="card">
         <div className="ch" style={{ marginBottom: 12 }}>
           <div>
             <div className="ctit">Open Purchase Orders</div>
@@ -1273,10 +2205,10 @@ export default function POGRN({ onGoChat }) {
             </tbody>
           </table>
         )}
-      </div>
+      </div>}
 
       {/* ── GRN Discrepancy Log ─────────────────────────────────────────── */}
-      <div className="card" style={{ marginTop: 12 }}>
+      {activeTab === 'discrepancies' && <div className="card" style={{ marginTop: 12 }}>
         <div className="ch" style={{ marginBottom: 12 }}>
           <div>
             <div className="ctit">GRN Discrepancy Log — AI Flagged</div>
@@ -1335,7 +2267,7 @@ export default function POGRN({ onGoChat }) {
             </tbody>
           </table>
         )}
-      </div>
+      </div>}
 
       {/* ── Supplier Quotations ─────────────────────────────────────────── */}
       <QuotationsSection

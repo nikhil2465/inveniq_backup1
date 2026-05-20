@@ -7,7 +7,7 @@ import datetime
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -790,4 +790,108 @@ async def create_stock_transfer(req: StockTransferRequest):
         "from": req.from_godown_name, "to": req.to_godown_name,
         "sku_name": req.sku_name, "qty": req.qty, "transfer_date": today,
         "accounting_entry": record["accounting_entry"],
+    }
+
+
+# ── GET /api/distributor/my-stock ─────────────────────────────────────────────
+
+@router.get("/distributor/my-stock")
+async def distributor_my_stock(request: Request):
+    """
+    Return stock allocated to the authenticated distributor only.
+    Reads distributor_id from the JWT claim set at login.
+    Returns 403 if the caller is not a distributor account.
+    """
+    user           = request.scope.get("user", {})
+    distributor_id = user.get("distributor_id")
+    role           = user.get("role", "")
+
+    if role != "distributor" or distributor_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Access restricted to distributor accounts.",
+        )
+
+    # ── Try DB first ─────────────────────────────────────────────────────────
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        # Distributor header
+                        await cur.execute(
+                            "SELECT distributor_id, distributor_name, contact_person, "
+                            "phone, city, status FROM distributors WHERE distributor_id = %s AND is_active = 1",
+                            (distributor_id,),
+                        )
+                        dist_row = await cur.fetchone()
+                        if dist_row:
+                            dcols = [c[0] for c in cur.description]
+                            dist  = dict(zip(dcols, dist_row))
+                            # Stock items dispatched to this distributor
+                            await cur.execute("""
+                                SELECT sd.sku_code, p.sku_name, p.category,
+                                       sd.qty, sd.unit,
+                                       sd.qty * sd.buy_price AS stock_value,
+                                       sd.dispatch_date, sd.order_ref
+                                FROM stock_dispatches sd
+                                JOIN products p ON p.sku_code = sd.sku_code
+                                WHERE sd.distributor_id = %s AND sd.status = 'ACTIVE'
+                                ORDER BY sd.dispatch_date DESC
+                            """, (distributor_id,))
+                            srows = await cur.fetchall()
+                            scols = [c[0] for c in cur.description]
+                            dist["stock"] = [dict(zip(scols, sr)) for sr in srows]
+                            dist["total_stock_value"] = sum(i["stock_value"] for i in dist["stock"])
+                            return {"distributor": dist, "data_source": "mysql"}
+        except Exception as exc:
+            logger.warning("Distributor my-stock DB failed: %s", exc)
+
+    # ── Demo fallback — find matching distributor from mock data ──────────────
+    from app.core.demo_state import get_distributor_dispatches
+    mock_all  = _mock_distributor_inventory()
+    base      = next((d for d in mock_all if d["distributor_id"] == distributor_id), None)
+
+    if base is None:
+        return {"distributor": None, "stock": [], "message": "No stock allocated yet", "data_source": "demo"}
+
+    # Merge session dispatches for this distributor
+    session_items = [
+        s for s in get_distributor_dispatches()
+        if s.get("distributor_id") == distributor_id
+    ]
+    extra_stock = [
+        {
+            "sku_code":       it["sku_code"],
+            "sku_name":       it["sku_name"],
+            "category":       it.get("category", "—"),
+            "qty":            it["qty"],
+            "unit":           it["unit"],
+            "stock_value":    it["qty"] * it["buy_price"],
+            "dispatch_date":  it.get("dispatch_date", datetime.date.today().isoformat()),
+            "order_ref":      it.get("order_ref", "—"),
+        }
+        for it in session_items
+    ]
+
+    all_stock = base["stock"] + extra_stock
+    total_val = sum(i.get("stock_value", 0) for i in all_stock)
+
+    return {
+        "distributor": {
+            "distributor_id":   base["distributor_id"],
+            "distributor_name": base["distributor_name"],
+            "contact_person":   base["contact_person"],
+            "phone":            base["phone"],
+            "city":             base["city"],
+            "status":           base["status"],
+            "stock":            all_stock,
+            "total_stock_value": total_val,
+            "total_stock_value_fmt": (
+                f"₹{total_val/100000:.2f}L" if total_val >= 100000
+                else f"₹{int(total_val):,}"
+            ),
+        },
+        "data_source": "demo",
     }

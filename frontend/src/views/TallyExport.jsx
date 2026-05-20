@@ -179,7 +179,7 @@ const InfoIcon = () => (
 );
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function TallyExport({ dbStatus, period }) {
+export default function TallyExport({ dbStatus, period, onGoChat }) {
   // ALL hooks unconditionally before any early return (React rules of hooks)
   const [summary,        setSummary]        = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
@@ -312,6 +312,14 @@ export default function TallyExport({ dbStatus, period }) {
           );
         })}
       </div>
+
+      {/* ── AI insight ───────────────────────────────────────────── */}
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginBottom: 14 }} onClick={() => onGoChat('Review my Tally export data — are there any GST rate mismatches between stock items, gaps in HSN codes, duplicate ledger names, or purchase vouchers without PO references that would cause import errors in Tally Prime?')}>
+          <span>✨</span>
+          <span>Ask AI: Validate export data — check for GST mismatches, duplicate ledgers, missing HSN codes before Tally import →</span>
+        </div>
+      )}
 
       {/* ── Info notice ──────────────────────────────────────────── */}
       <div className="te-notice">

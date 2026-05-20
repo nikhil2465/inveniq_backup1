@@ -4,17 +4,60 @@ Each endpoint follows DB-first / mock-fallback pattern.
 One router file to serve all 11 pages and the AI validation endpoint.
 """
 import asyncio
+import json
 import logging
+import os
+import sys
+import threading
 from datetime import date, timedelta
+from pathlib import Path
 
 import aiomysql
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Dashboard"])
 
-# Session-persistent imported customers (same pattern as catalog runtime products)
-_RUNTIME_CUSTOMERS: list = []
+# ── File-backed customer store — shared across all uvicorn workers ─────────────
+# Persists on disk so customers survive both worker restarts AND auto-refresh.
+_CUSTOMERS_FILE = (
+    Path(sys.executable).parent / "data" / "added_customers.json"
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent.parent.parent / "data" / "added_customers.json"
+)
+_customers_lock = threading.Lock()
+
+
+def _load_added_customers() -> list:
+    """Read persisted customers from disk (safe to call from any worker)."""
+    try:
+        if _CUSTOMERS_FILE.exists():
+            with open(_CUSTOMERS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, list) else []
+    except Exception as exc:
+        logger.debug("Could not load added_customers.json: %s", exc)
+    return []
+
+
+def _save_added_customers(customers: list) -> None:
+    """Atomically overwrite the customers file (temp-file + os.replace)."""
+    try:
+        _CUSTOMERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = str(_CUSTOMERS_FILE) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(customers, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, str(_CUSTOMERS_FILE))
+    except Exception as exc:
+        logger.warning("Could not persist added customers: %s", exc)
+
+
+def _append_customers(new_entries: list) -> None:
+    """Thread-safe append of one or more customers to the persisted file."""
+    with _customers_lock:
+        existing = _load_added_customers()
+        existing.extend(new_entries)
+        _save_added_customers(existing)
 
 try:
     from app.db.connection import get_pool
@@ -308,24 +351,32 @@ async def get_sales(period: str = Query("MTD")):
 # ── /api/customers ─────────────────────────────────────────────────────────────
 @router.get("/customers")
 async def get_customers(period: str = Query("MTD")):
+    added = _load_added_customers()
     result = await _try_db("query_customer_list")
     if result:
+        if added:
+            result = dict(result)
+            result["customers"] = list(result.get("customers") or []) + added
+            result["total_customers"] = len(result["customers"])
+            result["data_source"] = str(result.get("data_source", "mysql")) + "+added"
         return result
     basic = await _try_db("query_customer")
     if basic:
         return {
-            "total_customers": basic.get("total_customers", 148),
+            "total_customers": int(basic.get("total_customers", 148)) + len(added),
             "at_risk_count": len(basic.get("at_risk", [])),
             "total_outstanding": basic.get("total_outstanding", "₹12.8L"),
             "overdue_receivables": basic.get("overdue_receivables", []),
             "at_risk": basic.get("at_risk", []),
-            "customers": [],
-            "data_source": "mysql",
+            "customers": added,
+            "data_source": "mysql+added" if added else "mysql",
         }
-    return _mock_customers()
+    return _mock_customers(added)
 
 
-def _mock_customers():
+def _mock_customers(added: list | None = None):
+    if added is None:
+        added = _load_added_customers()
     base = [
         {"name": "Modern Kitchens Pvt Ltd",     "segment": "Kitchen Studio",  "monthly_value": "₹4.2L", "outstanding": "₹0",    "days_since_order": 45, "risk": "MEDIUM", "score": 54},
         {"name": "Mehta Construction Group",    "segment": "Contractor",      "monthly_value": "₹3.8L", "outstanding": "₹0",    "days_since_order": 2,  "risk": "LOW",    "score": 94},
@@ -337,7 +388,7 @@ def _mock_customers():
         {"name": "Raju Plumbing & Sanitary",    "segment": "Plumber/Installer","monthly_value": "₹1.1L","outstanding": "₹0.2L", "days_since_order": 4,  "risk": "LOW",    "score": 87},
         {"name": "Sunrise Hardware Traders",    "segment": "Retailer",        "monthly_value": "₹0.9L", "outstanding": "₹0",    "days_since_order": 8,  "risk": "LOW",    "score": 91},
     ]
-    all_customers = base + _RUNTIME_CUSTOMERS
+    all_customers = base + added
     overdue = [
         {"customer": "Sharma Constructions",        "amount": "₹3.4L", "days_overdue": 78, "risk": "HIGH"},
         {"customer": "Metro Builders & Developers", "amount": "₹2.1L", "days_overdue": 52, "risk": "HIGH"},
@@ -351,38 +402,84 @@ def _mock_customers():
         "best_segment": "Kitchen Studios",
         "customers": all_customers,
         "overdue_receivables": overdue,
-        "data_source": "mock" if not _RUNTIME_CUSTOMERS else "mock+imported",
+        "data_source": "mock" if not added else "mock+added",
     }
+
+
+def _fmt_money(v) -> str:
+    if v is None or v == "" or v == 0:
+        return "₹0"
+    if isinstance(v, (int, float)):
+        return f"₹{v:,.0f}"
+    s = str(v).strip()
+    return s if s else "₹0"
+
+
+def _safe_int(val, default: int = 0) -> int:
+    """Parse any value as int — returns default on empty/non-numeric (handles 'N/A', '-', etc.)."""
+    if val is None or val == "":
+        return default
+    if isinstance(val, (int, float)):
+        return int(val)
+    try:
+        return int(float(str(val).strip()))
+    except Exception:
+        return default
+
+
+@router.post("/customers/add", status_code=201)
+async def add_customer(payload: dict):
+    """Manually add a single customer. Persisted to disk — survives worker rotation and restarts."""
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Customer name is required.")
+    customer = {
+        "name":             name,
+        "segment":          str(payload.get("segment") or "General").strip(),
+        "monthly_value":    _fmt_money(payload.get("monthly_value")),
+        "outstanding":      _fmt_money(payload.get("outstanding")),
+        "days_since_order": _safe_int(payload.get("days_since_order"), 0),
+        "risk":             str(payload.get("risk") or "LOW").strip().upper(),
+        "score":            _safe_int(payload.get("score"), 50),
+    }
+    for extra in ("email", "phone", "address", "contact_person"):
+        if payload.get(extra):
+            customer[extra] = str(payload[extra]).strip()
+    _append_customers([customer])
+    logger.info("Customer added manually: name=%s segment=%s", name, customer["segment"])
+    return {"added": 1, "customer": customer, "message": f"Customer '{name}' added successfully."}
 
 
 @router.post("/customers/import", status_code=201)
 async def import_customers(payload: dict):
-    """Import customers from CSV/Excel mapping. Session-persistent (lost on server restart)."""
+    """Import customers from CSV/Excel mapping. Persisted to disk — survives worker rotation and restarts."""
     customers = payload.get("customers", [])
     added = []
+    skipped = 0
     for c in customers:
         name = (c.get("name") or "").strip()
         if not name:
+            skipped += 1
             continue
         customer = {
             "name":             name,
-            "segment":          (c.get("segment") or "General").strip(),
-            "monthly_value":    (c.get("monthly_value") or "₹0").strip(),
-            "outstanding":      (c.get("outstanding") or "₹0").strip(),
-            "days_since_order": int(float(c.get("days_since_order") or 0)) if c.get("days_since_order") else 0,
-            "risk":             (c.get("risk") or "LOW").strip().upper(),
-            "score":            int(float(c.get("score") or 50)) if c.get("score") else 50,
+            "segment":          str(c.get("segment") or "General").strip(),
+            "monthly_value":    _fmt_money(c.get("monthly_value")),
+            "outstanding":      _fmt_money(c.get("outstanding")),
+            "days_since_order": _safe_int(c.get("days_since_order"), 0),
+            "risk":             str(c.get("risk") or "LOW").strip().upper(),
+            "score":            _safe_int(c.get("score"), 50),
         }
-        # Carry through any extra fields (email, phone, address)
-        for extra in ("email", "phone", "address"):
+        for extra in ("email", "phone", "address", "contact_person"):
             if c.get(extra):
-                customer[extra] = c[extra].strip()
-        _RUNTIME_CUSTOMERS.append(customer)
+                customer[extra] = str(c[extra]).strip()
         added.append(customer)
         logger.info("Customer import: name=%s segment=%s", name, customer["segment"])
-
+    if added:
+        _append_customers(added)
     return {
         "added":   len(added),
+        "skipped": skipped,
         "message": f"{len(added)} customer(s) imported successfully.",
     }
 
@@ -589,6 +686,53 @@ def _mock_procurement():
             {"type": "warning", "text": "GRN-4422: Hindware qty mismatch — 18 units received vs 24 ordered"},
             {"type": "warning", "text": "PO-8839 Jaquar +1 day delay — ₹2.4L CP fittings lot in transit"},
             {"type": "info",    "text": "Ebco India 94% on-time — preferred supplier this quarter"},
+        ],
+        "data_source": "mock",
+    }
+
+
+# ── /api/procurement/suppliers ─────────────────────────────────────────────────
+
+@router.get("/procurement/suppliers")
+async def get_supplier_list():
+    """Lightweight endpoint — supplier name list with performance data for PO dropdowns."""
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                raw = await db_q.query_supplier(pool, "")
+                db_suppliers = raw.get("suppliers", [])
+                if db_suppliers:
+                    return {
+                        "suppliers": [
+                            {
+                                "name": s.get("name", ""),
+                                "on_time_pct": s.get("on_time_pct", 0),
+                                "grn_match_rate": s.get("grn_match_rate", "—"),
+                                "recommendation": s.get("recommendation") or _compute_verdict(
+                                    s.get("on_time_pct", 0),
+                                    s.get("avg_delay_days", 0),
+                                    s.get("grn_match_rate", "0%"),
+                                ),
+                            }
+                            for s in db_suppliers if s.get("name")
+                        ],
+                        "data_source": "mysql",
+                    }
+        except Exception as exc:
+            logger.warning("supplier-list DB failed: %s", exc)
+
+    return {
+        "suppliers": [
+            {
+                "name": s["name"],
+                "on_time_pct": s["on_time_pct"],
+                "grn_match_rate": s["grn_match_rate"],
+                "recommendation": _compute_verdict(
+                    s["on_time_pct"], s["avg_delay_days"], s["grn_match_rate"]
+                ),
+            }
+            for s in _SUPPLIER_PERF
         ],
         "data_source": "mock",
     }

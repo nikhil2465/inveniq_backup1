@@ -1,0 +1,71 @@
+##############################################################################
+# InvenIQ v3.0 — Client Docker Stack
+#
+# This compose file is for CLIENT DELIVERY — it uses pre-built images
+# from Docker Hub so the client never sees source code.
+#
+# BEFORE SHARING:
+#   1. Build and push images:
+#        docker build -t YOUR_DOCKERHUB/inveniq-backend:v3 -f Dockerfile .
+#        docker build -t YOUR_DOCKERHUB/inveniq-frontend:v3 -f frontend/Dockerfile ./frontend
+#        docker push YOUR_DOCKERHUB/inveniq-backend:v3
+#        docker push YOUR_DOCKERHUB/inveniq-frontend:v3
+#   2. Replace image: lines below with your Docker Hub paths
+#   3. Send this file + backend/.env.SETUP to the client
+#
+# CLIENT SETUP:
+#   1. Install Docker Desktop: https://www.docker.com/products/docker-desktop/
+#   2. Copy backend/.env.SETUP → backend/.env and fill in values
+#   3. Run: docker compose -f docker-compose.client.yml up -d
+#   4. Open: http://localhost
+##############################################################################
+
+name: inveniq-client
+
+services:
+
+  # ── Frontend (nginx serving React SPA) ─────────────────────────────────────
+  frontend:
+    # REPLACE with your Docker Hub image after pushing:
+    # image: YOUR_DOCKERHUB/inveniq-frontend:v3
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - inveniq-net
+
+  # ── Backend (FastAPI + uvicorn) ─────────────────────────────────────────────
+  backend:
+    # REPLACE with your Docker Hub image after pushing:
+    # image: YOUR_DOCKERHUB/inveniq-backend:v3
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      # Client-restricted module access — overrides .env for this deployment
+      AUTH_USERNAME: client
+      AUTH_ROLE: client
+      AUTH_ALLOWED_MODULES: quotes,customers,catalog,chatbot
+      ALLOWED_ORIGINS: "http://localhost,http://127.0.0.1"
+    expose:
+      - "8000"
+    networks:
+      - inveniq-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+
+networks:
+  inveniq-net:
+    driver: bridge

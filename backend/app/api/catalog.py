@@ -5,6 +5,7 @@ and Furniture Hardware (Ebco, Hafele, Hettich and more).
 Supports AI-powered product extraction from images, PDFs, spreadsheets, or typed text.
 New products can be scanned and added to the live catalog without restart.
 """
+import asyncio
 import base64
 import io as _io
 import json
@@ -1177,26 +1178,32 @@ async def scan_catalog_image(
     if not has_file and not has_text:
         return {"brand": "", "document_type": "empty", "total_found": 0, "products": [], "error": "No input provided."}
 
-    file_bytes, content_type, filename = b"", "", ""
-    if has_file:
-        file_bytes   = await file.read()
-        content_type = file.content_type or ""
-        filename     = (file.filename or "").lower()
-
-    text_content, is_image, image_b64, image_ct = _extract_for_catalog(
-        file_bytes, content_type, filename
-    ) if has_file else ("", False, "", "")
-
-    if text_content == "__scanned_pdf__":
-        return {
-            "brand": "", "document_type": "scanned_pdf", "total_found": 0, "products": [],
-            "error": "This PDF has no text layer (scanned/image-only). Take a screenshot of the price list page and upload as JPG or PNG — AI Vision will read it directly.",
-        }
-
-    combined = "\n\n".join(filter(None, [text_input.strip(), text_content]))
-
     try:
         from openai import AsyncOpenAI
+
+        file_bytes, content_type, filename = b"", "", ""
+        if has_file:
+            file_bytes   = await file.read()
+            content_type = file.content_type or ""
+            filename     = (file.filename or "").lower()
+            if len(file_bytes) > 20 * 1024 * 1024:
+                return {
+                    "brand": "", "document_type": "error", "total_found": 0, "products": [],
+                    "error": "File is too large (max 20 MB). For images, use a compressed JPG. For documents, paste the text instead.",
+                }
+
+        text_content, is_image, image_b64, image_ct = _extract_for_catalog(
+            file_bytes, content_type, filename
+        ) if has_file else ("", False, "", "")
+
+        if text_content == "__scanned_pdf__":
+            return {
+                "brand": "", "document_type": "scanned_pdf", "total_found": 0, "products": [],
+                "error": "This PDF has no text layer (scanned/image-only). Take a screenshot of the price list page and upload as JPG or PNG — AI Vision will read it directly.",
+            }
+
+        combined = "\n\n".join(filter(None, [text_input.strip(), text_content]))
+
         client = AsyncOpenAI(api_key=api_key, timeout=60.0)
 
         if is_image and not has_text:
@@ -1265,10 +1272,16 @@ async def scan_catalog_image(
         result["total_found"] = len(result["products"])
         return result
 
-    except Exception as exc:
+    except asyncio.CancelledError:
+        raise
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException as exc:
         logger.exception("catalog scan error: %s", exc)
         err_type = type(exc).__name__
-        if "JSONDecodeError" in err_type:
+        if "TimeoutError" in err_type or "Timeout" in err_type:
+            msg = "Request timed out. Try a smaller image or paste the product text manually."
+        elif "JSONDecodeError" in err_type:
             msg = "AI returned an incomplete response (catalog may be very large). Try uploading fewer pages at a time, or paste the product list as text."
         elif "AuthenticationError" in err_type or "Unauthorized" in str(exc):
             msg = "Invalid OPENAI_API_KEY. Check your .env file and restart the backend."
@@ -1280,6 +1293,186 @@ async def scan_catalog_image(
             "brand": "", "document_type": "error", "total_found": 0, "products": [],
             "error": msg,
         }
+
+
+# ── Visual product search endpoint ────────────────────────────────────────────
+
+_VISUAL_SEARCH_SYSTEM = """You are a product identification specialist for Indian hardware, sanitary fittings, laminates, and building materials.
+
+Given a product image, identify what product is shown and return the top 5 best matches from the catalog provided by the user.
+
+IMPORTANT RULES:
+1. Analyze the image carefully: look for visible brand markings, SKU codes, model names, finish, shape, size indicators.
+2. Match confidently against the catalog list provided.
+3. Return ONLY valid JSON in this exact format — no extra text:
+
+{
+  "identified_product": "brief description of what you see in the image",
+  "identified_category": "most likely product category",
+  "identified_brand": "brand if visible, else null",
+  "matches": [
+    {
+      "product_id": 101,
+      "sku_code": "SKU-CODE",
+      "name": "Product Name",
+      "category": "Category",
+      "unit": "pcs",
+      "sell_price": 485,
+      "confidence_pct": 92,
+      "reason": "one sentence explaining why this is a strong match"
+    }
+  ]
+}
+
+Return between 1 and 5 matches sorted by confidence_pct descending.
+If no catalog match is plausible, return an empty matches array with identified_product still filled."""
+
+
+@router.post("/catalog/visual-search")
+async def visual_search_catalog(
+    file: Optional[UploadFile] = File(None),
+):
+    """
+    Identify a product from an uploaded photo and return top catalog matches.
+    Uses GPT-4o Vision. Accepts JPG, PNG, WEBP images (max 10 MB).
+    Returns up to 5 ranked matches with confidence scores.
+    """
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        return {
+            "demo": True,
+            "identified_product": "Demo product — soft-close hinge (no OPENAI_API_KEY set)",
+            "identified_category": "Hardware Fittings",
+            "identified_brand": "Demo Brand",
+            "matches": [
+                {
+                    "product_id": 101,
+                    "sku_code": "HPL-1MM-MATTE",
+                    "name": "HPL 1mm Matte / Suede",
+                    "category": "High Pressure Laminate",
+                    "unit": "sheet",
+                    "sell_price": 1300,
+                    "confidence_pct": 85,
+                    "reason": "Demo match — add OPENAI_API_KEY to enable real vision search.",
+                },
+            ],
+        }
+
+    if file is None or not file.filename:
+        return {"error": "No image file provided. Please upload a JPG or PNG photo of the product.", "matches": []}
+
+    file_bytes   = await file.read()
+    content_type = file.content_type or "image/jpeg"
+    filename     = (file.filename or "").lower()
+
+    if len(file_bytes) > 10 * 1024 * 1024:
+        return {"error": "Image is too large (max 10 MB). Please compress or resize before uploading.", "matches": []}
+
+    if not (content_type.startswith("image/") or filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))):
+        return {"error": "Only image files are supported (JPG, PNG, WEBP). Upload a clear photo of the product.", "matches": []}
+
+    try:
+        from openai import AsyncOpenAI
+
+        image_b64 = base64.b64encode(file_bytes).decode("utf-8")
+        if not content_type.startswith("image/"):
+            content_type = "image/jpeg"
+
+        # Build compact catalog index for GPT-4o to match against
+        all_products = _get_all_products()
+        catalog_lines = []
+        for p in all_products:
+            catalog_lines.append(
+                f"ID:{p['product_id']} SKU:{p.get('sku_code','')} "
+                f"Name:{p.get('name','')} Brand:{p.get('brand','')} "
+                f"Cat:{p.get('category','')} Unit:{p.get('unit','')} "
+                f"Price:{p.get('sell_price','')}"
+            )
+        catalog_text = "\n".join(catalog_lines)
+
+        client = AsyncOpenAI(api_key=api_key, timeout=60.0)
+
+        resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _VISUAL_SEARCH_SYSTEM},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type":      "image_url",
+                            "image_url": {"url": f"data:{content_type};base64,{image_b64}", "detail": "high"},
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Identify this product and match it against our catalog below. "
+                                "Return ONLY the JSON response as specified.\n\n"
+                                "CATALOG:\n" + catalog_text
+                            ),
+                        },
+                    ],
+                },
+            ],
+            max_tokens=1200,
+            response_format={"type": "json_object"},
+        )
+
+        raw = (resp.choices[0].message.content or "").strip()
+        # Strip any markdown fences GPT may add despite json_object mode
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[-1] if raw.count("```") >= 2 else raw
+            if raw.startswith("json"):
+                raw = raw[4:]
+            end = raw.rfind("```")
+            if end != -1:
+                raw = raw[:end]
+            raw = raw.strip()
+
+        result = json.loads(raw)
+        result.setdefault("matches", [])
+
+        # Enrich each match with full product details from catalog (sell_price, unit, etc.)
+        product_map = {p["product_id"]: p for p in all_products}
+        enriched = []
+        for m in result["matches"][:5]:
+            pid = m.get("product_id")
+            if pid and pid in product_map:
+                p = product_map[pid]
+                enriched.append({
+                    "product_id":    pid,
+                    "sku_code":      p.get("sku_code", m.get("sku_code", "")),
+                    "name":          p.get("name", m.get("name", "")),
+                    "category":      p.get("category", m.get("category", "")),
+                    "brand":         p.get("brand", ""),
+                    "unit":          p.get("unit", m.get("unit", "")),
+                    "sell_price":    p.get("sell_price", m.get("sell_price", 0)),
+                    "buy_price":     p.get("buy_price", 0),
+                    "stock_status":  p.get("stock_status", "in_stock"),
+                    "confidence_pct": m.get("confidence_pct", 0),
+                    "reason":        m.get("reason", ""),
+                })
+            else:
+                enriched.append(m)
+        result["matches"] = enriched
+        return result
+
+    except asyncio.CancelledError:
+        raise
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException as exc:
+        logger.exception("catalog visual-search error: %s", exc)
+        err_type = type(exc).__name__
+        if "TimeoutError" in err_type or "Timeout" in err_type:
+            msg = "Request timed out. Please try again."
+        elif "AuthenticationError" in err_type or "Unauthorized" in str(exc):
+            msg = "Invalid OPENAI_API_KEY. Check your .env file and restart the backend."
+        elif "RateLimitError" in err_type:
+            msg = "OpenAI rate limit reached. Wait 60 seconds and try again."
+        else:
+            msg = f"Visual search failed ({err_type}). Check your OPENAI_API_KEY and try again."
+        return {"error": msg, "matches": []}
 
 
 # ── Add product endpoints ──────────────────────────────────────────────────────

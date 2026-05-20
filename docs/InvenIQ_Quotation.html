@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>InvenIQ v3.1 — Software Quotation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;font-size:13px;color:#0f172a;background:#f8fafc;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .page{max-width:940px;margin:0 auto;background:#fff;box-shadow:0 0 40px rgba(0,0,0,.08)}
+
+  .hdr{background:linear-gradient(135deg,#14532d 0%,#15803d 55%,#16a34a 100%);color:#fff;padding:36px 48px 30px;display:flex;justify-content:space-between;align-items:flex-start}
+  .hdr-logo{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .hdr-logo-icon{width:40px;height:40px;background:rgba(255,255,255,.18);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;letter-spacing:-1px}
+  .hdr-logo-name{font-size:22px;font-weight:800;color:#fff;letter-spacing:-.5px}
+  .hdr-logo-edition{font-size:9px;font-weight:600;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:1.5px;margin-top:-2px}
+  .hdr-tagline{font-size:11px;color:rgba(255,255,255,.7)}
+  .hdr-industry{margin-top:8px;font-size:11px;color:rgba(255,255,255,.6)}
+  .hdr-right{text-align:right}
+  .hdr-doc-type{font-size:20px;font-weight:700;color:#fff;letter-spacing:-.3px}
+  .hdr-meta{font-size:11px;color:rgba(255,255,255,.75);margin-top:3px}
+  .hdr-valid{font-size:10px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:3px 10px;margin-top:8px;display:inline-block;color:rgba(255,255,255,.9)}
+
+  .parties{display:grid;grid-template-columns:1fr 1fr;border-bottom:2px solid #e2e8f0}
+  .party{padding:20px 48px}
+  .party:first-child{border-right:1px solid #e2e8f0}
+  .party-label{font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px}
+  .party-name{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px}
+  .party-detail{font-size:11.5px;color:#475569;line-height:1.7}
+
+  .section{padding:26px 48px}
+  .section+.section{border-top:1px solid #f1f5f9}
+  .sec-title{font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .sec-title::after{content:'';flex:1;height:1px;background:#dcfce7}
+
+  .summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .sc{border:1px solid #e2e8f0;border-radius:10px;padding:13px 14px;text-align:center}
+  .sc-val{font-size:18px;font-weight:800;color:#15803d;letter-spacing:-.5px}
+  .sc-lbl{font-size:10px;color:#64748b;margin-top:2px;font-weight:500}
+  .sc.hl{background:#f0fdf4;border-color:#bbf7d0}
+
+  .annual-box{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:0}
+  .annual-card{border-radius:10px;padding:18px 22px;text-align:center}
+  .annual-card.primary{background:linear-gradient(135deg,#14532d,#15803d)}
+  .annual-card.secondary{background:#f0f9ff;border:2px solid #0ea5e9}
+  .ac-label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px}
+  .annual-card.primary .ac-label{color:rgba(255,255,255,.7)}
+  .annual-card.secondary .ac-label{color:#0369a1}
+  .ac-amt{font-size:30px;font-weight:800;letter-spacing:-1.5px}
+  .annual-card.primary .ac-amt{color:#fff}
+  .annual-card.secondary .ac-amt{color:#0369a1}
+  .ac-sub{font-size:11px;margin-top:5px}
+  .annual-card.primary .ac-sub{color:rgba(255,255,255,.65)}
+  .annual-card.secondary .ac-sub{color:#0284c7}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  thead tr{background:#f8fafc}
+  th{padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0}
+  th.r,td.r{text-align:right}
+  td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:top}
+  .item-name{font-weight:600;color:#0f172a;line-height:1.4}
+  .item-desc{font-size:11px;color:#64748b;margin-top:2px;line-height:1.5}
+
+  .tr-cat td{font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.7px;padding:7px 12px}
+  .tr-cat.ai td    {background:#5b21b6}
+  .tr-cat.core td  {background:#1e3a5f}
+  .tr-cat.ops td   {background:#064e3b}
+  .tr-cat.comm td  {background:#7c2d12}
+  .tr-cat.p2p td   {background:#0f4c75}
+  .tr-cat.cloud td {background:#0c4a6e}
+  .tr-cat.setup td {background:#1f2937}
+  .tr-cat.yr1 td   {background:#0f172a}
+
+  .tr-sub td{background:#f8fafc;font-size:11px;font-weight:700;color:#334155;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:7px 12px}
+  .tr-sub td.r{color:#0f172a;font-size:12px}
+  .tr-gst td{background:#fafafa;font-size:12px;font-weight:500;color:#64748b;padding:7px 12px;border-top:1px dashed #e2e8f0}
+  .tr-ann td{background:#f0fdf4;font-size:14px;font-weight:800;color:#15803d;border-top:2px solid #16a34a;padding:13px 12px}
+  .tr-onetime td{background:#f0f9ff;font-size:13px;font-weight:700;color:#0369a1;border-top:2px solid #38bdf8;padding:12px}
+  .tr-yr1 td{background:#fef9c3;font-size:15px;font-weight:800;color:#78350f;border-top:3px solid #f59e0b;padding:14px 12px}
+  .tr-saving td{background:#fefce8;font-size:11px;color:#92400e;padding:8px 12px}
+
+  .badge-ai  {display:inline-block;background:#ede9fe;color:#7c3aed;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:5px;text-transform:uppercase}
+  .badge-new {display:inline-block;background:#dcfce7;color:#15803d;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:5px;text-transform:uppercase;border:1px solid #bbf7d0}
+  .badge-free{display:inline-block;background:#dcfce7;color:#15803d;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:5px;text-transform:uppercase;border:1px solid #bbf7d0}
+  .badge-cloud{display:inline-block;background:#e0f2fe;color:#0369a1;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:5px;text-transform:uppercase}
+  .badge-p2p{display:inline-block;background:#e0f2fe;color:#0f4c75;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:5px;text-transform:uppercase}
+  .strike{text-decoration:line-through;color:#94a3b8;font-size:11px;margin-right:4px}
+  .amt-g{color:#15803d;font-weight:700}
+  .n{color:#94a3b8;font-size:11px}
+
+  .mod-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 24px}
+  .mod-col-title{font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.8px;padding:7px 0 5px;border-bottom:1px solid #dcfce7;margin-bottom:9px;margin-top:12px}
+  .mod-col-title:first-child{margin-top:0}
+  .mod-item{display:flex;align-items:flex-start;gap:7px;padding:4px 0;border-bottom:1px solid #f1f5f9}
+  .mod-item:last-child{border-bottom:none}
+  .mod-check{width:14px;height:14px;background:#15803d;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  .mod-check::after{content:'✓';color:#fff;font-size:9px;font-weight:800}
+  .mod-check.new{background:#0ea5e9}
+  .mod-name{font-size:11.5px;color:#334155;font-weight:500;line-height:1.4}
+  .mod-sub{font-size:10px;color:#94a3b8}
+
+  .pay-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .pay-card{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+  .pay-hdr{background:#f8fafc;padding:9px 14px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0}
+  .pay-card.hl .pay-hdr{background:#f0fdf4;color:#15803d;border-bottom-color:#bbf7d0}
+  .pay-body{padding:13px 14px}
+  .pay-amt{font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-.5px}
+  .pay-card.hl .pay-amt{color:#15803d}
+  .pay-when{font-size:11px;color:#64748b;margin-top:3px}
+  .pay-line{font-size:11px;color:#475569;padding:3px 0;display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9}
+  .pay-line:last-child{border-bottom:none}
+  .pay-lines{margin-top:10px}
+
+  .ai-box{background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1px solid #c4b5fd;border-radius:10px;padding:18px 22px;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start}
+  .ai-icon{width:42px;height:42px;background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .ai-title{font-size:14px;font-weight:700;color:#4c1d95;margin-bottom:5px}
+  .ai-desc{font-size:12px;color:#5b21b6;line-height:1.6}
+  .ai-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .ai-pill{background:rgba(124,58,237,.12);color:#5b21b6;font-size:10px;font-weight:600;padding:3px 9px;border-radius:99px;border:1px solid rgba(124,58,237,.2)}
+
+  .cloud-box{background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px 20px;margin-bottom:0}
+  .cloud-box-title{font-size:12px;font-weight:700;color:#0c4a6e;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .cloud-infra-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .ci-group{background:#fff;border:1px solid #bae6fd;border-radius:8px;overflow:hidden}
+  .ci-group-hdr{background:#e0f2fe;padding:8px 12px;display:flex;justify-content:space-between;align-items:center}
+  .ci-group-name{font-size:11px;font-weight:700;color:#0c4a6e}
+  .ci-group-total{font-size:11px;font-weight:800;color:#0369a1}
+  .ci-lines{padding:8px 12px}
+  .ci-line{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-bottom:1px dashed #e0f2fe}
+  .ci-line:last-child{border-bottom:none}
+  .ci-line-name{font-size:11px;color:#334155}
+  .ci-line-spec{font-size:10px;color:#94a3b8;margin-top:1px}
+  .ci-line-cost{font-size:11px;font-weight:600;color:#0369a1;white-space:nowrap;margin-left:8px}
+  .tr-cloud-grp td{background:#e0f2fe;font-size:10px;font-weight:700;color:#0c4a6e;text-transform:uppercase;letter-spacing:.5px;padding:5px 12px 5px 20px;border-bottom:none}
+
+  .addon-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .addon-item{border:1px solid #e2e8f0;border-radius:8px;padding:10px 13px;display:flex;justify-content:space-between;align-items:center}
+  .addon-name{font-size:12px;font-weight:600;color:#334155}
+  .addon-sub{font-size:10.5px;color:#64748b;margin-top:2px}
+  .addon-price{font-size:12px;font-weight:700;color:#0f172a;text-align:right;white-space:nowrap;margin-left:10px;flex-shrink:0}
+
+  .terms-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .term-title{font-size:11px;font-weight:700;color:#334155;margin-bottom:6px}
+  .term-list{list-style:none;padding:0}
+  .term-list li{font-size:11.5px;color:#475569;padding:3px 0 3px 14px;position:relative;line-height:1.5}
+  .term-list li::before{content:'•';position:absolute;left:0;color:#15803d;font-weight:700}
+
+  .note-box{background:#fefce8;border:1px solid #fef08a;border-left:4px solid #eab308;border-radius:6px;padding:11px 14px;font-size:11.5px;color:#713f12;line-height:1.6;margin-top:13px}
+  .divider{height:1px;background:linear-gradient(90deg,transparent,#e2e8f0,transparent)}
+
+  .footer{background:#f8fafc;border-top:2px solid #e2e8f0;padding:22px 48px;display:flex;justify-content:space-between;align-items:center}
+  .footer-left{font-size:11px;color:#64748b;line-height:1.7}
+  .footer-sig{text-align:right}
+  .footer-sig-label{font-size:10px;color:#94a3b8;margin-bottom:20px}
+  .footer-sig-line{border-top:1px solid #334155;width:180px;padding-top:6px;font-size:11px;font-weight:600;color:#334155;text-align:center}
+
+  @media print{
+    body{background:#fff}.page{box-shadow:none;max-width:100%}
+    .section{padding:18px 38px}.hdr{padding:26px 38px 20px}
+    .parties .party{padding:16px 38px}.footer{padding:16px 38px}
+    @page{margin:0;size:A4}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ══ HEADER ══ -->
+<div class="hdr">
+  <div>
+    <div class="hdr-logo">
+      <div class="hdr-logo-icon">IQ</div>
+      <div>
+        <div class="hdr-logo-name">InvenIQ</div>
+        <div class="hdr-logo-edition">v3.1 &nbsp;·&nbsp; Enterprise Edition</div>
+      </div>
+    </div>
+    <div class="hdr-tagline">AI-Powered Inventory Intelligence &amp; ERP Platform</div>
+    <div class="hdr-industry">Hardware &nbsp;·&nbsp; Sanitary Fittings &nbsp;·&nbsp; Building Materials &nbsp;·&nbsp; Furniture Fittings</div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-doc-type">QUOTATION</div>
+    <div class="hdr-meta">Ref: IQ-QT-2026-002</div>
+    <div class="hdr-meta">Date: 20 May 2026</div>
+    <div class="hdr-valid">Valid for 30 Days &nbsp;·&nbsp; till 19 June 2026</div>
+  </div>
+</div>
+
+<!-- ══ PARTIES ══ -->
+<div class="parties">
+  <div class="party">
+    <div class="party-label">From (Seller)</div>
+    <div class="party-name">InvenIQ Technologies</div>
+    <div class="party-detail">
+      Enterprise Software Division<br/>
+      Email: nikrao246@gmail.com<br/>
+      GSTIN: [Your GSTIN Here]<br/>India
+    </div>
+  </div>
+  <div class="party">
+    <div class="party-label">To (Buyer / Client)</div>
+    <div class="party-name">[Client Business Name]</div>
+    <div class="party-detail">
+      [Contact Person Name]<br/>
+      [Business Address, City, State — PIN]<br/>
+      GSTIN: [Client GSTIN]<br/>
+      Mobile: [+91 XXXXX XXXXX]
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUMMARY CARDS ══ -->
+<div class="section">
+  <div class="sec-title">Platform at a Glance — v3.1</div>
+  <div class="summary-cards">
+    <div class="sc hl"><div class="sc-val">33</div><div class="sc-lbl">Business Modules</div></div>
+    <div class="sc hl"><div class="sc-val">GPT-4o</div><div class="sc-lbl">AI Engine</div></div>
+    <div class="sc hl"><div class="sc-val">20</div><div class="sc-lbl">AI Business Tools</div></div>
+    <div class="sc hl"><div class="sc-val">6</div><div class="sc-lbl">User Role Profiles</div></div>
+  </div>
+</div>
+
+<!-- ══ AI HIGHLIGHT ══ -->
+<div class="section" style="padding-top:0">
+  <div class="ai-box">
+    <div class="ai-icon">🤖</div>
+    <div>
+      <div class="ai-title">GPT-4o AI Business Intelligence — Built In</div>
+      <div class="ai-desc">InvenIQ is powered by OpenAI GPT-4o — the most capable commercial AI available. It reads your live inventory, sales, and customer data and delivers actionable answers in plain language. Like having a senior business analyst on-call 24/7, at no extra charge.</div>
+      <div class="ai-pills">
+        <span class="ai-pill">20 Live Business Tools</span>
+        <span class="ai-pill">Root Cause Analysis</span>
+        <span class="ai-pill">Demand Forecasting</span>
+        <span class="ai-pill">Proactive Alerts</span>
+        <span class="ai-pill">AI Quotation Generator</span>
+        <span class="ai-pill">Streaming Chat Answers</span>
+        <span class="ai-pill">Ask / Explain / Act Modes</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══ MODULES ══ -->
+<div class="section">
+  <div class="sec-title">All 33 Modules Included &nbsp;(8 New in v3.1 highlighted in blue)</div>
+  <div class="mod-grid">
+
+    <div>
+      <div class="mod-col-title">📊 Overview &amp; Analytics</div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Business Overview Dashboard</div><div class="mod-sub">Live KPIs · AI Daily Brief · Smart Alerts</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Analytics &amp; Business Intelligence</div><div class="mod-sub">ABC analysis · Revenue trends · Supplier scorecards</div></div></div>
+      <div class="mod-col-title">📦 Inventory &amp; Warehouse</div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Stock &amp; Inventory Management</div><div class="mod-sub">Live stock · Low-stock alerts · Valuation</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Product Catalog Management</div><div class="mod-sub">Full SKU library · AI scan · Specs &amp; MRP</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Demand Forecasting AI</div><div class="mod-sub">AI-predicted demand · Seasonal patterns</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Dead Stock &amp; Ageing Analysis</div><div class="mod-sub">90-day+ stagnant items · Recovery strategies</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Inward &amp; Stock Movement</div><div class="mod-sub">GRN entries · Inward tracking</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Warehouse Management</div><div class="mod-sub">Multi-godown · Stock transfers · Capacity</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">Damage Recording <span class="badge-new">New v3.1</span></div><div class="mod-sub">Transit &amp; GRN damage log · Insurance claims</div></div></div>
+    </div>
+
+    <div>
+      <div class="mod-col-title">🚚 Procurement &amp; Supply Chain</div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Procurement &amp; Supplier Management</div><div class="mod-sub">Supplier scoring · Lead time · Order frequency</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">PO &amp; GRN Management</div><div class="mod-sub">Purchase orders · GRN · Discrepancy tracking</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">Gate Entry Management <span class="badge-new">New v3.1</span></div><div class="mod-sub">Vehicle log · DC verify · Forward to stores</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">Purchase Requisition <span class="badge-new">New v3.1</span></div><div class="mod-sub">PR workflow · Approval · PO conversion</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">QC Inspection <span class="badge-new">New v3.1</span></div><div class="mod-sub">Post-GRN quality control · Accept / RTV</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">Invoice Matching (3-Way) <span class="badge-new">New v3.1</span></div><div class="mod-sub">PO · GRN · Invoice match · AP approval</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">Landing Cost Calculator <span class="badge-new">New v3.1</span></div><div class="mod-sub">True landed cost · Freight · Customs · GST</div></div></div>
+      <div class="mod-col-title">💼 Sales &amp; CRM</div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Sales Performance &amp; Analytics</div><div class="mod-sub">Revenue · Margin · Product-wise analysis</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Customer Intelligence</div><div class="mod-sub">Segmentation · At-risk accounts · History</div></div></div>
+    </div>
+
+    <div>
+      <div class="mod-col-title">💼 Sales &amp; CRM (contd.)</div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Orders &amp; Fulfilment</div><div class="mod-sub">Order pipeline · Pending · Dispatch status</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Sales Orders Management</div><div class="mod-sub">Custom orders · Claims &amp; rebates</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Counter POS System</div><div class="mod-sub">Walk-in billing · Fast checkout · Daily summary</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Freight &amp; Logistics Planning</div><div class="mod-sub">Route optimisation · Carrier comparison</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">Sales Return Management <span class="badge-new">New v3.1</span></div><div class="mod-sub">Return workflow · Credit notes · Stock reversal</div></div></div>
+      <div class="mod-item"><div class="mod-check new"></div><div><div class="mod-name">Distributor Portal <span class="badge-new">New v3.1</span></div><div class="mod-sub">My stock view · Inventory browser · Self-service</div></div></div>
+      <div class="mod-col-title">💰 Finance, Projects &amp; AI</div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Finance &amp; Receivables</div><div class="mod-sub">P&amp;L · Receivables ageing · Working capital</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Credit Management</div><div class="mod-sub">Credit limits · Overdue tracking · PDC</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Quotation Builder (AI + PDF)</div><div class="mod-sub">AI quotes · PDF export · Email delivery</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Discount Intelligence AI</div><div class="mod-sub">Distributor pricing · Margin guardrails</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Scheme &amp; Promotion Mgmt</div><div class="mod-sub">Supplier schemes · Target tracking · Accruals</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Customer Claims &amp; Rebates</div><div class="mod-sub">Volume claims · Price diff · Lumpsum</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Project Tracker</div><div class="mod-sub">Inquiry → Quote → Order → Invoice pipeline</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">Tally Prime Export</div><div class="mod-sub">CSV export — Tally ERP 9 &amp; Prime compatible</div></div></div>
+      <div class="mod-item"><div class="mod-check"></div><div><div class="mod-name">AI Business Assistant (GPT-4o)</div><div class="mod-sub">Always-on · 20 tools · Ask/Explain/Act</div></div></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══ CLOUD INFRASTRUCTURE ══ -->
+<div class="section">
+  <div class="sec-title">Cloud Infrastructure — Included in Annual Price</div>
+  <div class="cloud-box">
+    <div class="cloud-box-title">
+      ☁️ &nbsp;<strong>Fully Managed Cloud Stack — 13 Components</strong> &nbsp;· &nbsp;Complete infrastructure to run InvenIQ 24/7, included in the annual subscription. No hidden bills.
+    </div>
+    <div class="cloud-infra-grid">
+
+      <div class="ci-group">
+        <div class="ci-group-hdr">
+          <div class="ci-group-name">🖥️ &nbsp;Compute &amp; Networking</div>
+          <div class="ci-group-total">₹79,400 /year</div>
+        </div>
+        <div class="ci-lines">
+          <div class="ci-line">
+            <div><div class="ci-line-name">Application Server (VPS)</div><div class="ci-line-spec">4 vCPU · 8 GB RAM · 80 GB NVMe SSD · Ubuntu LTS</div></div>
+            <div class="ci-line-cost">₹66,000</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Static / Dedicated IP Address</div><div class="ci-line-spec">Fixed public IP, DNS-mapped to client subdomain</div></div>
+            <div class="ci-line-cost">₹1,400</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">DDoS Protection &amp; WAF</div><div class="ci-line-spec">Cloudflare Pro — blocks attacks, rate-limits bots</div></div>
+            <div class="ci-line-cost">₹12,000</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ci-group">
+        <div class="ci-group-hdr">
+          <div class="ci-group-name">🗄️ &nbsp;Database &amp; Storage</div>
+          <div class="ci-group-total">₹37,800 /year</div>
+        </div>
+        <div class="ci-lines">
+          <div class="ci-line">
+            <div><div class="ci-line-name">Managed MySQL Database Server</div><div class="ci-line-spec">Dedicated DB node · High-availability · Read performance tuned</div></div>
+            <div class="ci-line-cost">₹30,000</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Daily Automated DB Backups</div><div class="ci-line-spec">Point-in-time recovery · 30-day retention · One-click restore</div></div>
+            <div class="ci-line-cost">₹2,400</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Application Block Storage (50 GB)</div><div class="ci-line-spec">Persistent SSD volume for uploads, exports &amp; PDFs</div></div>
+            <div class="ci-line-cost">₹3,000</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Offsite Backup Object Storage (50 GB)</div><div class="ci-line-spec">Geographically redundant · Separate from primary VPS</div></div>
+            <div class="ci-line-cost">₹2,400</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ci-group">
+        <div class="ci-group-hdr">
+          <div class="ci-group-name">🔒 &nbsp;Security &amp; Monitoring</div>
+          <div class="ci-group-total">₹15,600 /year</div>
+        </div>
+        <div class="ci-lines">
+          <div class="ci-line">
+            <div><div class="ci-line-name">Wildcard SSL + Custom Domain</div><div class="ci-line-spec">clientname.inveniq.app · HTTPS enforced · Auto-renews</div></div>
+            <div class="ci-line-cost">₹4,800</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Uptime &amp; Performance Monitoring</div><div class="ci-line-spec">60-second checks · Instant alerts · Response time graphs</div></div>
+            <div class="ci-line-cost">₹4,800</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Centralized Log Management</div><div class="ci-line-spec">Application &amp; error logs · 30-day log retention · Search</div></div>
+            <div class="ci-line-cost">₹3,600</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Auto Health Checks &amp; Process Watchdog</div><div class="ci-line-spec">Zero-downtime auto-recovery on crash</div></div>
+            <div class="ci-line-cost">₹2,400</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ci-group">
+        <div class="ci-group-hdr">
+          <div class="ci-group-name">🤖 &nbsp;AI API &amp; Communications</div>
+          <div class="ci-group-total">₹67,200 /year</div>
+        </div>
+        <div class="ci-lines">
+          <div class="ci-line">
+            <div><div class="ci-line-name">OpenAI GPT-4o API Credits</div><div class="ci-line-spec">Pre-allocated tokens · covers ~10 active users/day</div></div>
+            <div class="ci-line-cost">₹60,000</div>
+          </div>
+          <div class="ci-line">
+            <div><div class="ci-line-name">Transactional Email Delivery (SMTP)</div><div class="ci-line-spec">Up to 10,000 emails/month — quotes, alerts, notifications</div></div>
+            <div class="ci-line-cost">₹7,200</div>
+          </div>
+        </div>
+        <div style="padding:8px 12px;background:#f0f9ff;border-top:1px dashed #bae6fd;font-size:10.5px;color:#0369a1;line-height:1.5">
+          <strong>Note:</strong> Heavy AI users (&gt;10/day) may exceed pre-allocated credits. Additional usage billed at actual OpenAI cost.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══ ANNUAL SUMMARY CARDS ══ -->
+<div class="section">
+  <div class="sec-title">Annual Investment Summary</div>
+  <div class="annual-box">
+    <div class="annual-card primary">
+      <div class="ac-label">Year 2 Onwards — Recurring Annual Total</div>
+      <div class="ac-amt">₹23,42,300</div>
+      <div class="ac-sub">incl. 18% GST &nbsp;·&nbsp; all 33 modules + cloud infra</div>
+    </div>
+    <div class="annual-card secondary">
+      <div class="ac-label">Year 1 — Total Investment (setup + full year)</div>
+      <div class="ac-amt">₹26,13,700</div>
+      <div class="ac-sub">incl. 18% GST &nbsp;·&nbsp; one-time setup + annual license</div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══ PRICING TABLE ══ -->
+<div class="section">
+  <div class="sec-title">Module-wise Pricing Breakup</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:4%">#</th>
+        <th style="width:32%">Module</th>
+        <th style="width:42%">What's Included</th>
+        <th style="width:22%" class="r">Annual License (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <!-- TIER 1 -->
+      <tr class="tr-cat ai"><td colspan="4">Tier 1 — AI &amp; Intelligence Modules &nbsp;(GPT-4o Powered)</td></tr>
+      <tr>
+        <td class="n">01</td>
+        <td><div class="item-name">AI Business Assistant <span class="badge-ai">GPT-4o</span></div><div class="item-desc">Always-on side panel, streaming answers, 3 modes</div></td>
+        <td class="item-desc">20 live data tools, root-cause analysis engine, natural-language interface, demand / supplier / finance intelligence</td>
+        <td class="r" style="font-weight:600;color:#0f172a">1,75,000</td>
+      </tr>
+      <tr>
+        <td class="n">02</td>
+        <td><div class="item-name">Demand Forecasting AI <span class="badge-ai">GPT-4o</span></div><div class="item-desc">AI-predicted demand, seasonal pattern recognition</div></td>
+        <td class="item-desc">SKU-level forecasting, pre-Diwali / pre-monsoon alerts, automatic reorder threshold recommendations</td>
+        <td class="r" style="font-weight:600;color:#0f172a">1,30,000</td>
+      </tr>
+      <tr>
+        <td class="n">03</td>
+        <td><div class="item-name">Business Analytics Intelligence <span class="badge-ai">AI</span></div><div class="item-desc">ABC analysis, revenue trends, supplier scorecards</div></td>
+        <td class="item-desc">Category performance, contribution margins, customer LTV, AI-generated weekly business summaries</td>
+        <td class="r" style="font-weight:600;color:#0f172a">1,00,000</td>
+      </tr>
+      <tr>
+        <td class="n">04</td>
+        <td><div class="item-name">Discount Intelligence AI <span class="badge-ai">AI</span></div><div class="item-desc">Distributor pricing engine, AI margin guardrails</div></td>
+        <td class="item-desc">Dynamic discount calculator, minimum margin enforcement, AI-suggested pricing tiers, quote history tracking</td>
+        <td class="r" style="font-weight:600;color:#0f172a">85,000</td>
+      </tr>
+      <tr>
+        <td class="n">05</td>
+        <td><div class="item-name">Customer Intelligence AI <span class="badge-ai">AI</span></div><div class="item-desc">Segmentation, at-risk detection, behaviour analysis</div></td>
+        <td class="item-desc">Customer health scores, overdue pattern detection, churn risk signals, AI-generated recovery action plans</td>
+        <td class="r" style="font-weight:600;color:#0f172a">70,000</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:18px">Tier 1 Subtotal — AI &amp; Intelligence (5 modules)</td><td class="r">5,60,000</td></tr>
+
+      <!-- TIER 2 -->
+      <tr class="tr-cat core"><td colspan="4">Tier 2 — Core Business Modules</td></tr>
+      <tr>
+        <td class="n">06</td>
+        <td><div class="item-name">Overview &amp; KPI Dashboard</div><div class="item-desc">Executive KPIs, AI daily brief, alert centre</div></td>
+        <td class="item-desc">Revenue MTD/QTD/YTD, gross margin, stock turns, live alerts, one-click AI deep-dive on any metric</td>
+        <td class="r" style="font-weight:600;color:#0f172a">55,000</td>
+      </tr>
+      <tr>
+        <td class="n">07</td>
+        <td><div class="item-name">Inventory &amp; Stock Management</div><div class="item-desc">Live stock, valuation, multi-location</div></td>
+        <td class="item-desc">Real-time stock levels, brand/category drill-down, low-stock alerts, ABC classification, valuation at cost</td>
+        <td class="r" style="font-weight:600;color:#0f172a">65,000</td>
+      </tr>
+      <tr>
+        <td class="n">08</td>
+        <td><div class="item-name">Sales Performance &amp; Analytics</div><div class="item-desc">Revenue, margins, product-wise analysis</div></td>
+        <td class="item-desc">Daily/MTD/YTD revenue, top-selling products, margin trends, salesperson-wise tracking, CSV export</td>
+        <td class="r" style="font-weight:600;color:#0f172a">55,000</td>
+      </tr>
+      <tr>
+        <td class="n">09</td>
+        <td><div class="item-name">Finance &amp; Receivables</div><div class="item-desc">P&amp;L, receivables ageing, working capital</div></td>
+        <td class="item-desc">Gross margin dashboard, receivables ageing brackets, top debtors, working capital &amp; cash flow snapshot</td>
+        <td class="r" style="font-weight:600;color:#0f172a">65,000</td>
+      </tr>
+      <tr>
+        <td class="n">10</td>
+        <td><div class="item-name">Orders &amp; Fulfilment</div><div class="item-desc">Order pipeline, pending, dispatch status</div></td>
+        <td class="item-desc">Order lifecycle management, pending order queue, SLA tracking, dispatch status, customer order history</td>
+        <td class="r" style="font-weight:600;color:#0f172a">55,000</td>
+      </tr>
+      <tr>
+        <td class="n">11</td>
+        <td><div class="item-name">Counter POS System</div><div class="item-desc">Walk-in billing, fast checkout, daily summary</div></td>
+        <td class="item-desc">Counter sales billing, product search, quantity entry, daily revenue summary, top-selling items view</td>
+        <td class="r" style="font-weight:600;color:#0f172a">55,000</td>
+      </tr>
+      <tr>
+        <td class="n">12</td>
+        <td><div class="item-name">Credit Management</div><div class="item-desc">Credit limits, overdue tracking, PDC</div></td>
+        <td class="item-desc">Per-customer credit limits, overdue alerts, PDC cheque tracking, credit utilisation dashboard</td>
+        <td class="r" style="font-weight:600;color:#0f172a">50,000</td>
+      </tr>
+      <tr>
+        <td class="n">13</td>
+        <td><div class="item-name">Procurement Management</div><div class="item-desc">Supplier scoring, lead time, order frequency</div></td>
+        <td class="item-desc">Supplier performance scores, on-time delivery %, reorder frequency analysis, preferred supplier tagging</td>
+        <td class="r" style="font-weight:600;color:#0f172a">60,000</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:18px">Tier 2 Subtotal — Core Business (8 modules)</td><td class="r">4,60,000</td></tr>
+
+      <!-- TIER 3 -->
+      <tr class="tr-cat ops"><td colspan="4">Tier 3 — Supply Chain &amp; Operations Modules</td></tr>
+      <tr>
+        <td class="n">14</td>
+        <td><div class="item-name">PO &amp; GRN Management</div><div class="item-desc">Purchase orders, goods receipt, discrepancies</div></td>
+        <td class="item-desc">PO creation, GRN matching, quantity/price discrepancy alerts, open PO dashboard, supplier reconciliation</td>
+        <td class="r" style="font-weight:600;color:#0f172a">50,000</td>
+      </tr>
+      <tr>
+        <td class="n">15</td>
+        <td><div class="item-name">Dead Stock &amp; Ageing Analysis</div><div class="item-desc">90-day+ stagnant items, recovery strategies</div></td>
+        <td class="item-desc">Dead stock identification, ageing brackets (30/60/90/180d), capital-locked analysis, AI clearance suggestions</td>
+        <td class="r" style="font-weight:600;color:#0f172a">50,000</td>
+      </tr>
+      <tr>
+        <td class="n">16</td>
+        <td><div class="item-name">Warehouse Management</div><div class="item-desc">Multi-godown, stock transfers, capacity view</div></td>
+        <td class="item-desc">Multiple warehouse/godown management, inter-location transfers, per-location stock levels, utilisation tracking</td>
+        <td class="r" style="font-weight:600;color:#0f172a">45,000</td>
+      </tr>
+      <tr>
+        <td class="n">17</td>
+        <td><div class="item-name">Freight &amp; Logistics Planning</div><div class="item-desc">Route optimisation, carrier comparison</div></td>
+        <td class="item-desc">Freight cost tracking, route-wise performance, carrier benchmarking, delivery SLA monitoring</td>
+        <td class="r" style="font-weight:600;color:#0f172a">45,000</td>
+      </tr>
+      <tr>
+        <td class="n">18</td>
+        <td><div class="item-name">Inward &amp; Stock Movement</div><div class="item-desc">GRN entries, inward tracking</div></td>
+        <td class="item-desc">Inward GRN register, movement audit trail, category-wise inward trends, supplier-wise receipt history</td>
+        <td class="r" style="font-weight:600;color:#0f172a">40,000</td>
+      </tr>
+      <tr>
+        <td class="n">19</td>
+        <td><div class="item-name">Customer Claims &amp; Rebates</div><div class="item-desc">Volume claims, price diff, lumpsum rebates</div></td>
+        <td class="item-desc">Claim workflow, volume/price-diff/lumpsum types, settlement tracking, credit note generation</td>
+        <td class="r" style="font-weight:600;color:#0f172a">40,000</td>
+      </tr>
+      <tr>
+        <td class="n">20</td>
+        <td><div class="item-name">Scheme &amp; Promotion Management</div><div class="item-desc">Supplier promotions, target tracking, accruals</div></td>
+        <td class="item-desc">Supplier scheme tracking, target vs achievement dashboard, scheme accrual calculator, promotion calendar</td>
+        <td class="r" style="font-weight:600;color:#0f172a">30,000</td>
+      </tr>
+      <tr>
+        <td class="n">21</td>
+        <td><div class="item-name">Damage Recording <span class="badge-new">New v3.1</span></div><div class="item-desc">Transit &amp; GRN damage log, insurance claim support</div></td>
+        <td class="item-desc">Damage entry by type (transit/GRN), photo attachment, claim reference tracking, damage value analysis</td>
+        <td class="r" style="font-weight:600;color:#0f172a">25,000</td>
+      </tr>
+      <tr>
+        <td class="n">22</td>
+        <td><div class="item-name">Sales Return Management <span class="badge-new">New v3.1</span></div><div class="item-desc">Return workflow, credit notes, stock reversal</div></td>
+        <td class="item-desc">Customer return processing, reason tracking, credit note generation, stock re-entry, return history export</td>
+        <td class="r" style="font-weight:600;color:#0f172a">30,000</td>
+      </tr>
+      <tr>
+        <td class="n">23</td>
+        <td><div class="item-name">Landing Cost Calculator <span class="badge-new">New v3.1</span></div><div class="item-desc">True landed cost: freight, customs, GST, charges</div></td>
+        <td class="item-desc">Complete landed cost sheets, per-item cost allocation, multi-charge-head support, saved sheets with history</td>
+        <td class="r" style="font-weight:600;color:#0f172a">35,000</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:18px">Tier 3 Subtotal — Supply Chain &amp; Operations (10 modules)</td><td class="r">3,90,000</td></tr>
+
+      <!-- TIER 4 -->
+      <tr class="tr-cat comm"><td colspan="4">Tier 4 — Commerce &amp; Integration Modules</td></tr>
+      <tr>
+        <td class="n">24</td>
+        <td><div class="item-name">Quotation Builder (AI + PDF)</div><div class="item-desc">AI quotes, PDF export, email delivery</div></td>
+        <td class="item-desc">Branded PDF quotations, AI item suggestions, email-to-client, quote history, acceptance status tracking</td>
+        <td class="r" style="font-weight:600;color:#0f172a">40,000</td>
+      </tr>
+      <tr>
+        <td class="n">25</td>
+        <td><div class="item-name">Product Catalog Management</div><div class="item-desc">Full SKU library, specs, MRP, AI scan</div></td>
+        <td class="item-desc">Complete product database with specs, MRP, margin, application tags, bulk import/export, AI barcode scan</td>
+        <td class="r" style="font-weight:600;color:#0f172a">35,000</td>
+      </tr>
+      <tr>
+        <td class="n">26</td>
+        <td><div class="item-name">Project Tracker</div><div class="item-desc">Inquiry → Quote → Order → Invoice pipeline</div></td>
+        <td class="item-desc">End-to-end project lifecycle, stage-wise tracking, linked quotes and orders, project-wise profitability view</td>
+        <td class="r" style="font-weight:600;color:#0f172a">30,000</td>
+      </tr>
+      <tr>
+        <td class="n">27</td>
+        <td><div class="item-name">Sales Orders Management</div><div class="item-desc">Custom order tracking, claims, dispatch</div></td>
+        <td class="item-desc">Custom item orders, dispatch status, order-linked claims, delivery confirmation, history export</td>
+        <td class="r" style="font-weight:600;color:#0f172a">30,000</td>
+      </tr>
+      <tr>
+        <td class="n">28</td>
+        <td><div class="item-name">Tally Prime Export Integration</div><div class="item-desc">CSV export — Tally ERP 9 &amp; Prime compatible</div></td>
+        <td class="item-desc">One-click export in Tally-compatible CSV: sales, purchases, payments, stock entries, ledgers</td>
+        <td class="r" style="font-weight:600;color:#0f172a">30,000</td>
+      </tr>
+      <tr>
+        <td class="n">29</td>
+        <td><div class="item-name">Distributor Portal (My Stock) <span class="badge-new">New v3.1</span></div><div class="item-desc">Self-service portal for distributor users</div></td>
+        <td class="item-desc">Distributor-specific stock view, inventory browser, self-service access with isolated data per distributor</td>
+        <td class="r" style="font-weight:600;color:#0f172a">40,000</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:18px">Tier 4 Subtotal — Commerce &amp; Integration (6 modules)</td><td class="r">2,05,000</td></tr>
+
+      <!-- TIER 5 — P2P ENTERPRISE -->
+      <tr class="tr-cat p2p"><td colspan="4">Tier 5 — P2P Enterprise Modules &nbsp;(Procure-to-Pay Workflow — New in v3.1)</td></tr>
+      <tr>
+        <td class="n">30</td>
+        <td><div class="item-name">Gate Entry Management <span class="badge-new">New v3.1</span></div><div class="item-desc">Vehicle arrival log, DC verification, forward to GRN</div></td>
+        <td class="item-desc">Vehicle registration, delivery challan verification, seal-intact check, security approval, automatic GRN forwarding</td>
+        <td class="r" style="font-weight:600;color:#0f172a">35,000</td>
+      </tr>
+      <tr>
+        <td class="n">31</td>
+        <td><div class="item-name">Purchase Requisition <span class="badge-new">New v3.1</span></div><div class="item-desc">PR workflow with multi-level approval and PO conversion</div></td>
+        <td class="item-desc">PR creation with line items, department/priority tracking, manager approval workflow, one-click PO conversion</td>
+        <td class="r" style="font-weight:600;color:#0f172a">40,000</td>
+      </tr>
+      <tr>
+        <td class="n">32</td>
+        <td><div class="item-name">QC Inspection <span class="badge-new">New v3.1</span></div><div class="item-desc">Post-GRN quality control, 7-parameter checklist, Accept/RTV</div></td>
+        <td class="item-desc">Quality inspection workflow, PASS/FAIL checklist, acceptance ratio tracking, Return-to-Vendor (RTV) initiation</td>
+        <td class="r" style="font-weight:600;color:#0f172a">45,000</td>
+      </tr>
+      <tr>
+        <td class="n">33</td>
+        <td><div class="item-name">Invoice Matching (3-Way) <span class="badge-new">New v3.1</span></div><div class="item-desc">PO · GRN · Supplier Invoice match with AP approval</div></td>
+        <td class="item-desc">Automated 3-way match with 1% tolerance detection, discrepancy alerts, AP approval workflow, payment scheduling</td>
+        <td class="r" style="font-weight:600;color:#0f172a">50,000</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:18px">Tier 5 Subtotal — P2P Enterprise (4 modules)</td><td class="r">1,70,000</td></tr>
+
+      <!-- CLOUD INFRA -->
+      <tr class="tr-cat cloud"><td colspan="4">Cloud Infrastructure — 13-Component Managed Stack (included in subscription)</td></tr>
+
+      <tr class="tr-cloud-grp"><td colspan="4">🖥️ &nbsp;Compute &amp; Networking</td></tr>
+      <tr>
+        <td class="n">C1</td>
+        <td><div class="item-name">Application Server — VPS <span class="badge-cloud">Compute</span></div><div class="item-desc">4 vCPU · 8 GB RAM · 80 GB NVMe SSD · Ubuntu LTS</div></td>
+        <td class="item-desc">Dedicated virtual server, auto-restart on crash, 99.9% uptime SLA, firewall-protected, isolated from other tenants</td>
+        <td class="r" style="font-weight:600;color:#0f172a">66,000</td>
+      </tr>
+      <tr>
+        <td class="n">C2</td>
+        <td><div class="item-name">Static / Dedicated IP Address <span class="badge-cloud">Network</span></div><div class="item-desc">Fixed public IP, DNS-mapped to client subdomain</div></td>
+        <td class="item-desc">Permanent IP address for DNS mapping, email SPF record, and whitelisting. Survives server restarts.</td>
+        <td class="r" style="font-weight:600;color:#0f172a">1,400</td>
+      </tr>
+      <tr>
+        <td class="n">C3</td>
+        <td><div class="item-name">DDoS Protection &amp; Web Application Firewall <span class="badge-cloud">Security</span></div><div class="item-desc">Cloudflare Pro — attack mitigation, bot protection</div></td>
+        <td class="item-desc">Layer 3/4/7 DDoS mitigation, WAF rules block SQLi/XSS attacks, rate limiting, bot blocking, always-on CDN</td>
+        <td class="r" style="font-weight:600;color:#0f172a">12,000</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:24px;font-size:11px;color:#0369a1">Compute &amp; Networking Subtotal</td><td class="r" style="font-size:11px;color:#0369a1">79,400</td></tr>
+
+      <tr class="tr-cloud-grp"><td colspan="4">🗄️ &nbsp;Database &amp; Storage</td></tr>
+      <tr>
+        <td class="n">C4</td>
+        <td><div class="item-name">Managed MySQL Database Server <span class="badge-cloud">Database</span></div><div class="item-desc">Dedicated DB instance · High-availability tuned</div></td>
+        <td class="item-desc">Standalone managed database node, isolated from app server, connection pooling, query performance optimised</td>
+        <td class="r" style="font-weight:600;color:#0f172a">30,000</td>
+      </tr>
+      <tr>
+        <td class="n">C5</td>
+        <td><div class="item-name">Daily Automated DB Backups <span class="badge-cloud">Database</span></div><div class="item-desc">Point-in-time recovery · 30-day retention</div></td>
+        <td class="item-desc">Automated nightly full backups, point-in-time recovery to any minute in the last 30 days, one-click restore</td>
+        <td class="r" style="font-weight:600;color:#0f172a">2,400</td>
+      </tr>
+      <tr>
+        <td class="n">C6</td>
+        <td><div class="item-name">Application Block Storage — 50 GB <span class="badge-cloud">Storage</span></div><div class="item-desc">Persistent SSD volume for files, PDFs, exports</div></td>
+        <td class="item-desc">Dedicated persistent block storage for PDF quotations, CSV exports, product images, and uploaded documents</td>
+        <td class="r" style="font-weight:600;color:#0f172a">3,000</td>
+      </tr>
+      <tr>
+        <td class="n">C7</td>
+        <td><div class="item-name">Offsite Backup Object Storage — 50 GB <span class="badge-cloud">Storage</span></div><div class="item-desc">Geographically separate · DR-grade redundancy</div></td>
+        <td class="item-desc">Offsite object storage in a separate data centre region. Daily snapshots of app + database stored independently.</td>
+        <td class="r" style="font-weight:600;color:#0f172a">2,400</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:24px;font-size:11px;color:#0369a1">Database &amp; Storage Subtotal</td><td class="r" style="font-size:11px;color:#0369a1">37,800</td></tr>
+
+      <tr class="tr-cloud-grp"><td colspan="4">🔒 &nbsp;Security &amp; Monitoring</td></tr>
+      <tr>
+        <td class="n">C8</td>
+        <td><div class="item-name">Wildcard SSL Certificate + Custom Domain <span class="badge-cloud">Security</span></div><div class="item-desc">HTTPS enforced on all routes · Auto-renewal</div></td>
+        <td class="item-desc">Wildcard SSL for clientname.inveniq.app + all subdomains. HTTPS-only enforced. Certificate auto-renews 30 days before expiry.</td>
+        <td class="r" style="font-weight:600;color:#0f172a">4,800</td>
+      </tr>
+      <tr>
+        <td class="n">C9</td>
+        <td><div class="item-name">Uptime &amp; Performance Monitoring <span class="badge-cloud">Monitor</span></div><div class="item-desc">60-second checks · Instant alerts · Response graphs</div></td>
+        <td class="item-desc">Continuous uptime checks every 60 seconds, instant SMS/email alert on downtime, response time trend tracking</td>
+        <td class="r" style="font-weight:600;color:#0f172a">4,800</td>
+      </tr>
+      <tr>
+        <td class="n">C10</td>
+        <td><div class="item-name">Centralized Log Management <span class="badge-cloud">Monitor</span></div><div class="item-desc">Application &amp; error logs · 30-day retention</div></td>
+        <td class="item-desc">Aggregated application logs, error tracking, searchable log archive for 30 days, structured JSON log format</td>
+        <td class="r" style="font-weight:600;color:#0f172a">3,600</td>
+      </tr>
+      <tr>
+        <td class="n">C11</td>
+        <td><div class="item-name">Auto Health Checks &amp; Process Watchdog <span class="badge-cloud">Reliability</span></div><div class="item-desc">Zero-downtime auto-recovery on process crash</div></td>
+        <td class="item-desc">Systemd watchdog + health endpoint polling. Automatically restarts app server within seconds of any crash.</td>
+        <td class="r" style="font-weight:600;color:#0f172a">2,400</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:24px;font-size:11px;color:#0369a1">Security &amp; Monitoring Subtotal</td><td class="r" style="font-size:11px;color:#0369a1">15,600</td></tr>
+
+      <tr class="tr-cloud-grp"><td colspan="4">🤖 &nbsp;AI API &amp; Communications</td></tr>
+      <tr>
+        <td class="n">C12</td>
+        <td><div class="item-name">OpenAI GPT-4o API Credits <span class="badge-ai">GPT-4o</span></div><div class="item-desc">Pre-allocated token budget · ~10 active users/day</div></td>
+        <td class="item-desc">Covers avg. daily GPT-4o API usage for up to 10 concurrent users — AI chat, demand forecasting, RCA, insights engine</td>
+        <td class="r" style="font-weight:600;color:#0f172a">60,000</td>
+      </tr>
+      <tr>
+        <td class="n">C13</td>
+        <td><div class="item-name">Transactional Email Delivery — SMTP <span class="badge-cloud">Email</span></div><div class="item-desc">Up to 10,000 emails/month · Delivery receipts</div></td>
+        <td class="item-desc">PDF quotation delivery, stock alert emails, delay notifications, system events. Includes bounce management.</td>
+        <td class="r" style="font-weight:600;color:#0f172a">7,200</td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:24px;font-size:11px;color:#0369a1">AI API &amp; Communications Subtotal</td><td class="r" style="font-size:11px;color:#0369a1">67,200</td></tr>
+
+      <tr class="tr-sub" style="border-top:2px solid #0ea5e9"><td colspan="3" style="padding-left:18px">Cloud Infrastructure Subtotal — 13 components</td><td class="r">2,00,000</td></tr>
+
+      <!-- ANNUAL TOTAL -->
+      <tr class="tr-sub" style="font-size:12.5px;border-top:2px solid #e2e8f0">
+        <td colspan="3" style="padding-left:12px;font-size:12.5px">Annual Subscription Subtotal &nbsp;(33 modules + cloud infrastructure, excl. GST)</td>
+        <td class="r" style="font-size:12.5px">19,85,000</td>
+      </tr>
+      <tr class="tr-gst">
+        <td colspan="3" style="padding-left:12px">GST @ 18%</td>
+        <td class="r">3,57,300</td>
+      </tr>
+      <tr class="tr-ann">
+        <td colspan="3">Annual Recurring Total — Year 2 Onwards &nbsp;(incl. 18% GST)</td>
+        <td class="r">₹23,42,300 / year</td>
+      </tr>
+
+      <!-- ONE-TIME SETUP -->
+      <tr class="tr-cat setup"><td colspan="4">One-Time Setup Charges — Year 1 Only</td></tr>
+      <tr>
+        <td class="n">—</td>
+        <td><div class="item-name">Software Implementation &amp; Deployment</div><div class="item-desc">Server config, DB setup, environment, go-live support</div></td>
+        <td class="item-desc">Complete server setup, database initialisation, environment configuration, go-live testing &amp; handover</td>
+        <td class="r" style="font-weight:600;color:#0f172a">1,50,000</td>
+      </tr>
+      <tr>
+        <td class="n">—</td>
+        <td><div class="item-name">Data Migration &amp; Master Setup</div><div class="item-desc">Products, customers, suppliers, opening stock</div></td>
+        <td class="item-desc">Product master upload, customer &amp; supplier data import, opening stock entry, chart of accounts mapping</td>
+        <td class="r" style="font-weight:600;color:#0f172a">80,000</td>
+      </tr>
+      <tr>
+        <td class="n">—</td>
+        <td><div class="item-name">User Training Program (3 Days) <span class="badge-free">Free</span></div><div class="item-desc">Hands-on training, up to 15 users, all modules</div></td>
+        <td class="item-desc">Role-wise training, AI assistant, daily operations workflow, admin panel, reporting &amp; export</td>
+        <td class="r"><span class="strike">60,000</span> <span class="amt-g">Included</span></td>
+      </tr>
+      <tr>
+        <td class="n">—</td>
+        <td><div class="item-name">Custom Branding &amp; White-Labelling <span class="badge-free">Free</span></div><div class="item-desc">Logo, name, colour scheme, email sender</div></td>
+        <td class="item-desc">Brand-personalised UI — your logo, business name, and brand colours across all screens and PDF outputs</td>
+        <td class="r"><span class="strike">30,000</span> <span class="amt-g">Included</span></td>
+      </tr>
+      <tr class="tr-sub"><td colspan="3" style="padding-left:12px">One-Time Setup Subtotal (excl. GST)</td><td class="r">2,30,000</td></tr>
+      <tr class="tr-gst"><td colspan="3" style="padding-left:12px">GST @ 18% on Setup</td><td class="r">41,400</td></tr>
+      <tr class="tr-onetime"><td colspan="3">One-Time Setup Total (incl. 18% GST)</td><td class="r">₹2,71,400</td></tr>
+
+      <!-- YEAR 1 -->
+      <tr class="tr-yr1">
+        <td colspan="3">YEAR 1 GRAND TOTAL &nbsp;—&nbsp; Setup + Full Annual License &nbsp;(incl. 18% GST)</td>
+        <td class="r">₹26,13,700</td>
+      </tr>
+      <tr class="tr-saving">
+        <td colspan="4">
+          Complimentary with Year 1: User Training (₹60,000 value) + Custom Branding (₹30,000 value) = <strong>₹90,000 savings</strong>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══ PAYMENT SCHEDULE ══ -->
+<div class="section">
+  <div class="sec-title">Payment Schedule — Year 1</div>
+  <div class="pay-grid">
+    <div class="pay-card hl">
+      <div class="pay-hdr">Milestone 1 — On Agreement</div>
+      <div class="pay-body">
+        <div class="pay-amt">₹10,45,480</div>
+        <div class="pay-when">Due on signing the agreement &nbsp;(~40%)</div>
+        <div class="pay-lines">
+          <div class="pay-line"><span>Implementation &amp; setup</span><span>₹2,71,400</span></div>
+          <div class="pay-line"><span>Q1 license advance</span><span>₹7,74,080</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="pay-card">
+      <div class="pay-hdr">Milestone 2 — On Go-Live</div>
+      <div class="pay-body">
+        <div class="pay-amt">₹9,14,795</div>
+        <div class="pay-when">Due on go-live &amp; training completion &nbsp;(~35%)</div>
+        <div class="pay-lines">
+          <div class="pay-line"><span>Q2 license</span><span>₹5,85,575</span></div>
+          <div class="pay-line"><span>Q3 license advance</span><span>₹3,29,220</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="pay-card">
+      <div class="pay-hdr">Milestone 3 — After 6 Months</div>
+      <div class="pay-body">
+        <div class="pay-amt">₹6,53,425</div>
+        <div class="pay-when">Due 6 months after go-live &nbsp;(balance ~25%)</div>
+        <div class="pay-lines">
+          <div class="pay-line"><span>Q3 license balance</span><span>₹2,34,855</span></div>
+          <div class="pay-line"><span>Q4 license</span><span>₹4,18,570</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note-box">
+    <strong>Year 2 onwards:</strong> Annual renewal of <strong>₹23,42,300 (incl. GST)</strong> — payable annually in advance, or quarterly at ₹5,85,575/quarter.
+    &nbsp;|&nbsp; <strong>Payment:</strong> Bank transfer preferred. UPI / cheque payable to InvenIQ Technologies also accepted.
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══ OPTIONAL ADD-ONS ══ -->
+<div class="section">
+  <div class="sec-title">Optional Add-ons (Not Included Above)</div>
+  <div class="addon-grid">
+    <div class="addon-item">
+      <div><div class="addon-name">Additional User Seats</div><div class="addon-sub">Beyond 10 concurrent users (base pack)</div></div>
+      <div class="addon-price">₹6,000/user/year</div>
+    </div>
+    <div class="addon-item">
+      <div><div class="addon-name">Higher AI Usage (Heavy Users)</div><div class="addon-sub">Extra OpenAI API credits beyond base pack</div></div>
+      <div class="addon-price">₹30,000/year add-on</div>
+    </div>
+    <div class="addon-item">
+      <div><div class="addon-name">WhatsApp Business Integration</div><div class="addon-sub">Auto alerts &amp; order updates via WhatsApp API</div></div>
+      <div class="addon-price">₹25,000 setup + ₹12,000/year</div>
+    </div>
+    <div class="addon-item">
+      <div><div class="addon-name">Custom Module Development</div><div class="addon-sub">Bespoke module built to your exact workflow</div></div>
+      <div class="addon-price">From ₹50,000/module</div>
+    </div>
+    <div class="addon-item">
+      <div><div class="addon-name">Dedicated Support SLA</div><div class="addon-sub">8-hour response guarantee, priority bug fixes</div></div>
+      <div class="addon-price">₹48,000/year</div>
+    </div>
+    <div class="addon-item">
+      <div><div class="addon-name">On-Site Support Visit</div><div class="addon-sub">Engineer visit for training or troubleshooting</div></div>
+      <div class="addon-price">₹5,000/visit + travel</div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══ TERMS ══ -->
+<div class="section">
+  <div class="sec-title">Terms &amp; Conditions</div>
+  <div class="terms-grid">
+    <div>
+      <div class="term-title">License &amp; Subscription</div>
+      <ul class="term-list">
+        <li>Annual subscription — renewed every 12 months</li>
+        <li>Covers unlimited transactions within subscribed modules</li>
+        <li>All feature updates, bug fixes &amp; minor version upgrades included</li>
+        <li>Major version upgrades (v4.x+) subject to separate agreement</li>
+        <li>Minimum contract term: 1 year</li>
+      </ul>
+      <div class="term-title" style="margin-top:12px">Cloud Infrastructure</div>
+      <ul class="term-list">
+        <li>All cloud costs included in annual subscription — no hidden bills</li>
+        <li>Server monitoring and uptime management by InvenIQ team</li>
+        <li>Data remains in India; no cross-border data transfer</li>
+        <li>OpenAI API credits cover average daily usage — heavy usage billed separately</li>
+      </ul>
+    </div>
+    <div>
+      <div class="term-title">Support &amp; Maintenance</div>
+      <ul class="term-list">
+        <li>Email support with 24-hour response (business days)</li>
+        <li>Remote support via video call, included at no charge</li>
+        <li>Critical bug fixes within 48 hours of confirmed report</li>
+        <li>Monthly update notifications via email</li>
+      </ul>
+      <div class="term-title" style="margin-top:12px">Data Security &amp; Delivery</div>
+      <ul class="term-list">
+        <li>Client data never accessed without written consent</li>
+        <li>JWT authentication with 6-level role-based access control</li>
+        <li>Full audit trail for all user actions</li>
+        <li>Go-live within 7–14 working days of agreement + advance payment</li>
+        <li>GST invoice issued at each milestone</li>
+        <li>Annual renewal notice 30 days before expiry</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FOOTER ══ -->
+<div class="footer">
+  <div class="footer-left">
+    <strong>InvenIQ Technologies</strong><br/>
+    nikrao246@gmail.com &nbsp;|&nbsp; India<br/>
+    Quotation Ref: IQ-QT-2026-002 &nbsp;·&nbsp; Valid till: 19 June 2026
+  </div>
+  <div class="footer-sig">
+    <div class="footer-sig-label">Authorised Signatory</div>
+    <div class="footer-sig-line">InvenIQ Technologies</div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

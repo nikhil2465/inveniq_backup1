@@ -50,6 +50,14 @@ const CounterPOS        = lazy(() => import('./views/CounterPOS'));
 const SchemeManagement  = lazy(() => import('./views/SchemeManagement'));
 const Warehouse         = lazy(() => import('./views/Warehouse'));
 const TallyExport       = lazy(() => import('./views/TallyExport'));
+const SalesReturn       = lazy(() => import('./views/SalesReturn'));
+const LandingCost       = lazy(() => import('./views/LandingCost'));
+const DistributorPortal = lazy(() => import('./views/DistributorPortal'));
+const DamageRecording      = lazy(() => import('./views/DamageRecording'));
+const PurchaseRequisition  = lazy(() => import('./views/PurchaseRequisition'));
+const QCInspection         = lazy(() => import('./views/QCInspection'));
+const InvoiceMatching      = lazy(() => import('./views/InvoiceMatching'));
+const GateEntry            = lazy(() => import('./views/GateEntry'));
 
 const VIEW_TITLES = {
   credit:      'Credit Management — Limits · Overdue · PDC Tracking',
@@ -76,9 +84,17 @@ const VIEW_TITLES = {
   quotes:      'Quotation Builder — AI-Powered Professional Quotes',
   about:       'About InvenIQ — AI Inventory Intelligence Platform',
   settings:    'Settings & System Status — Configuration · Health · Module Registry',
-  tally:       'Tally Prime Export — Export Data as Tally-Compatible CSV Files',
-  schemes:     'Scheme Management — Promotions · Targets · Accruals',
-  warehouse:   'Warehouse Management — Capacity · GRN Activity · Stock Distribution',
+  tally:        'Tally Prime Export — Export Data as Tally-Compatible CSV Files',
+  schemes:      'Scheme Management — Promotions · Targets · Accruals',
+  warehouse:    'Warehouse Management — Capacity · GRN Activity · Stock Distribution',
+  salesreturn:  'Sales Return — UOM Conversion · Credit Notes · Accounting Entries',
+  landingcost:  'Landing Cost — Labour · Custom Duty · Freight · All Charge Heads',
+  distributor:  'My Stock Portal — Distributor Inventory View',
+  damage:       'Damage Recording — GRN Inward · Transit SO · Insurance Claims · Accounting',
+  pr:           'Purchase Requisition — Material Requests · Approval Workflow · PO Conversion',
+  qc:           'QC Inspection — Post-GRN Quality Control · Accept to Inventory · RTV',
+  invoicematch: 'Invoice Matching — 3-Way Match: PO · GRN · Invoice · AP Approval',
+  gateentry:    'Gate Entry — Vehicle Arrival · DC Verification · Security Checkpoint',
 };
 
 export default function App() {
@@ -97,6 +113,10 @@ export default function App() {
   const [alerts, setAlerts]                     = useState([]);
   const [sidebarOpen, setSidebarOpen]           = useState(false);
   const [goMode, setGoMode]                     = useState(false);
+
+  // AI side panel state — open/minimized are independent of activeView
+  const [aiOpen, setAiOpen]   = useState(false);
+  const [aiMin,  setAiMin]    = useState(false);
 
   // Install the global fetch interceptor once — adds Bearer token to every /api/* call
   // and fires 'inveniq:auth-expired' on 401 so the handler below can force logout.
@@ -191,6 +211,8 @@ export default function App() {
       l: 'louvers',   n: 'discounts', t: 'projects',    m: 'claims',
       b: 'catalog',   k: 'credit',    v: 'pos',         y: 'schemes',
       j: 'about',     g: 'warehouse', '1': 'tally',
+      '2': 'salesreturn', '3': 'landingcost', '4': 'distributor', '5': 'damage',
+      '6': 'pr', '7': 'qc', '8': 'invoicematch', '9': 'gateentry',
     };
     let active = false;
     let goTimer = null;
@@ -245,12 +267,25 @@ export default function App() {
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
   }, []);
 
+  // goChat opens the side panel with a pre-composed prompt instead of full-screen navigation
   const goChat = useCallback((query) => {
     setPendingChatQuery(query);
-    setActiveView('chatbot');
+    setAiOpen(true);
+    setAiMin(false);
   }, []);
 
   const clearPendingQuery = useCallback(() => setPendingChatQuery(''), []);
+
+  // Navigation interceptor — chatbot item opens the side panel instead of replacing the view
+  const handleNavigate = useCallback((view) => {
+    if (view === 'chatbot') {
+      setAiOpen(true);
+      setAiMin(false);
+    } else {
+      setActiveView(view);
+    }
+    setSidebarOpen(false);
+  }, []);
 
   // Show login screen when not authenticated — conditional JSX, not early return
   // (all hooks above have already run unconditionally — this is safe per React rules)
@@ -267,11 +302,12 @@ export default function App() {
       />
       <Sidebar
         activeView={activeView}
-        onNavigate={(v) => { setActiveView(v); setSidebarOpen(false); }}
+        onNavigate={handleNavigate}
         dbStatus={dbStatus}
         isOpen={sidebarOpen}
         alerts={alerts}
         allowedModules={authState.allowedModules}
+        currentUser={authState.user}
       />
       <Topbar
         title={VIEW_TITLES[activeView] || 'InvenIQ — Enterprise Inventory Intelligence'}
@@ -279,15 +315,26 @@ export default function App() {
         onPeriodChange={setPeriod}
         alerts={alerts}
         onGoChat={goChat}
-        onNavigate={setActiveView}
+        onNavigate={handleNavigate}
         dbStatus={dbStatus}
         onToggleSidebar={() => setSidebarOpen(o => !o)}
         onLogout={handleLogout}
         currentUser={authState.user}
+        allowedModules={authState.allowedModules}
+        aiPanelOpen={aiOpen && !aiMin}
+        aiPanelMin={aiOpen && aiMin}
       />
       <ToastContainer />
+      <AIDockPanel
+        open={aiOpen}
+        minimized={aiMin}
+        onClose={() => { setAiOpen(false); setAiMin(false); }}
+        onMinimize={() => setAiMin(true)}
+        onExpand={() => { setAiOpen(true); setAiMin(false); }}
+        pendingQuery={pendingChatQuery}
+        onPendingQueryConsumed={clearPendingQuery}
+      />
       <PWAInstallBanner />
-      <AIDockPanel activeView={activeView} onNavigateToChat={() => setActiveView('chatbot')} />
       {goMode && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
@@ -298,10 +345,10 @@ export default function App() {
           animation: 'goModeIn .15s ease',
         }}>
           <span style={{ background: '#16a34a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#fff' }}>g</span>
-          Type a key to navigate · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally
+          Type a key · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally · 2=sales-ret · 3=landing · 4=dist · 5=damage · 6=pr · 7=qc · 8=invoice · 9=gate
         </div>
       )}
-      <main className="main">
+      <main className={`main${aiOpen && !aiMin ? ' sp-open' : ''}${aiOpen && aiMin ? ' sp-min' : ''}`}>
         <Suspense fallback={<PageLoader />}>
           <ErrorBoundary key={activeView} onReset={() => setActiveView('overview')}>
             {activeView === 'overview'    && <Overview     onGoChat={goChat} dbStatus={dbStatus} onNavigate={setActiveView} period={period} />}
@@ -334,9 +381,17 @@ export default function App() {
             {activeView === 'pos'         && <CounterPOS        onGoChat={goChat} dbStatus={dbStatus} />}
             {activeView === 'schemes'     && <SchemeManagement  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'warehouse'   && <Warehouse         onGoChat={goChat} dbStatus={dbStatus} />}
-            {activeView === 'about'       && <About onGoChat={goChat} />}
-            {activeView === 'settings'    && <Settings onNavigate={setActiveView} dbStatus={dbStatus} />}
-            {activeView === 'tally'       && <TallyExport dbStatus={dbStatus} period={period} />}
+            {activeView === 'about'        && <About onGoChat={goChat} />}
+            {activeView === 'settings'    && <Settings onNavigate={setActiveView} dbStatus={dbStatus} currentUser={authState.user} allowedModules={authState.allowedModules} />}
+            {activeView === 'tally'       && <TallyExport onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'salesreturn' && <SalesReturn onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'landingcost' && <LandingCost onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'distributor' && <DistributorPortal onGoChat={goChat} dbStatus={dbStatus} />}
+            {activeView === 'damage'        && <DamageRecording      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'pr'            && <PurchaseRequisition  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'qc'            && <QCInspection         onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'invoicematch'  && <InvoiceMatching      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'gateentry'     && <GateEntry            onGoChat={goChat} dbStatus={dbStatus} period={period} />}
           </ErrorBoundary>
         </Suspense>
       </main>

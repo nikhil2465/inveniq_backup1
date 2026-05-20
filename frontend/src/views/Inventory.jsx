@@ -6,6 +6,199 @@ import { ExportButton } from '../utils/exportUtils';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
 import Pagination from '../components/Pagination';
 
+// ── Helper: AI-suggested reorder quantity (rounds to nearest 50, ~45 days cover) ─
+function suggestQty(s30) {
+  if (!s30 || s30 <= 0) return 100;
+  const daily = s30 / 30;
+  return Math.max(50, Math.ceil((daily * 45) / 50) * 50);
+}
+
+// ── Quick Create PO Modal ─────────────────────────────────────────────────────
+function QuickCreatePOModal({ sku, onClose, onSuccess }) {
+  const plusDays = (n) => new Date(Date.now() + n * 86400000).toISOString().split('T')[0];
+
+  const [form, setForm] = useState({
+    supplier_name: sku.b || '',
+    sku_name:      sku.n || '',
+    quantity:      suggestQty(sku.s30),
+    unit_price:    sku.buy > 0 ? sku.buy : '',
+    expected_date: plusDays(7),
+    notes:         '',
+  });
+  const [saving, setSaving]   = useState(false);
+  const [error,  setError]    = useState('');
+  const [result, setResult]   = useState(null);
+
+  const up = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const totalVal = Number(form.quantity || 0) * Number(form.unit_price || 0);
+  const daily    = sku.s30 > 0 ? (sku.s30 / 30).toFixed(1) : null;
+
+  const handleCreate = async () => {
+    if (!form.supplier_name.trim()) return setError('Supplier name is required.');
+    if (!form.sku_name.trim())      return setError('SKU name is required.');
+    if (Number(form.quantity) <= 0) return setError('Quantity must be greater than 0.');
+    setSaving(true); setError('');
+    try {
+      const res  = await fetch('/api/po', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplier_name: form.supplier_name.trim(),
+          sku_name:      form.sku_name.trim(),
+          quantity:      Number(form.quantity),
+          unit_price:    form.unit_price !== '' ? Number(form.unit_price) : null,
+          expected_date: form.expected_date || undefined,
+          category:      'Commercial',
+          unit:          'sheet',
+          notes:         form.notes.trim() || `Reorder from Stock Intelligence — ${sku.d}d cover remaining`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) { setResult(data); onSuccess(data); }
+      else setError(data.error || 'Failed to create PO. Please try again.');
+    } catch { setError('Network error — could not reach server.'); }
+    finally { setSaving(false); }
+  };
+
+  // Shared inline styles
+  const OV  = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '24px 16px' };
+  const BOX = { background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 560, boxShadow: '0 24px 80px rgba(0,0,0,.35)', border: '1px solid var(--border)', marginTop: 8 };
+  const HDR = { padding: '16px 22px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' };
+  const BDY = { padding: '18px 22px', maxHeight: '72vh', overflowY: 'auto' };
+  const FTR = { padding: '12px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10, background: 'var(--s3)', borderRadius: '0 0 14px 14px' };
+  const LBL = { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px', fontFamily: 'var(--mono)' };
+  const INP = { width: '100%', padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 13, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box', outline: 'none' };
+  const FLD = { marginBottom: 14 };
+  const G2  = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 };
+
+  if (result) return (
+    <div style={OV} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={BOX}>
+        <div style={{ padding: '36px 28px', textAlign: 'center' }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>✅</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>Purchase Order Created</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--b2)', fontFamily: 'var(--mono)', marginBottom: 12 }}>{result.po_number}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>
+            {result.supplier} · {result.sku_name || result.sku} · {Number(result.quantity).toLocaleString('en-IN')} sheets
+          </div>
+          {result.total_value > 0 && (
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', fontFamily: 'var(--mono)', marginBottom: 16 }}>
+              Total: ₹{Number(result.total_value).toLocaleString('en-IN')}
+            </div>
+          )}
+          {result.demo_mode && (
+            <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginBottom: 12 }}>(demo mode — connect MySQL to persist)</div>
+          )}
+          <button onClick={onClose}
+            style={{ padding: '9px 28px', background: 'var(--b2)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={OV} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={BOX}>
+        {/* Header */}
+        <div style={HDR}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>📋 Raise Purchase Order</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>
+              {sku.n} · {sku.d}d cover left{daily ? ` · ${daily} sheets/day` : ''}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={BDY}>
+          {/* AI suggestion banner */}
+          <div style={{ padding: '9px 13px', background: 'var(--b5,#eff6ff)', border: '1px solid var(--b4,#bfdbfe)', borderRadius: 8, marginBottom: 18, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 14 }}>✨</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--b2)' }}>
+                AI Suggestion: Order {suggestQty(sku.s30).toLocaleString()} sheets
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                {sku.d}d stock cover · {daily ? `${daily} sheets/day · ` : ''}Covers ~45 days demand
+                {sku.st === 'critical' && <span style={{ color: 'var(--r2)', fontWeight: 600, marginLeft: 6 }}>⚠ Order immediately</span>}
+              </div>
+            </div>
+          </div>
+
+          <div style={G2}>
+            <div style={FLD}>
+              <label style={LBL}>Supplier Name *</label>
+              <input value={form.supplier_name} onChange={up('supplier_name')} style={INP} placeholder="e.g. Century Plyboards" autoFocus />
+            </div>
+            <div style={FLD}>
+              <label style={LBL}>SKU / Product *</label>
+              <input value={form.sku_name} onChange={up('sku_name')} style={INP} placeholder="Product name" />
+            </div>
+          </div>
+
+          <div style={G2}>
+            <div style={FLD}>
+              <label style={LBL}>
+                Quantity (sheets)
+                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--b2)', marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>AI: {suggestQty(sku.s30)}</span>
+              </label>
+              <input type="number" min="1" value={form.quantity} onChange={up('quantity')} style={INP} />
+            </div>
+            <div style={FLD}>
+              <label style={LBL}>Unit Price (₹ / sheet)</label>
+              <input type="number" min="0" step="0.01" value={form.unit_price} onChange={up('unit_price')} style={INP} placeholder="Buy price" />
+            </div>
+          </div>
+
+          <div style={G2}>
+            <div style={FLD}>
+              <label style={LBL}>Expected Delivery Date</label>
+              <input type="date" value={form.expected_date} onChange={up('expected_date')} style={INP} />
+            </div>
+            <div style={{ ...FLD, display: 'flex', alignItems: 'center' }}>
+              {totalVal > 0 && (
+                <div style={{ paddingTop: 22 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>PO Value</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', fontFamily: 'var(--mono)' }}>
+                    ₹{totalVal.toLocaleString('en-IN')}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={FLD}>
+            <label style={LBL}>Notes (optional)</label>
+            <input value={form.notes} onChange={up('notes')} style={INP} placeholder="Special instructions, grade requirements…" />
+          </div>
+
+          {error && (
+            <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 7, padding: '9px 13px', fontSize: 12, color: 'var(--r2)', marginBottom: 4 }}>
+              ⚠ {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={FTR}>
+          <button onClick={onClose}
+            style={{ padding: '9px 18px', background: 'var(--s3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={handleCreate} disabled={saving}
+            style={{ padding: '9px 22px', background: saving ? 'var(--text3)' : 'var(--green)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {saving ? '⏳ Creating PO…' : '📋 Create Purchase Order'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const STATIC_SKUS = [
   { n: '18mm BWP (8×4)',  b: 'Century',  stk: 140, buy: 1420, sell: 1920, d: 8,   s30: 480, st: 'critical' },
   { n: '12mm BWP (8×4)',  b: 'Century',  stk: 220, buy: 1080, sell: 1480, d: 11,  s30: 380, st: 'critical' },
@@ -20,12 +213,13 @@ const STATIC_SKUS = [
 ];
 
 export default function Inventory({ onGoChat, period = 'MTD' }) {
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [page, setPage]     = useState(1);
+  const [filter, setFilter]       = useState('all');
+  const [search, setSearch]       = useState('');
+  const [page, setPage]           = useState(1);
   const PAGE_SIZE = 15;
-  const [d, setD] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [d, setD]                 = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [poPrefill, setPoPrefill] = useState(null);
   const mvRef = useRef(null);
 
   const fetchData = useCallback(() => {
@@ -150,7 +344,6 @@ export default function Inventory({ onGoChat, period = 'MTD' }) {
               const mg = s.sell > 0 ? Math.round((s.sell - s.buy) / s.sell * 100) : 0;
               const sc = s.st === 'ok' ? 'bg' : s.st === 'critical' ? 'br' : s.st === 'dead' ? 'br' : 'ba';
               const sl = s.st === 'ok' ? 'HEALTHY' : s.st === 'critical' ? 'CRITICAL' : s.st === 'dead' ? 'DEAD STOCK' : 'OVERSTOCK';
-              const ac = s.st === 'critical' ? 'Order now' : s.st === 'dead' ? 'Discount/Return' : s.st === 'over' ? 'Slow—hold' : 'Normal';
               return (
                 <tr key={s.n} style={{ cursor: onGoChat ? 'pointer' : 'default' }}
                   onClick={() => onGoChat?.(`Stock status and reorder recommendation for ${s.n}`)}>
@@ -163,7 +356,19 @@ export default function Inventory({ onGoChat, period = 'MTD' }) {
                   <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: s.d < 15 ? '#dc2626' : s.d < 30 ? '#d97706' : '#16a34a' }}>{s.d}d</td>
                   <td style={{ fontFamily: 'var(--mono)' }}>{s.s30 > 0 ? s.s30 + ' sheets' : 'None'}</td>
                   <td><span className={`bdg ${sc}`}>{sl}</span></td>
-                  <td style={{ fontSize: '10px', color: 'var(--text2)' }}>{ac}</td>
+                  <td>
+                    {s.st === 'critical' ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); setPoPrefill(s); }}
+                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#fff', background: 'linear-gradient(135deg,#dc2626,#b91c1c)', border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font)' }}>
+                        📋 Order now
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '10px', color: 'var(--text2)' }}>
+                        {s.st === 'dead' ? 'Discount/Return' : s.st === 'over' ? 'Slow—hold' : 'Normal'}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -200,6 +405,14 @@ export default function Inventory({ onGoChat, period = 'MTD' }) {
           <span>✨</span>
           <span>Ask AI: Calculate EOQ and create this week's reorder plan →</span>
         </div>
+      )}
+
+      {poPrefill && (
+        <QuickCreatePOModal
+          sku={poPrefill}
+          onClose={() => setPoPrefill(null)}
+          onSuccess={() => setPoPrefill(null)}
+        />
       )}
     </div>
   );

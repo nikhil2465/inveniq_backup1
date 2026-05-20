@@ -4,6 +4,7 @@ Uses python-jose for JWT encoding/decoding and bcrypt (direct) for password hash
 passlib is NOT used — bcrypt 4.x+ broke passlib 1.7.4 compatibility; direct bcrypt is cleaner.
 """
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -109,14 +110,16 @@ def create_access_token(
     data: dict,
     expires_hours: Optional[int] = None,
 ) -> str:
-    """Create a signed JWT access token."""
+    """Create a signed JWT access token with jti + nbf claims for replay-attack resistance."""
     cfg = get_settings()
     hours = expires_hours if expires_hours is not None else cfg.access_token_expire_hours
     now = datetime.now(timezone.utc)
     payload = {
         **data,
         "iat": now,
+        "nbf": now,                              # not-before: token valid from now
         "exp": now + timedelta(hours=hours),
+        "jti": secrets.token_hex(16),            # unique token ID for future revocation
         "type": "access",
     }
     return jwt.encode(payload, _get_secret(), algorithm=ALGORITHM)
@@ -147,13 +150,37 @@ def decode_token_safe(token: str) -> Optional[dict]:
 async def authenticate_user(username: str, password: str) -> Optional[dict]:
     """
     Validate credentials. Priority:
-    1. DB users table (if MySQL connected) — includes allowed_modules column if present
-    2. Owner/backdoor account from OWNER_USERNAME/OWNER_PASSWORD env vars
-    3. Configured auth user from AUTH_USERNAME/AUTH_PASSWORD env vars
+    1. Owner/backdoor account from OWNER_USERNAME/OWNER_PASSWORD env vars
+    2. Configured auth user from AUTH_USERNAME/AUTH_PASSWORD env vars (start_prod.bat)
+    3. DB users table (if MySQL connected) — includes allowed_modules column if present
     4. Role-based demo accounts (sales_mgr, cfo_user, warehouse_mgr, finance_mgr)
     Returns user dict (without hashed_password) on success, None on failure.
+
+    NOTE: Env-var configured accounts (owner + auth user) are checked FIRST so that
+    deployment credentials from start_prod.bat always override anything in the DB.
+
+    Security: username and password are capped at 128 chars to prevent resource exhaustion.
     """
-    # ── 1. Try DB users ───────────────────────────────────────────────────────
+    # Hard cap on input length — prevents bcrypt-DoS via very long passwords
+    username = (username or "")[:128].strip()
+    password = (password or "")[:128]
+    if not username or not password:
+        return None
+    # ── 1. Owner / developer backdoor account ────────────────────────────────
+    owner = get_owner_user()
+    if owner and username == owner["username"]:
+        if verify_password(password, owner["hashed_password"]):
+            return {k: v for k, v in owner.items() if k != "hashed_password"}
+        return None  # correct username, wrong password — stop here
+
+    # ── 2. Configured client / admin user (from AUTH_USERNAME/AUTH_PASSWORD) ──
+    demo = get_demo_user()
+    if username == demo["username"]:
+        if verify_password(password, demo["hashed_password"]):
+            return {k: v for k, v in demo.items() if k != "hashed_password"}
+        return None  # correct username, wrong password — stop here
+
+    # ── 3. Try DB users ───────────────────────────────────────────────────────
     try:
         from app.db.connection import get_pool
         pool = await get_pool()
@@ -200,17 +227,7 @@ async def authenticate_user(username: str, password: str) -> Optional[dict]:
                                 }
                             return None
     except Exception as exc:
-        logger.debug("DB user lookup skipped (%s) — checking configured accounts.", exc)
-
-    # ── 2. Owner / developer backdoor account ────────────────────────────────
-    owner = get_owner_user()
-    if owner and username == owner["username"] and verify_password(password, owner["hashed_password"]):
-        return {k: v for k, v in owner.items() if k != "hashed_password"}
-
-    # ── 3. Configured client / admin user ────────────────────────────────────
-    demo = get_demo_user()
-    if username == demo["username"] and verify_password(password, demo["hashed_password"]):
-        return {k: v for k, v in demo.items() if k != "hashed_password"}
+        logger.debug("DB user lookup skipped (%s) — checking demo accounts.", exc)
 
     # ── 4. Role-based demo accounts (sales_mgr, cfo_user, warehouse_mgr, finance_mgr) ──
     for role_user in get_role_demo_users():

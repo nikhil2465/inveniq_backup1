@@ -160,6 +160,13 @@ _KNOWLEDGE_CONCEPTS = {
     # Scheme management concepts
     "scheme", "trade scheme", "dealer scheme", "rebate", "accrual",
     "loyalty program", "incentive", "volume bonus",
+    # Sales return / credit note concepts
+    "sales return", "credit note", "return policy", "partial return",
+    "uom conversion", "return accounting", "gst on return",
+    # Damage concepts
+    "damage", "grn damage", "transit damage", "insurance claim",
+    "damage accounting", "damage loss", "transit loss", "write off",
+    "inventory write down", "insurance receivable",
     # Warehouse / godown management
     "warehouse management", "godown management", "warehouse best practice",
     "godown capacity", "warehouse capacity", "warehouse kpi", "godown kpi",
@@ -169,6 +176,21 @@ _KNOWLEDGE_CONCEPTS = {
     "tally", "tally prime", "tally erp", "tally export", "tally import",
     "tally integration", "tally csv", "import to tally", "export to tally",
     "tally stock items", "tally ledger", "tally voucher", "tally gst",
+    # Sales return / credit note
+    "sales return", "credit note", "return policy", "credit note accounting",
+    "how to process return", "uom conversion return", "partial return",
+    "return accounting", "sales return journal entry", "gst on returns",
+    "how to raise credit note", "credit note meaning", "debit note vs credit note",
+    # Damage recording / insurance
+    "damage recording", "how to record damage", "grn damage", "transit damage",
+    "insurance claim goods", "damaged goods accounting", "how to write off damage",
+    "damage loss account", "transit loss account", "inventory write down",
+    "insurance claim receivable", "goods damaged in transit",
+    "damage prevention", "how to reduce damage", "damage in supply chain",
+    "supplier claim for defective goods", "manufacturing defect claim",
+    # Landing cost
+    "how to calculate landing cost", "landed cost components",
+    "what is landing cost", "landing cost accounting",
 }
 
 
@@ -1113,6 +1135,75 @@ KNOWLEDGE_BASE = {
         "indian_context": "Hardware dealers in India typically operate 2–4 godowns. Biggest inefficiency is poor bin/bay labelling — invest ₹15,000–25,000 in labelling and barcode bins for 30–40% faster picking. Consider WMS software (Marg ERP, Tally with inventory add-on) when managing 3+ godowns or 500+ SKUs.",
     },
 
+    "sales_return": {
+        "title": "Sales Returns — UOM Conversion, Credit Notes & Accounting",
+        "definition": "A sales return occurs when a customer returns goods after purchase. InvenIQ handles partial returns — e.g., a customer who bought a box of 10 pieces returns only 3 pieces. The system computes the credit at piece price (box price ÷ 10 × 3 pcs) and auto-generates the accounting entries.",
+        "uom_conversion": {
+            "what_is_it": "UOM (Unit of Measure) conversion handles cases where the SALE was in one unit (e.g., box of 10 pcs) but the RETURN is in a different unit (e.g., 3 pcs). The conversion ratio tells the system how many sub-units are in one master unit.",
+            "standard_ratios": "Box = 10 pcs | Case = 12 pcs | Dozen = 12 pcs | Sheet = 32 sqft | Bag = 25 kg | Roll = 50 mtrs | Pack = 6 pcs",
+            "formula": "Piece Price = Unit Price ÷ Conversion Ratio | Return Amount = Piece Price × Return Qty",
+            "example": "Sold: 50 boxes @ ₹485/box (1 box = 10 pcs). Customer returns 3 pcs from 1 box. Piece price = ₹485 ÷ 10 = ₹48.50. Return amount = ₹48.50 × 3 = ₹145.50 + GST 18% = ₹171.69 credit note.",
+        },
+        "credit_note": {
+            "what_is_it": "A Credit Note is a document issued to the customer confirming the value of goods returned. It can be applied against future purchases or refunded as cash.",
+            "validity": "Credit notes are typically valid for 90 days from issue date (configurable per business policy).",
+            "gst_treatment": "GST charged on original sale must be reversed on return. GST reversal: Credit Note must show original invoice number, GST rate, and tax reversal amount. File credit notes in GSTR-1 (negative entry).",
+            "applied_to_your_data": "Current open credit note balance: ₹171.69 (Mehta Interiors, CN-2026-0012). Apply against next order to close.",
+        },
+        "accounting_entries": {
+            "entry_1_sales_reversal":   "Sales Return A/c Dr / Customer A/c Cr — reversal of sale (credit note amount incl. GST)",
+            "entry_2_inventory_restore": "Inventory A/c Dr / COGS A/c Cr — restock at buy price (cost reversal)",
+            "entry_3_gst_reversal":     "GST Payable A/c Dr / GST Liability A/c Cr — reversal of output GST charged",
+        },
+        "return_reasons_and_policy": {
+            "legitimate_reasons": "Damaged on arrival, Wrong specification (96mm vs 128mm), Manufacturing defect, Excess quantity ordered, Product not matching sample",
+            "policy_best_practice": "Set a 7–14 day return window from invoice date. Require original invoice. Accept returns only in original/resalable condition (except defects). Document reason — feeds supplier quality scorecard.",
+            "avoid_abuse": "Track return rate by customer. If a customer's return rate exceeds 5% of purchases by value, review their ordering patterns — may indicate careless ordering or buyer's remorse at your expense.",
+        },
+        "benchmark": "Hardware/sanitary dealers India: target return rate <3% of revenue. Returns >5% indicate product quality issues, wrong-specification dispatching, or lax return policy. GST credit notes must be issued within the financial year to claim tax reversal.",
+        "indian_context": "In India, sales returns generate Credit Notes (not Debit Notes — that's for price corrections). GSTR-1 requires credit notes to be linked to original B2B invoices. Maintain the return document chain: Return Request → Credit Note → GST reversal → Journal Entry. All linked by invoice reference.",
+    },
+
+    "damage_recording": {
+        "title": "Damage Recording — GRN Inward Damage & Transit SO Damage",
+        "overview": "Damage recording covers two distinct scenarios: (1) Post-GRN damage — goods received but found damaged during inward inspection, and (2) Transit damage — goods damaged while dispatching a Sales Order. Each type has different accounting treatment, different claim processes, and different resolutions.",
+        "grn_inward_damage": {
+            "definition": "Damage discovered AFTER goods have been received (GRN created) — during QC inspection, putaway, or first use.",
+            "common_types": "Physical Damage (crushed cartons, bent items), Moisture/Water Damage, Manufacturing Defect (finish issues, wrong specifications), Short Supply, Packaging Damage",
+            "accounting": "Damage Loss A/c Dr / Inventory A/c Cr — write-down at buy/cost price. Reduces inventory value on books.",
+            "insurance_claim": "If goods were covered under transit insurance and damage is transit-caused: Insurance Claim Receivable A/c Dr / Damage Loss A/c Cr",
+            "supplier_claim": "If damage is manufacturing defect: Supplier Claim Receivable A/c Dr / Damage Loss A/c Cr. Supplier must replace or credit.",
+            "resolution": "Insurance settlement received: Bank A/c Dr / Insurance Claim Receivable A/c Cr. Supplier replaces: new GRN. Supplier credits: Credit from supplier applied to next PO.",
+            "documentation": "GRN damage report with photos, quantity, damage description, and witnesses. Required for insurance and supplier claims — collect within 24–48 hours of GRN.",
+        },
+        "transit_damage_so": {
+            "definition": "Goods damaged AFTER dispatch from your warehouse while in transit to the customer.",
+            "common_causes": "Vehicle accident, Rough handling by carrier, Improper packaging, Overloading, Weather exposure, Theft/pilferage",
+            "so_adjustment_options": [
+                "Reduce Invoice Qty: Invoice customer only for undamaged goods received. Issue credit note for damaged quantity.",
+                "Re-dispatch Replacement: Send replacement goods immediately (if stocked). Customer gets full order — your cost is the replacement.",
+                "Raise Credit Note: Issue credit note to customer for damaged value. Apply against future invoices.",
+                "Cancel SO Line: Cancel the damaged line item entirely if not replaceable.",
+            ],
+            "accounting": "1) Transit Loss A/c Dr / Inventory A/c Cr — write-off damaged goods at cost. 2) Insurance Claim Receivable A/c Dr / Transit Loss A/c Cr — if insured. 3) Sales Return A/c Dr / Customer A/c Cr — if credit note issued.",
+            "customer_communication": "Notify customer immediately (within 1 hour of discovering damage). Provide estimated resolution timeline. Don't wait for insurance settlement — offer replacement or credit proactively.",
+        },
+        "insurance_claim_process": {
+            "step_1": "Survey: Intimate insurer within 24–48 hours of damage discovery. Request surveyor visit.",
+            "step_2": "Documentation: Gather GRN/dispatch document, photos, driver statement (for transit), carrier LR copy, purchase invoice, claim form.",
+            "step_3": "Surveyor Assessment: Insurance surveyor inspects damage and certifies loss value.",
+            "step_4": "Claim Filing: Submit completed claim form + all documents to insurer. Keep copies.",
+            "step_5": "Settlement: Insurer pays claim amount. Bank A/c Dr / Insurance Claim Receivable A/c Cr. Close the damage record.",
+            "typical_timeline": "Simple claims: 2–4 weeks. Complex/large claims: 4–12 weeks.",
+        },
+        "damage_prevention": {
+            "grn_prevention": "Insist on vendor packaging standards (double corrugated for fragile items). Inspect before signing GRN — do not sign blindly. For high-value items (Jaquar, Hettich), open and count before GRN signature.",
+            "transit_prevention": "Use proper packaging — bubble wrap CP fittings individually, double-box glass/ceramic items. Train drivers on load securing. Use padded floor mats for drawer systems. Insurance mandatory for shipments >₹50,000.",
+        },
+        "benchmark": "Building materials industry: damage rate target <0.5% of goods receipts by value. Damage >1% indicates systemic packaging or handling issues. Best-in-class distributors have transit insurance on all outbound shipments >₹25,000 and GRN inspection protocols with photos for every inward receipt.",
+        "indian_context": "In India, transit insurance is underutilised by SME dealers — most rely on carrier liability (which is usually capped at ₹100/kg, far below actual goods value). Buy open policy transit insurance: ₹8,000–₹15,000 annually covers unlimited shipments up to ₹1Cr declared value per trip. Worth it for any dealer with ₹5L+ monthly dispatch.",
+    },
+
     "tally_prime_export": {
         "title": "Tally Prime Data Export & Integration — InvenIQ",
         "what_it_does": "InvenIQ exports inventory, customer, supplier, and transaction data in Tally-compatible CSV format for direct import into Tally Prime.",
@@ -1282,6 +1373,25 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
                              "tally integration", "tally csv", "import to tally", "export to tally",
                              "tally stock", "tally ledger", "tally voucher", "tally gst"]):
         relevant_keys.append("tally_prime_export")
+
+    if any(w in q for w in [
+        "sales return", "credit note", "return policy", "partial return", "uom conversion return",
+        "return accounting", "gst on return", "how to process return", "return credit",
+        "pieces from box", "return pieces", "return gst reversal", "customer return",
+        "debit note vs credit note", "how to raise credit note",
+    ]):
+        relevant_keys.append("sales_return")
+
+    if any(w in q for w in [
+        "damage recording", "grn damage", "transit damage", "goods damaged in transit",
+        "how to record damage", "damaged goods accounting", "insurance claim goods",
+        "damage loss account", "transit loss account", "inventory write down damage",
+        "damage write off", "damage prevention", "insurance claim process",
+        "damage goods received", "damage after grn", "damage on arrival",
+        "transit damage accounting", "so damage", "dispatch damage",
+        "carrier damage", "vehicle accident goods",
+    ]):
+        relevant_keys.append("damage_recording")
 
     # ── Fallback: general best practices ─────────────────────────────────────
     if not relevant_keys:

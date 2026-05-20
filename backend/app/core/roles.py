@@ -1,6 +1,6 @@
 """
 Role definitions for InvenIQ — maps role names to allowed module lists.
-5 roles: admin, sales_manager, cfo, warehouse_manager, finance_manager.
+6 roles: admin, sales_manager, cfo, warehouse_manager, finance_manager, distributor.
 Admin gets full access ("all"); all others get a curated module list.
 """
 
@@ -14,25 +14,31 @@ ROLE_MODULES: dict[str, str | list[str]] = {
         "overview", "analytics", "sales", "customers", "orders",
         "louvers", "claims", "quotes", "discounts", "pos",
         "projects", "demand", "catalog", "freight", "schemes",
-        "chatbot", "about", "settings",
+        "salesreturn", "damage", "chatbot", "about", "settings",
     ],
 
     "cfo": [
         "overview", "analytics", "finance", "sales", "customers",
         "orders", "credit", "claims", "freight", "procurement",
-        "pogrn", "demand", "schemes", "chatbot", "about", "settings", "tally",
+        "pogrn", "demand", "schemes", "salesreturn", "landingcost",
+        "damage", "invoicematch", "chatbot", "about", "settings", "tally",
     ],
 
     "warehouse_manager": [
         "overview", "inventory", "inward", "warehouse", "pogrn",
         "deadstock", "procurement", "catalog", "freight", "demand",
-        "chatbot", "about", "settings",
+        "landingcost", "damage", "gateentry", "pr", "qc", "chatbot", "about", "settings",
     ],
 
     "finance_manager": [
         "overview", "analytics", "finance", "credit", "orders",
         "customers", "procurement", "pogrn", "claims", "tally",
-        "schemes", "chatbot", "about", "settings",
+        "schemes", "salesreturn", "landingcost", "damage", "invoicematch", "chatbot", "about", "settings",
+    ],
+
+    # Distributor role — read-only portal showing only their own allocated stock
+    "distributor": [
+        "distributor", "catalog", "about", "settings",
     ],
 }
 
@@ -65,6 +71,31 @@ ROLE_DEMO_ACCOUNTS: list[dict] = [
         "display_name": "Finance Manager",
         "email":        "finance@inveniq.demo",
         "role":         "finance_manager",
+    },
+    # ── Distributor demo accounts (one per mock distributor) ──────────────────
+    {
+        "username":       "dist_allied",
+        "password":       "dist@2024",
+        "display_name":   "Allied Hardware Distributors",
+        "email":          "allied@inveniq.demo",
+        "role":           "distributor",
+        "distributor_id": 1,
+    },
+    {
+        "username":       "dist_metro",
+        "password":       "dist@2024",
+        "display_name":   "Metro Bath & Kitchen",
+        "email":          "metro@inveniq.demo",
+        "role":           "distributor",
+        "distributor_id": 2,
+    },
+    {
+        "username":       "dist_south",
+        "password":       "dist@2024",
+        "display_name":   "South Decor Supplies",
+        "email":          "south@inveniq.demo",
+        "role":           "distributor",
+        "distributor_id": 3,
     },
 ]
 

@@ -41,7 +41,7 @@ export default function About({ onGoChat }) {
           A complete AI intelligence layer for dealers and distributors. Turn raw inventory, sales, and procurement data into clear decisions — instantly.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-          {[['26 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['GPT-4o Powered','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
+          {[['35 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['AI-Powered Analysis','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
             <span key={t} style={{ padding:'8px 16px', borderRadius:20, fontSize:12, fontWeight:700, background:c+'22', border:`1px solid ${c}55`, color:c }}>{t}</span>
           ))}
         </div>
@@ -50,11 +50,11 @@ export default function About({ onGoChat }) {
       {/* ── STATS ── */}
       <div className="card" style={{ marginBottom:16 }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', borderBottom:'1px solid var(--border)' }}>
-          <Stat value="26" label="Intelligence Modules" color="var(--b2)" />
-          <Stat value="19" label="AI Data Tools" color="#10b981" />
+          <Stat value="35" label="Intelligence Modules" color="var(--b2)" />
+          <Stat value="20" label="AI Data Tools" color="#10b981" />
           <Stat value="3" label="Chat Modes (Ask/Explain/Act)" color="#8b5cf6" />
-          <Stat value="80+" label="API Endpoints" color="#0ea5e9" />
-          <Stat value="23" label="Knowledge Base Topics" color="#f59e0b" />
+          <Stat value="136+" label="API Endpoints" color="#0ea5e9" />
+          <Stat value="25" label="Knowledge Base Topics" color="#f59e0b" />
           <Stat value="0" label="Setup Time (Demo Mode)" color="#10b981" />
         </div>
         <div style={{ padding:'12px 16px', textAlign:'center', fontSize:12, color:'var(--text3)' }}>
@@ -90,7 +90,7 @@ export default function About({ onGoChat }) {
 
       {/* ── FEATURES ── */}
       <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.8px', fontFamily:'var(--mono)', marginBottom:10 }}>
-        26 Intelligence Modules
+        35 Intelligence Modules
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:10, marginBottom:16 }}>
         {[
@@ -118,8 +118,16 @@ export default function About({ onGoChat }) {
           { icon:'⭐', title:'Scheme Management',   desc:'Supplier promotional schemes, volume targets, accrual tracking, and salesperson-wise target-vs-actual scorecards.', color:'#f59e0b' },
           { icon:'🏭', title:'Warehouse Management', desc:'Multi-warehouse capacity tracking, zone utilisation, GRN activity log, and stock distribution across locations.', color:'#14b8a6' },
           { icon:'📤', title:'Tally Prime Export',  desc:'One-click export of stock items, customer ledgers, supplier ledgers, sales vouchers, and purchase vouchers to Tally-compatible CSV.', color:'#6366f1' },
-          { icon:'🤖', title:'AI Assistant',        desc:'GPT-4o chat with 3 modes (Ask/Explain/Act), 19 live data tools, RCA engine, WhatsApp scanner, and PO creation.', color:'#10a37f' },
+          { icon:'🤖', title:'AI Assistant',        desc:'Intelligent AI chat with 3 modes (Ask/Explain/Act), 20 live data tools, RCA engine, WhatsApp scanner, and PO creation.', color:'#10a37f' },
           { icon:'⚙️', title:'Settings & Status',  desc:'System health dashboard, connection status, module registry, keyboard shortcuts reference, and quick setup guide.', color:'#64748b' },
+          { icon:'↩️', title:'Sales Returns',       desc:'Customer return processing with UOM conversion, auto credit note generation, and accounting journal entries.', color:'#dc2626' },
+          { icon:'⚖️', title:'Landing Cost',        desc:'Capture freight, insurance, and handling charges at GRN to calculate accurate landed cost per unit for true margin analysis.', color:'#f59e0b' },
+          { icon:'🏬', title:'Distributor Portal',  desc:'Dedicated portal for distributors with stock visibility, order placement, and personalised pricing and scheme tracking.', color:'#0ea5e9' },
+          { icon:'🛡️', title:'Damage Recording',    desc:'Record transit and warehouse damage with insurance claim workflow, accounting entries, and recovery tracking by SKU.', color:'#ef4444' },
+          { icon:'📋', title:'Purchase Requisition',desc:'Internal PR workflow with multi-level approval, budget checks, and one-click conversion to approved purchase orders.', color:'#8b5cf6' },
+          { icon:'🔬', title:'QC Inspection',       desc:'Post-GRN quality inspection with parameterised checklists, pass/accept/RTV decisions, and supplier quality scorecards.', color:'#14b8a6' },
+          { icon:'🔗', title:'Invoice Matching',    desc:'Automated 3-way match (PO + GRN + Invoice) with 1% tolerance auto-approval, discrepancy flagging, and AP approval workflow.', color:'#6366f1' },
+          { icon:'🚧', title:'Gate Entry',          desc:'Vehicle arrival log with DC verification, seal integrity check, and forwarding to GRN — full inbound security checkpoint.', color:'#f97316' },
         ].map(f => <Feature key={f.title} {...f} />)}
       </div>
 
@@ -127,7 +135,7 @@ export default function About({ onGoChat }) {
       <div style={{ padding:'24px', background:'linear-gradient(135deg, #0d1117 0%, #161b22 100%)', border:'1px solid #30363d', borderRadius:16, marginBottom:16 }}>
         <div style={{ display:'flex', gap:16, alignItems:'flex-start', flexWrap:'wrap' }}>
           <div style={{ flex:1, minWidth:240 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:'#10a37f', letterSpacing:1.5, textTransform:'uppercase', marginBottom:8 }}>AI Assistant — GPT-4o Powered</div>
+            <div style={{ fontSize:12, fontWeight:700, color:'#10a37f', letterSpacing:1.5, textTransform:'uppercase', marginBottom:8 }}>AI Assistant — Intelligent Business Analysis</div>
             <div style={{ fontSize:20, fontWeight:700, color:'#e6edf3', marginBottom:10 }}>Ask Any Business Question in Plain English</div>
             <div style={{ fontSize:13, color:'#8b949e', lineHeight:1.7, marginBottom:16 }}>
               "Which product should I reorder urgently?" · "Why are my margins falling?" · "Draft a payment reminder for Sharma Constructions" · "What is my cash cycle?"
@@ -162,9 +170,9 @@ export default function About({ onGoChat }) {
         <div className="ch"><div className="ctit">How It Works — 3 Simple Steps</div></div>
         <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'8px 0 8px' }}>
           <Step n={1} icon="⚙️" title="Connect Your Data"
-            desc="Point InvenIQ to your MySQL database or run it without any database in Demo Mode. All 26 modules show rich data immediately. No complex setup needed — just one .env file." />
+            desc="Point InvenIQ to your database or run it without any database in Demo Mode. All 35 modules show rich data immediately. No complex setup needed." />
           <Step n={2} icon="📊" title="See Everything at a Glance"
-            desc="26 intelligence modules cover every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, demand forecasts, quotations, and projects — all live." />
+            desc="35 intelligence modules cover every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, demand forecasts, quotations, and projects — all live." />
           <Step n={3} icon="🤖" title="Ask AI for Answers and Plans"
             desc="Type any question in plain language. The AI reads your live data, finds the root cause of problems, and gives you a step-by-step action plan. No reports, no spreadsheets." />
         </div>
@@ -189,19 +197,19 @@ export default function About({ onGoChat }) {
         </div>
       </div>
 
-      {/* ── TECH ── */}
+      {/* ── CAPABILITIES ── */}
       <div className="card" style={{ marginBottom:16 }}>
-        <div className="ch"><div className="ctit">Built With Modern Technology</div></div>
+        <div className="ch"><div className="ctit">Platform Capabilities</div></div>
         <div style={{ padding:'8px 0 4px', display:'flex', gap:8, flexWrap:'wrap' }}>
           {[
-            ['React 18','#61DAFB','Frontend UI'],
-            ['FastAPI (Python)','#009688','Backend API'],
-            ['GPT-4o','#10a37f','AI Engine'],
-            ['MySQL 8','#4479A1','Database'],
-            ['Chart.js','#FF6384','Data Visualization'],
-            ['Server-Sent Events','#f59e0b','Real-time Streaming'],
-            ['aiomysql','#3776AB','Async DB Driver'],
-            ['OpenAI Function Calling','#8b5cf6','Structured AI Actions'],
+            ['Real-time AI Analysis','#10a37f','Instant business insights'],
+            ['Live Data Processing','#0ea5e9','Up-to-date at all times'],
+            ['Intelligent Forecasting','#8b5cf6','Demand & trend prediction'],
+            ['Smart Notifications','#f59e0b','Proactive business alerts'],
+            ['Interactive Charts','#FF6384','Visual business intelligence'],
+            ['Streaming Responses','#f59e0b','Real-time AI interaction'],
+            ['WhatsApp Integration','#25D366','Scan & extract requirements'],
+            ['PDF & Email Export','#64748b','Professional document output'],
           ].map(([name,color,desc])=>(
             <div key={name} style={{ padding:'8px 14px', background:color+'15', border:`1px solid ${color}30`, borderRadius:8, textAlign:'center' }}>
               <div style={{ fontSize:12, fontWeight:700, color }}>{name}</div>
@@ -216,22 +224,20 @@ export default function About({ onGoChat }) {
         <div style={{ fontSize:28, marginBottom:10 }}>🎯</div>
         <div style={{ fontWeight:800, fontSize:18, marginBottom:8, color:'var(--green)' }}>Try It Right Now — No Setup Needed</div>
         <div style={{ fontSize:13, color:'var(--text2)', maxWidth:480, margin:'0 auto 16px', lineHeight:1.7 }}>
-          InvenIQ runs in Demo Mode out of the box. All 26 modules show realistic sample data for a Bangalore building materials dealer. Click any "Ask AI" button to try the chatbot.
+          InvenIQ runs in Demo Mode out of the box. All 35 modules show realistic sample data for a Bangalore building materials dealer. Click any "Ask AI" button to try the chatbot.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-          <a href="https://github.com/nikhil2465/ai_chatbot_inventory1" target="_blank" rel="noopener noreferrer"
-            style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'10px 20px', background:'#24292e', border:'none', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', textDecoration:'none' }}>
-            ⭐ Star on GitHub
-          </a>
+          <button
+            onClick={() => onGoChat?.('Give me a complete business health check and my top priorities for this week.')}
+            style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'10px 20px', background:'var(--green)', border:'none', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer' }}>
+            🤖 Try AI Assistant
+          </button>
         </div>
       </div>
 
       {/* Footer */}
       <div style={{ textAlign:'center', padding:'16px', fontSize:11, color:'var(--text3)' }}>
-        InvenIQ — AI Inventory Intelligence · Built with React + FastAPI + GPT-4o ·{' '}
-        <a href="https://github.com/nikhil2465/ai_chatbot_inventory1" target="_blank" rel="noopener noreferrer" style={{ color:'var(--b2)' }}>
-          github.com/nikhil2465/ai_chatbot_inventory1
-        </a>
+        InvenIQ — AI Inventory Intelligence Platform · © 2026
       </div>
 
       {onGoChat && (

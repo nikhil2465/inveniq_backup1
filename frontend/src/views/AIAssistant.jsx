@@ -311,39 +311,61 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
   // ── Success State ────────────────────────────────────────────────────────
   if (action.status === 'success') {
     const res = action.result || {};
-    const totalVal = res.total_value > 0
+    // All newly created POs are DRAFT — pending Sales & Finance approval
+    const isDraft = res.status === 'DRAFT' || !res.status;
+    const headerBg   = isDraft ? '#d97706' : '#16a34a';
+    const subtextClr = isDraft ? '#fef3c7' : '#bbf7d0';
+    const bodyBg     = isDraft ? '#fffbeb' : '#f0fdf4';
+    const textClr    = isDraft ? '#92400e' : '#166534';
+    const labelClr   = isDraft ? '#b45309' : '#15803d';
+    const badgeBg    = isDraft ? '#fef3c7' : '#dcfce7';
+    const borderClr  = isDraft ? '#d97706' : '#16a34a';
+    const totalVal = (res.total_value || 0) > 0
       ? `₹${Number(res.total_value).toLocaleString('en-IN')}`
       : null;
     return (
       <div style={{
         marginTop: 14, fontFamily: "'Segoe UI', Arial, sans-serif",
-        border: '2px solid #16a34a', borderRadius: 10, overflow: 'hidden',
-        boxShadow: '0 4px 16px rgba(22,163,74,0.12)',
+        border: `2px solid ${borderClr}`, borderRadius: 10, overflow: 'hidden',
+        boxShadow: `0 4px 16px rgba(0,0,0,0.10)`,
       }}>
-        <div style={{ background: '#16a34a', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18 }}>✅</span>
+        <div style={{ background: headerBg, padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>{isDraft ? '📋' : '✅'}</span>
           <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>Purchase Order Issued Successfully</div>
-            <div style={{ color: '#bbf7d0', fontSize: 11 }}>PO has been created and added to your procurement records</div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>
+              {isDraft ? 'Draft PO Created — Awaiting Approval' : 'Purchase Order Issued Successfully'}
+            </div>
+            <div style={{ color: subtextClr, fontSize: 11 }}>
+              {isDraft
+                ? 'Requires Sales & Finance approval before issuing to supplier'
+                : 'PO has been created and added to your procurement records'}
+            </div>
           </div>
         </div>
-        <div style={{ background: '#f0fdf4', padding: '14px 18px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px', fontSize: 12, color: '#166534' }}>
-            <div><span style={{ color: '#15803d', fontWeight: 600 }}>PO Number: </span>
-              <code style={{ background: '#dcfce7', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.5px' }}>
+        <div style={{ background: bodyBg, padding: '14px 18px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px', fontSize: 12, color: textClr }}>
+            <div><span style={{ color: labelClr, fontWeight: 600 }}>PO Number: </span>
+              <code style={{ background: badgeBg, padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.5px' }}>
                 {res.po_number || 'PO-DEMO'}
               </code>
             </div>
-            <div><span style={{ color: '#15803d', fontWeight: 600 }}>Date Issued: </span>{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-            <div><span style={{ color: '#15803d', fontWeight: 600 }}>Vendor: </span>{res.supplier || po.supplier_name}</div>
-            <div><span style={{ color: '#15803d', fontWeight: 600 }}>Product: </span>{res.sku || po.sku_name}</div>
-            <div><span style={{ color: '#15803d', fontWeight: 600 }}>Quantity: </span>{(res.quantity || po.quantity)?.toLocaleString('en-IN')} sheets</div>
-            <div><span style={{ color: '#15803d', fontWeight: 600 }}>Expected Delivery: </span>{res.expected_date || po.expected_date || 'Within 7 days'}</div>
-            {totalVal && <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#15803d', fontWeight: 600 }}>Total Order Value (incl. GST): </span><strong>{totalVal}</strong></div>}
+            <div><span style={{ color: labelClr, fontWeight: 600 }}>Status: </span>
+              <strong>{isDraft ? 'DRAFT — Pending Approval' : 'OPEN'}</strong>
+            </div>
+            <div><span style={{ color: labelClr, fontWeight: 600 }}>Vendor: </span>{res.supplier || po.supplier_name}</div>
+            <div><span style={{ color: labelClr, fontWeight: 600 }}>Product: </span>{res.sku || po.sku_name}</div>
+            <div><span style={{ color: labelClr, fontWeight: 600 }}>Quantity: </span>{(res.quantity || po.quantity)?.toLocaleString('en-IN')} units</div>
+            <div><span style={{ color: labelClr, fontWeight: 600 }}>Expected Delivery: </span>{res.expected_date || po.expected_date || 'Within 7 days'}</div>
+            {totalVal && <div style={{ gridColumn: '1/-1' }}><span style={{ color: labelClr, fontWeight: 600 }}>Total Order Value: </span><strong>{totalVal}</strong></div>}
           </div>
+          {isDraft && (
+            <div style={{ marginTop: 10, padding: '8px 12px', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>
+              ℹ️ Go to <strong>PO &amp; GRN → Pending Approvals</strong> tab to approve and release this PO to the supplier.
+            </div>
+          )}
           {res.demo_mode && (
-            <div style={{ marginTop: 8, color: '#6b7280', fontSize: 10, borderTop: '1px solid #d1fae5', paddingTop: 6 }}>
-              ℹ️ Demo mode — PO not persisted. Connect MySQL to store in database.
+            <div style={{ marginTop: 8, color: '#6b7280', fontSize: 10, borderTop: `1px solid ${badgeBg}`, paddingTop: 6 }}>
+              Demo mode — connect MySQL for database persistence.
             </div>
           )}
         </div>
@@ -623,11 +645,7 @@ function AiMessage({ msg, isStreaming, onFollowUp, onConfirmPO, onCancelPO }) {
                 <div className="iq-msg-footer">
                   <div className="iq-msg-meta">
                     <span>InvenIQ AI</span>
-                    {msg.model && <><span>·</span><span>{msg.model}</span></>}
                     {ts && <><span>·</span><span>{ts}</span></>}
-                    {msg.data_source === 'mysql' && (
-                      <><span>·</span><span style={{ color: '#16a34a' }}>● Live DB</span></>
-                    )}
                   </div>
                   <div className="iq-msg-actions">
                     <div className="iq-reactions">
@@ -1037,17 +1055,13 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed, dbSt
           <div className="iq-header-logo"><IconSpark /></div>
           <div>
             <div className="iq-header-title">InvenIQ AI Assistant</div>
-            <div className="iq-header-sub">GPT-4o · MCP Tools · RCA Engine · Function Calling</div>
+            <div className="iq-header-sub">AI-Powered Business Intelligence · Live Data Analysis</div>
           </div>
         </div>
         <div className="iq-header-right">
           <div className="iq-badge">
-            <span className={`iq-badge-dot ${dbStatus?.status === 'live' ? 'live' : 'model'}`} />
-            {dbStatus?.status === 'live' ? 'MySQL Live' : 'Demo Mode'}
-          </div>
-          <div className="iq-badge">
-            <span className="iq-badge-dot model" />
-            GPT-4o
+            <span className="iq-badge-dot live" />
+            AI Ready
           </div>
           {messages.length > 0 && (
             <button className="iq-icon-btn" onClick={exportChat} title="Export conversation as .txt">
@@ -1244,7 +1258,7 @@ export default function AIAssistant({ pendingQuery, onPendingQueryConsumed, dbSt
               <span><kbd>1/2/3</kbd> Switch mode</span>
               <span><kbd>🎤</kbd> Voice</span>
             </div>
-            <span>Powered by GPT-4o · Knowledge Base · Proactive Insights · RCA Engine · Business Growth AI</span>
+            <span>AI-Powered Insights · Knowledge Base · Real-time Data Analysis · Business Intelligence</span>
           </div>
         </div>
       </div>

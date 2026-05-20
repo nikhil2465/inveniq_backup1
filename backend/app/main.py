@@ -1,10 +1,10 @@
 """InvenIQ — Inventory Intelligence Platform — FastAPI Application Entry Point."""
 import logging
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Callable
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -39,6 +39,14 @@ from app.api.pos import router as pos_router
 from app.api.schemes import router as schemes_router
 from app.api.warehouse import router as warehouse_router
 from app.api.tally_export import router as tally_router
+from app.api.sales_return import router as sales_return_router
+from app.api.landing_cost import router as landing_cost_router
+from app.api.damage import router as damage_router
+from app.api.distributor import router as distributor_router
+from app.api.purchase_requisition import router as pr_router
+from app.api.qc_inspection import router as qc_router
+from app.api.invoice_matching import router as invoice_matching_router
+from app.api.gate_entry import router as gate_entry_router
 from app.core.config import get_settings
 
 load_dotenv()
@@ -63,6 +71,10 @@ _MODULE_API_PREFIXES: dict[str, tuple[str, ...]] = {
     "deadstock":   ("/api/dead-stock",),
     "inward":      ("/api/inward",),
     "warehouse":   ("/api/warehouses", "/api/warehouse", "/api/stock-dispatch", "/api/distributors"),
+    "salesreturn": ("/api/sales-returns",),
+    "landingcost": ("/api/landing-cost",),
+    "distributor": ("/api/distributor",),
+    "damage":      ("/api/damage",),
     "procurement": ("/api/procurement",),
     "pogrn":       ("/api/po-grn",),
     "sales":       ("/api/sales",),
@@ -82,6 +94,10 @@ _MODULE_API_PREFIXES: dict[str, tuple[str, ...]] = {
     "settings":    ("/api/settings",),
     "about":       (),  # About has no API calls
     "tally":       ("/api/tally",),
+    "pr":          ("/api/pr",),
+    "qc":          ("/api/qc",),
+    "invoicematch":("/api/invoice-matching",),
+    "gateentry":   ("/api/gate-entry",),
 }
 
 # API paths always accessible regardless of module list (health + auth + settings)
@@ -228,10 +244,10 @@ except ImportError:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     cfg = get_settings()
     logger.info("=" * 52)
-    logger.info("  InvenIQ v3.0 — AI Inventory Intelligence Platform")
+    logger.info("  InvenIQ v3.1 — AI Inventory Intelligence Platform")
     logger.info("=" * 52)
     if _DB_AVAILABLE and cfg.mysql_host:
         pool = await get_pool()
@@ -240,7 +256,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("  MySQL   : DEMO MODE  (set MYSQL_HOST in .env for live data)")
     logger.info("  OpenAI  : %s", "CONFIGURED" if cfg.openai_api_key else "NOT SET  (set OPENAI_API_KEY for AI features)")
-    logger.info("  Routers : 17  |  Endpoints : 100+")
+    logger.info("  Routers : 24  |  Endpoints : 136+")
     logger.info("  Docs    : http://127.0.0.1:8000/docs")
     logger.info("=" * 52)
     yield
@@ -252,7 +268,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="InvenIQ API",
     description="Inventory Intelligence Platform — AI-powered insights for dealers & distributors",
-    version="3.0",
+    version="3.1.0",
     lifespan=lifespan,
 )
 
@@ -276,7 +292,7 @@ if _RATE_LIMIT_AVAILABLE and limiter:
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
-    """Log every request with timing and a unique request ID for tracing."""
+    """Log every request with timing, unique request ID for tracing, and security headers."""
     req_id = str(uuid.uuid4())[:8]
     start  = time.perf_counter()
     response = await call_next(request)
@@ -287,8 +303,24 @@ async def request_logging_middleware(request: Request, call_next):
             "[%s] %s %s → %d  %.1fms",
             req_id, request.method, request.url.path, response.status_code, elapsed,
         )
-    response.headers["X-Request-ID"]   = req_id
+    response.headers["X-Request-ID"]    = req_id
     response.headers["X-Response-Time"] = f"{elapsed:.1f}ms"
+    # Security headers — applied to all responses
+    response.headers["X-Content-Type-Options"]  = "nosniff"
+    response.headers["X-Frame-Options"]         = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"]        = "1; mode=block"
+    response.headers["Referrer-Policy"]         = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"]      = "camera=(), microphone=(), geolocation=()"
+    # Prevent browser from caching index.html — ensures the browser always loads
+    # the latest main.xxx.js with correct chunk hashes after every new build.
+    # Hashed JS/CSS assets (e.g. main.abc123.js) are immutable and can be cached forever.
+    if request.url.path in ("/", "/index.html") or (
+        response.status_code == 200
+        and response.headers.get("content-type", "").startswith("text/html")
+    ):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"]        = "no-cache"
+        response.headers["Expires"]       = "0"
     return response
 
 
@@ -306,8 +338,16 @@ app.include_router(quotes_router,    prefix="/api")
 app.include_router(credit_router,    prefix="/api")
 app.include_router(pos_router,       prefix="/api")
 app.include_router(schemes_router,   prefix="/api")
-app.include_router(warehouse_router, prefix="/api")
-app.include_router(tally_router,    prefix="/api")
+app.include_router(warehouse_router,     prefix="/api")
+app.include_router(tally_router,         prefix="/api")
+app.include_router(sales_return_router,  prefix="/api")
+app.include_router(landing_cost_router,  prefix="/api")
+app.include_router(damage_router,        prefix="/api")
+app.include_router(distributor_router,       prefix="/api")
+app.include_router(pr_router,                prefix="/api")
+app.include_router(qc_router,                prefix="/api")
+app.include_router(invoice_matching_router,  prefix="/api")
+app.include_router(gate_entry_router,        prefix="/api")
 
 
 @app.exception_handler(Exception)
@@ -321,7 +361,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/version", tags=["Health"])
 def api_root():
-    return {"service": "InvenIQ API", "version": "3.0", "docs": "/docs"}
+    return {"service": "InvenIQ API", "version": "3.1.0", "docs": "/docs"}
 
 
 @app.get("/api/health", tags=["Health"])
@@ -379,7 +419,7 @@ async def get_settings_info():
     db_ok = await is_db_available() if _DB_AVAILABLE else False
     openai_ok = bool(cfg.openai_api_key)
     return {
-        "version": "3.0.0",
+        "version": "3.1.0",
         "build": "May 2026",
         "edition": "Enterprise",
         "database": {
@@ -405,9 +445,11 @@ async def get_settings_info():
             "warehouse", "procurement", "pogrn", "catalog", "customers", "louvers", "orders",
             "freight", "sales", "claims", "discounts", "projects", "quotes",
             "finance", "credit", "pos", "schemes", "chatbot", "about", "settings", "tally",
+            "salesreturn", "landingcost", "distributor", "damage",
+            "pr", "qc", "invoicematch", "gateentry",
         ],
-        "api_routers": 17,
-        "total_endpoints": 100,
+        "api_routers": 24,
+        "total_endpoints": 136,
     }
 
 
@@ -416,7 +458,11 @@ async def get_settings_info():
 # on the same port as the API — no nginx needed for single-machine installs.
 # Dev mode: React runs on :3000 with its own dev server (build dir absent).
 # Docker mode: nginx serves static files; build dir is absent in the container.
-_FRONTEND_BUILD = Path(__file__).resolve().parent.parent.parent / "frontend" / "build"
+_FRONTEND_BUILD = (
+    Path(sys.executable).parent / "frontend" / "build"
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent.parent.parent / "frontend" / "build"
+)
 if _FRONTEND_BUILD.is_dir():
     from fastapi.staticfiles import StaticFiles
     app.mount("/", StaticFiles(directory=str(_FRONTEND_BUILD), html=True), name="static")

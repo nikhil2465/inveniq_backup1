@@ -35,6 +35,10 @@ const NAV_ITEMS = [
     icon: <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v10M5 9l3 3 3-3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/><path d="M2 14h12" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".6"/></svg>,
   },
   {
+    id: 'damage', label: 'Damage Recording', badge: 'NEW', badgeClass: 'nb-r',
+    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M8 1L2 5v8h12V5L8 1z" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" opacity=".85"/><path d="M6 8l1.5 1.5L11 6" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".0"/><path d="M7 6l2 4M7 6l2-2" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".9"/><circle cx="8" cy="10.5" r=".8" fill="white" opacity=".9"/></svg>,
+  },
+  {
     id: 'warehouse', label: 'Warehouse Management',
     icon: <svg viewBox="0 0 16 16" fill="none"><path d="M1 7L8 2l7 5v7H1V7z" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".85"/><rect x="5" y="9" width="6" height="5" rx=".5" stroke="white" strokeWidth="1.2" opacity=".7"/></svg>,
   },
@@ -42,12 +46,32 @@ const NAV_ITEMS = [
   // ── Procurement ───────────────────────────────────────────────────────────
   { section: 'Procurement' },
   {
+    id: 'landingcost', label: 'Landing Cost', badge: 'NEW', badgeClass: 'nb-b',
+    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M1 11l4-8 3 5 2-3 3 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/><path d="M1 14h14" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".5"/></svg>,
+  },
+  {
     id: 'procurement', label: 'Supplier & Procurement',
     icon: <svg viewBox="0 0 16 16" fill="none"><path d="M1 3h14M1 3l2 10h10L15 3" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".85"/><circle cx="6" cy="14" r="1" fill="white" opacity=".7"/><circle cx="10" cy="14" r="1" fill="white" opacity=".7"/></svg>,
   },
   {
     id: 'pogrn', label: 'PO & GRN', badge: 'NEW', badgeClass: 'nb-b',
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 5h6M5 8h4M5 11h5" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".75"/><path d="M11 9l1.5 1.5L15 8" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
+  },
+  {
+    id: 'gateentry', label: 'Gate Entry', badge: 'NEW', badgeClass: 'nb-b',
+    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M7 1H2a1 1 0 00-1 1v12a1 1 0 001 1h5" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".85"/><path d="M11 4l4 4-4 4M15 8H6" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
+  },
+  {
+    id: 'pr', label: 'Purchase Requisition', badge: 'NEW', badgeClass: 'nb-p',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 5h6M5 8h6M5 11h4" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".7"/><path d="M10 11h2M11 10v2" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".9"/></svg>,
+  },
+  {
+    id: 'qc', label: 'QC Inspection', badge: 'NEW', badgeClass: 'nb-g',
+    icon: <svg viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5.5 7l1.5 1.5 2.5-2.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/><path d="M11 11l3 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".7"/></svg>,
+  },
+  {
+    id: 'invoicematch', label: 'Invoice Matching', badge: 'NEW', badgeClass: 'nb-r',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="6" height="10" rx="1" stroke="white" strokeWidth="1.3" opacity=".85"/><rect x="9" y="3" width="6" height="10" rx="1" stroke="white" strokeWidth="1.3" opacity=".7"/><path d="M7 8h2M8 6v4" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".9"/></svg>,
   },
 
   // ── Sales & CRM ───────────────────────────────────────────────────────────
@@ -63,6 +87,10 @@ const NAV_ITEMS = [
   {
     id: 'louvers', label: 'Sales Orders', badge: 'NEW', badgeClass: 'nb-g',
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="white" strokeWidth="1.4" opacity=".85"/><path d="M5 5h6M5 8h6M5 11h4" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".8"/><path d="M11 10.5l1.5 1.5L15 9" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
+  },
+  {
+    id: 'salesreturn', label: 'Sales Return', badge: 'NEW', badgeClass: 'nb-r',
+    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M3 8H13M3 8L6 5M3 8L6 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/><rect x="9" y="4" width="5" height="8" rx="1" stroke="white" strokeWidth="1.2" opacity=".6"/></svg>,
   },
   {
     id: 'orders', label: 'Orders & Fulfilment',
@@ -128,6 +156,13 @@ const NAV_ITEMS = [
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="9.5" rx="2" stroke="white" strokeWidth="1.5" opacity=".9"/><path d="M4.5 13.5l1.5-2H10" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".7"/><circle cx="5" cy="6.75" r="1" fill="white" opacity=".8"/><circle cx="8" cy="6.75" r="1" fill="white" opacity=".8"/><circle cx="11" cy="6.75" r="1" fill="white" opacity=".8"/></svg>,
   },
 
+  // ── Distributor Portal ────────────────────────────────────────────────────
+  { section: 'Distributor' },
+  {
+    id: 'distributor', label: 'My Stock Portal', badge: 'NEW', badgeClass: 'nb-g',
+    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M1 7L8 2l7 5v7H1V7z" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".85"/><rect x="5" y="9" width="6" height="5" rx=".5" stroke="white" strokeWidth="1.2" opacity=".7"/><circle cx="8" cy="9" r="1.5" fill="white" opacity=".6"/></svg>,
+  },
+
   // ── System ────────────────────────────────────────────────────────────────
   { section: 'System' },
   {
@@ -173,8 +208,17 @@ function SidebarFooter({ dbStatus }) {
   );
 }
 
-export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, alerts = [], allowedModules = null }) {
+export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, alerts = [], allowedModules = null, currentUser = null }) {
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Focused mode: ≤ 8 allowed modules (only the client account — all role demo
+  // accounts have 13+ modules so they are never in focused mode).
+  const isFocused = !!(allowedModules && allowedModules.length <= 8);
+  const chipName  = currentUser?.display_name || currentUser?.username || 'Client';
+  const chipRole  = currentUser?.role
+    ? currentUser.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    : 'User';
+  const chipInit  = chipName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'C';
 
   const dynBadges = useMemo(() => {
     const critStock = alerts.filter(a => a.category === 'stock' && a.severity === 'critical').length;
@@ -210,7 +254,7 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
   }, [allowedModules, searchQuery]);
 
   return (
-    <nav className={`sidebar${isOpen ? ' open' : ''}`}>
+    <nav className={`sidebar${isOpen ? ' open' : ''}${isFocused ? ' sb-focused' : ''}`}>
       {/* Logo */}
       <div className="logo-area">
         <div className="logo-row">
@@ -230,23 +274,36 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
         <div className="logo-tag">Inventory Intelligence Platform</div>
       </div>
 
-      {/* Module Search */}
-      <div className="sb-search">
-        <svg viewBox="0 0 16 16" fill="none" className="sb-search-icon">
-          <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.4" opacity=".6"/>
-          <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity=".6"/>
-        </svg>
-        <input
-          type="text"
-          className="sb-search-input"
-          placeholder="Search modules…"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-        />
-        {searchQuery && (
-          <button className="sb-search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">×</button>
-        )}
-      </div>
+      {/* Role chip — focused/client mode only */}
+      {isFocused && (
+        <div className="sb-role-chip">
+          <div className="sb-role-chip-av">{chipInit}</div>
+          <div className="sb-role-chip-info">
+            <div className="sb-role-chip-name">{chipName}</div>
+            <div className="sb-role-chip-role">{chipRole}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Module Search — hidden in focused mode (no point searching 4–6 items) */}
+      {!isFocused && (
+        <div className="sb-search">
+          <svg viewBox="0 0 16 16" fill="none" className="sb-search-icon">
+            <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.4" opacity=".6"/>
+            <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity=".6"/>
+          </svg>
+          <input
+            type="text"
+            className="sb-search-input"
+            placeholder="Search modules…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button className="sb-search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">×</button>
+          )}
+        </div>
+      )}
 
       {/* Navigation */}
       <div className="nav">
@@ -279,7 +336,7 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
       {/* Footer */}
       <div className="sf">
         <SidebarFooter dbStatus={dbStatus} />
-        <div className="sf-version">InvenIQ v3.0 · May 2026</div>
+        <div className="sf-version">InvenIQ v3.1 · May 2026</div>
       </div>
     </nav>
   );

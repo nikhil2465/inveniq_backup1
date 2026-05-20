@@ -7,7 +7,7 @@ import datetime
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -21,10 +21,34 @@ try:
         create_purchase_order as _db_create_po,
         create_grn as _db_create_grn,
         get_quotations as _db_get_quotations,
+        ensure_approval_schema as _ensure_approval_schema,
+        ensure_landing_cost_schema as _ensure_lc_schema,
+        get_pending_approvals as _db_get_pending_approvals,
+        approve_po as _db_approve_po,
+        reject_po as _db_reject_po,
+        release_po_to_supplier as _db_release_po,
     )
     _DB_AVAILABLE = True
 except ImportError:
     _DB_AVAILABLE = False
+
+_approval_schema_ready = False
+
+
+async def _maybe_ensure_schema() -> None:
+    """Lazily run all schema migrations once per process lifetime."""
+    global _approval_schema_ready
+    if _approval_schema_ready or not _DB_AVAILABLE:
+        return
+    try:
+        pool = await get_pool()
+        if pool:
+            await _ensure_approval_schema(pool)
+            await _ensure_lc_schema(pool)
+    except Exception as exc:
+        logger.warning("Schema migration check failed: %s", exc)
+    finally:
+        _approval_schema_ready = True
 
 
 # ── GET /api/po-grn  ──────────────────────────────────────────────────────────
@@ -52,14 +76,20 @@ class CreatePORequest(BaseModel):
     unit_price: Optional[float] = None
     expected_date: Optional[str] = None
     notes: Optional[str] = None
+    operation_type: Optional[str] = "Regular Purchase"
+    # Optional fields passed by the scanner — used when auto-creating new product records
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    brand: Optional[str] = None
 
 
 @router.post("/po")
 async def create_po(req: CreatePORequest):
-    """Create a new purchase order (DB or demo mode).
-    Falls back to demo mode when the supplier/SKU is not yet in the DB
-    (e.g. new industry products like louvers profiles).
+    """Create a new purchase order as DRAFT, pending sales & finance approval.
+    DB mode: always persists — auto-creates supplier/product records if needed.
+    Demo mode fallback: returns a structured DRAFT response for UI testing.
     """
+    await _maybe_ensure_schema()
     if _DB_AVAILABLE:
         try:
             pool = await get_pool()
@@ -67,27 +97,211 @@ async def create_po(req: CreatePORequest):
                 result = await _db_create_po(pool, req.model_dump())
                 if result.get("success"):
                     return result
-                # Product/supplier not in DB (new industry item) → fall to demo
                 logger.info("PO demo fallback: %s", result.get("error"))
         except Exception as exc:
             logger.warning("DB PO creation failed, using demo: %s", exc)
 
-    # Demo-mode mock response
+    # Demo-mode mock response — always DRAFT
     po_number = f"PO-{datetime.date.today().strftime('%Y%m%d')}-DEMO"
     return {
-        "success": True,
-        "po_number": po_number,
-        "supplier": req.supplier_name,
-        "sku": req.sku_name,
-        "quantity": req.quantity,
-        "unit_price": req.unit_price or 0,
-        "total_value": (req.unit_price or 0) * req.quantity,
-        "expected_date": req.expected_date or (
+        "success":        True,
+        "po_number":      po_number,
+        "status":         "DRAFT",
+        "supplier":       req.supplier_name,
+        "sku":            req.sku_name,
+        "quantity":       req.quantity,
+        "unit_price":     req.unit_price or 0,
+        "total_value":    (req.unit_price or 0) * req.quantity,
+        "expected_date":  req.expected_date or (
             datetime.date.today() + datetime.timedelta(days=7)
         ).isoformat(),
-        "notes": req.notes or "Created via InvenIQ AI Assistant",
-        "demo_mode": True,
+        "notes":          req.notes or "Created via InvenIQ AI Assistant",
+        "operation_type": req.operation_type or "Regular Purchase",
+        "demo_mode":      True,
     }
+
+
+# ── GET /api/po/pending-approvals  ───────────────────────────────────────────
+
+@router.get("/po/pending-approvals")
+async def get_pending_po_approvals():
+    """Return all POs in DRAFT / PENDING_APPROVAL / APPROVED status with their approval levels."""
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                items = await _db_get_pending_approvals(pool)
+                return {"pending_approvals": items, "data_source": "mysql"}
+        except Exception as exc:
+            logger.warning("Pending approvals DB fetch failed: %s", exc)
+    return {"pending_approvals": _mock_pending_approvals(), "data_source": "mock"}
+
+
+# ── Approval action models ────────────────────────────────────────────────────
+
+class POApproveRequest(BaseModel):
+    level: str          # 'sales' or 'finance'
+    approver_name: str
+    comments: Optional[str] = None
+
+
+class PORejectRequest(BaseModel):
+    level: str          # 'sales' or 'finance'
+    approver_name: str
+    reason: str
+
+
+# ── PATCH /api/po/{po_number}/approve  ───────────────────────────────────────
+
+@router.patch("/po/{po_number}/approve")
+async def approve_po(po_number: str, req: POApproveRequest):
+    """Approve a PO at 'sales' or 'finance' level. Promotes to APPROVED when both levels approve."""
+    level = req.level.lower()
+    if level not in ("sales", "finance"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="level must be 'sales' or 'finance'")
+
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_approve_po(
+                    pool, po_number, level, req.approver_name, req.comments or ""
+                )
+                if result.get("success"):
+                    return result
+                from fastapi import HTTPException
+                raise HTTPException(status_code=400, detail=result.get("error", "Approval failed"))
+        except Exception as exc:
+            logger.warning("PO approve DB failed: %s", exc)
+
+    # Demo fallback
+    return {
+        "success":       True,
+        "po_number":     po_number,
+        "level":         level,
+        "new_po_status": "PENDING_APPROVAL",
+        "fully_approved": False,
+        "demo_mode":     True,
+    }
+
+
+# ── PATCH /api/po/{po_number}/reject  ────────────────────────────────────────
+
+@router.patch("/po/{po_number}/reject")
+async def reject_po(po_number: str, req: PORejectRequest):
+    """Reject a PO at 'sales' or 'finance' level and mark it as REJECTED."""
+    level = req.level.lower()
+    if level not in ("sales", "finance"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="level must be 'sales' or 'finance'")
+
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_reject_po(
+                    pool, po_number, level, req.approver_name, req.reason
+                )
+                if result.get("success"):
+                    return result
+                from fastapi import HTTPException
+                raise HTTPException(status_code=400, detail=result.get("error", "Rejection failed"))
+        except Exception as exc:
+            logger.warning("PO reject DB failed: %s", exc)
+
+    return {
+        "success":       True,
+        "po_number":     po_number,
+        "new_po_status": "REJECTED",
+        "demo_mode":     True,
+    }
+
+
+# ── POST /api/po/{po_number}/release  ────────────────────────────────────────
+
+@router.post("/po/{po_number}/release")
+async def release_po(po_number: str):
+    """Release a fully-approved PO to the supplier (APPROVED → OPEN)."""
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_release_po(pool, po_number)
+                if result.get("success"):
+                    return result
+                from fastapi import HTTPException
+                raise HTTPException(status_code=400, detail=result.get("error", "Release failed"))
+        except Exception as exc:
+            logger.warning("PO release DB failed: %s", exc)
+
+    return {
+        "success":    True,
+        "po_number":  po_number,
+        "new_status": "OPEN",
+        "message":    "PO released to supplier.",
+        "demo_mode":  True,
+    }
+
+
+def _mock_pending_approvals() -> list:
+    return [
+        {
+            "po_id": 101, "po_number": "PO-20260518-005",
+            "supplier": "Ebco India Pvt. Ltd.",
+            "sku": "Soft-Close Hinge 35mm Pk-10",
+            "total_value": 48500.0, "expected_date": "2026-05-28",
+            "status": "PENDING_APPROVAL", "po_date": "2026-05-18",
+            "notes": "Monthly restocking — urgent",
+            "approvals": {
+                "sales": {
+                    "status": "approved", "approver": "Rajesh Kumar",
+                    "approved_at": "2026-05-19 10:30:00",
+                    "comments": "Approved. Priority order.",
+                },
+                "finance": {
+                    "status": "pending", "approver": None,
+                    "approved_at": None, "comments": None,
+                },
+            },
+        },
+        {
+            "po_id": 102, "po_number": "PO-20260519-008",
+            "supplier": "Hettich India",
+            "sku": "InnoTech Drawer 400mm",
+            "total_value": 38400.0, "expected_date": "2026-05-30",
+            "status": "DRAFT", "po_date": "2026-05-19",
+            "notes": "Quarterly reorder — kitchen systems batch",
+            "approvals": {
+                "sales":   {"status": "pending", "approver": None, "approved_at": None, "comments": None},
+                "finance": {"status": "pending", "approver": None, "approved_at": None, "comments": None},
+            },
+        },
+        {
+            "po_id": 103, "po_number": "PO-20260520-011",
+            "supplier": "Jaquar India",
+            "sku": "Lyric Basin Mixer Chrome",
+            "total_value": 97000.0, "expected_date": "2026-06-01",
+            "status": "APPROVED", "po_date": "2026-05-20",
+            "notes": "Showroom display units",
+            "approvals": {
+                "sales": {
+                    "status": "approved", "approver": "Rajesh Kumar",
+                    "approved_at": "2026-05-20 09:00:00",
+                    "comments": "High-value order — approved",
+                },
+                "finance": {
+                    "status": "approved", "approver": "Finance Manager",
+                    "approved_at": "2026-05-20 11:00:00",
+                    "comments": "Budget available. Approved.",
+                },
+            },
+        },
+    ]
 
 
 # ── GET /api/quotations  ─────────────────────────────────────────────────────
@@ -320,11 +534,18 @@ class CreateGRNRequest(BaseModel):
     notes: Optional[str] = None
     godown_id: Optional[int] = None
     godown_name: Optional[str] = None
+    # Landing cost breakdown — captured at GRN entry time
+    freight_charges: Optional[float] = 0
+    insurance_charges: Optional[float] = 0
+    loading_unloading: Optional[float] = 0
+    local_transport: Optional[float] = 0
+    other_charges: Optional[float] = 0
 
 
 @router.post("/grn")
 async def create_grn(req: CreateGRNRequest):
     """Create a new GRN record (DB or demo mode). Inventory is updated on successful GRN."""
+    await _maybe_ensure_schema()
     if _DB_AVAILABLE:
         try:
             pool = await get_pool()
@@ -379,20 +600,39 @@ async def create_grn(req: CreateGRNRequest):
     qty_received = req.qty_received or 0
     match_status = "MATCH" if discrepancy < 1 else "MISMATCH"
 
+    # Landing cost calculation (demo)
+    _freight   = req.freight_charges   or 0
+    _insurance = req.insurance_charges or 0
+    _loading   = req.loading_unloading or 0
+    _transport = req.local_transport   or 0
+    _other     = req.other_charges     or 0
+    _total_lc  = round(grn_val + _freight + _insurance + _loading + _transport + _other, 2)
+    _lc_unit   = round(_total_lc / qty_received, 4) if qty_received > 0 else 0
+
     response = {
-        "success": True,
-        "grn_number": grn_number,
-        "supplier": req.supplier_name,
-        "po_number": req.po_number or "—",
-        "invoice_value": invoice_val,
-        "grn_value": grn_val,
-        "match_status": match_status,
-        "discrepancy_amt": discrepancy,
-        "received_date": req.received_date or datetime.date.today().isoformat(),
-        "inventory_updated": qty_received > 0,
-        "inventory_note": f"+{qty_received} {req.unit or 'units'} of {req.product_name or 'product'} added to stock" if qty_received > 0 else "No quantity to update",
-        "godown_name": req.godown_name or None,
-        "demo_mode": True,
+        "success":               True,
+        "grn_number":            grn_number,
+        "supplier":              req.supplier_name,
+        "po_number":             req.po_number or "—",
+        "invoice_value":         invoice_val,
+        "grn_value":             grn_val,
+        "match_status":          match_status,
+        "discrepancy_amt":       discrepancy,
+        "received_date":         req.received_date or datetime.date.today().isoformat(),
+        "inventory_updated":     qty_received > 0,
+        "inventory_note":        (
+            f"+{qty_received} {req.unit or 'units'} of {req.product_name or 'product'} added to stock"
+            if qty_received > 0 else "No quantity to update"
+        ),
+        "godown_name":           req.godown_name or None,
+        "freight_charges":       _freight,
+        "insurance_charges":     _insurance,
+        "loading_unloading":     _loading,
+        "local_transport":       _transport,
+        "other_charges":         _other,
+        "total_landed_cost":     _total_lc,
+        "landing_cost_per_unit": _lc_unit,
+        "demo_mode":             True,
     }
 
     if match_status == "MISMATCH":
@@ -638,3 +878,130 @@ async def scan_grn_invoice(req: ScanInvoiceRequest):
     except Exception as exc:
         logger.warning("GRN scan failed: %s", exc)
         return {"success": False, "error": str(exc), "extracted": {}}
+
+
+# ── POST /api/po/scan ────────────────────────────────────────────────────────
+
+@router.post("/po/scan")
+async def scan_po_document(
+    file: Optional[UploadFile] = File(None),
+    text_input: Optional[str] = Form(None),
+):
+    """
+    Extract PO creation fields from a product image/document OR plain text
+    using GPT-4o Vision (image) or GPT-4o text (text-only).
+    Returns structured multi-item PO data for form prefill.
+    """
+    import base64, json as _json
+    from app.core.config import get_settings
+    cfg = get_settings()
+
+    has_image = file is not None
+    has_text  = bool(text_input and text_input.strip())
+
+    if not has_image and not has_text:
+        raise HTTPException(status_code=422, detail="Provide either file or text_input.")
+
+    # ── Demo fallback when no API key ─────────────────────────────────────────
+    if not cfg.openai_api_key:
+        _eta = (datetime.date.today() + datetime.timedelta(days=7)).isoformat()
+        return {
+            "success": True, "demo": True,
+            "supplier_name": "Demo Supplier Pvt. Ltd.",
+            "payment_terms": "NET-30 Days",
+            "expected_date": _eta,
+            "notes": "Demo mode — add OPENAI_API_KEY to .env for real AI extraction.",
+            "items": [
+                {
+                    "sku_name": "HPL 1mm Matte 8×4 BW-8071",
+                    "category": "Laminates",
+                    "quantity": 50,
+                    "unit": "Sheets",
+                    "unit_price": 480,
+                    "specifications": "Size: 8×4 ft, Thickness: 1mm, Finish: Matte",
+                },
+                {
+                    "sku_name": "Compact Laminate 6mm Gloss White",
+                    "category": "Laminates",
+                    "quantity": 20,
+                    "unit": "Sheets",
+                    "unit_price": 1200,
+                    "specifications": "Size: 8×4 ft, Thickness: 6mm, Finish: Gloss White",
+                },
+            ],
+        }
+
+    # ── Read image bytes if provided ──────────────────────────────────────────
+    image_b64  = None
+    image_type = "image/jpeg"
+    if has_image:
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large — max 10 MB.")
+        image_b64  = base64.b64encode(content).decode()
+        image_type = file.content_type or "image/jpeg"
+
+    # ── System prompt ─────────────────────────────────────────────────────────
+    _eta = (datetime.date.today() + datetime.timedelta(days=7)).isoformat()
+    SYSTEM_PROMPT = (
+        "You are a Purchase Order extraction AI for an Indian hardware and "
+        "building-materials dealer (laminates, louvers, hardware fittings, sanitary).\n"
+        "Extract product/order information to populate a PO creation form.\n\n"
+        "Return ONLY a JSON object with exactly this structure:\n"
+        '{"supplier_name":"","payment_terms":"","expected_date":"","notes":"",'
+        '"items":[{"sku_name":"","category":"","quantity":null,"unit":"","unit_price":null,"specifications":""}]}\n\n'
+        "Rules:\n"
+        "- supplier_name: company/brand name from the document or product label. Empty string if unknown.\n"
+        "- payment_terms: e.g. 'NET-30 Days', '100% Advance'. Empty string if unknown.\n"
+        f"- expected_date: ISO date YYYY-MM-DD. Default to {_eta} if not visible.\n"
+        "- notes: certifications, grade requirements, handling instructions, or special notes.\n"
+        "- items: array of distinct products. Each item:\n"
+        "  * sku_name: full descriptive name including model/grade/size e.g. 'HPL 1mm Matte 8x4 BW-8071'\n"
+        "  * category: e.g. 'Laminates', 'Louvers', 'Hardware Fittings', 'Sanitary', 'Door Hardware'\n"
+        "  * quantity: numeric only (null if not visible)\n"
+        "  * unit: e.g. 'Sheets', 'Pieces', 'Running Meters', 'SQM', 'Packs'\n"
+        "  * unit_price: price per unit in INR as number — strip Rs/commas (null if not visible)\n"
+        "  * specifications: brief spec string e.g. 'Size: 8x4, Finish: Matte, Grade: A'\n"
+        "Return ONLY the JSON — no markdown, no explanation."
+    )
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=60.0)
+
+        if image_b64:
+            content_parts = [
+                {"type": "text", "text": SYSTEM_PROMPT + (
+                    f"\n\nAdditional context: {text_input.strip()}" if has_text else ""
+                )},
+                {"type": "image_url", "image_url": {
+                    "url": f"data:{image_type};base64,{image_b64}",
+                    "detail": "high",
+                }},
+            ]
+        else:
+            content_parts = [
+                {"type": "text", "text": SYSTEM_PROMPT + f"\n\nDocument / product text:\n{text_input.strip()}"},
+            ]
+
+        resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": content_parts}],
+            temperature=0,
+            max_tokens=700,
+        )
+        raw = resp.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        result = _json.loads(raw.strip())
+
+        if not isinstance(result.get("items"), list):
+            result["items"] = []
+
+        return {"success": True, "demo": False, **result}
+
+    except Exception as exc:
+        logger.warning("PO scan failed: %s", exc)
+        return {"success": False, "error": str(exc), "items": []}

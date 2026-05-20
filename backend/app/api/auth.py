@@ -22,12 +22,24 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-    @field_validator("username", "password")
+    @field_validator("username")
     @classmethod
-    def not_blank(cls, v: str) -> str:
+    def validate_username(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("Username cannot be blank")
+        if len(v) > 128:
+            raise ValueError("Username too long")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
         if not v or not v.strip():
-            raise ValueError("Field cannot be blank")
-        return v.strip()
+            raise ValueError("Password cannot be blank")
+        if len(v) > 128:
+            raise ValueError("Password too long")
+        return v
 
 
 class LoginResponse(BaseModel):
@@ -55,6 +67,8 @@ async def login(body: LoginRequest):
     """
     user = await authenticate_user(body.username, body.password)
     if user is None:
+        # Log failure with username (not password) for security audit trails
+        logger.warning("Auth: failed login attempt for username '%s'", body.username)
         # Generic message — don't reveal whether username or password was wrong
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -64,13 +78,18 @@ async def login(body: LoginRequest):
     cfg = get_settings()
     allowed_modules = user.get("allowed_modules", "all")
 
-    token = create_access_token({
+    token_payload: dict = {
         "sub":             user["username"],
         "display_name":    user["display_name"],
         "email":           user["email"],
         "role":            user["role"],
         "allowed_modules": allowed_modules,
-    })
+    }
+    # Include distributor_id claim for distributor accounts so backend can filter stock
+    if user.get("distributor_id") is not None:
+        token_payload["distributor_id"] = user["distributor_id"]
+
+    token = create_access_token(token_payload)
 
     logger.info(
         "Auth: login success for user '%s' (role=%s, modules=%s)",
@@ -78,16 +97,20 @@ async def login(body: LoginRequest):
         allowed_modules if allowed_modules != "all" else "all",
     )
 
+    user_payload: dict = {
+        "username":        user["username"],
+        "display_name":    user["display_name"],
+        "email":           user["email"],
+        "role":            user["role"],
+        "allowed_modules": allowed_modules,
+    }
+    if user.get("distributor_id") is not None:
+        user_payload["distributor_id"] = user["distributor_id"]
+
     return LoginResponse(
         access_token=token,
         expires_in=cfg.access_token_expire_hours * 3600,
-        user={
-            "username":        user["username"],
-            "display_name":    user["display_name"],
-            "email":           user["email"],
-            "role":            user["role"],
-            "allowed_modules": allowed_modules,
-        },
+        user=user_payload,
     )
 
 

@@ -1,0 +1,129 @@
+[
+  {
+    "name": "NIKHIL RAO",
+    "segment": "Developer",
+    "monthly_value": "₹85,000",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 92,
+    "email": "nikhil@test.com",
+    "phone": "9876543210"
+  },
+  {
+    "name": "Hyder Ali",
+    "segment": "General",
+    "monthly_value": "₹0",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 50,
+    "email": "trust.umangfoundation@gmail.com"
+  },
+  {
+    "name": "All Customers",
+    "segment": "General",
+    "monthly_value": "₹0",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 50
+  },
+  {
+    "name": "Boe Peep",
+    "segment": "General",
+    "monthly_value": "₹0",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 50
+  },
+  {
+    "name": "XYZ Supply",
+    "segment": "General",
+    "monthly_value": "₹0",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 50
+  },
+  {
+    "name": "Insert new rows above the previous gray line",
+    "segment": "General",
+    "monthly_value": "₹0",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 50
+  },
+  {
+    "name": "Mr. Rahul Sharma",
+    "segment": "General",
+    "monthly_value": "₹0",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 50,
+    "email": "digitalnmc2@gmail.com",
+    "phone": "+918660444809"
+  },
+  {
+    "name": "Name",
+    "segment": "Name",
+    "monthly_value": "Name",
+    "outstanding": "Name",
+    "days_since_order": 0,
+    "risk": "NAME",
+    "score": 50,
+    "email": "Name",
+    "phone": "Name",
+    "contact_person": "Name"
+  },
+  {
+    "name": "John Bird",
+    "segment": "John Bird",
+    "monthly_value": "John Bird",
+    "outstanding": "John Bird",
+    "days_since_order": 0,
+    "risk": "JOHN BIRD",
+    "score": 50,
+    "email": "John Bird",
+    "phone": "John Bird",
+    "contact_person": "John Bird"
+  },
+  {
+    "name": "Marry Patty",
+    "segment": "Marry Patty",
+    "monthly_value": "Marry Patty",
+    "outstanding": "Marry Patty",
+    "days_since_order": 0,
+    "risk": "MARRY PATTY",
+    "score": 50,
+    "email": "Marry Patty",
+    "phone": "Marry Patty",
+    "contact_person": "Marry Patty"
+  },
+  {
+    "name": "Insert more rows above this last one",
+    "segment": "Insert more rows above this last one",
+    "monthly_value": "Insert more rows above this last one",
+    "outstanding": "Insert more rows above this last one",
+    "days_since_order": 0,
+    "risk": "INSERT MORE ROWS ABOVE THIS LAST ONE",
+    "score": 50,
+    "email": "Insert more rows above this last one",
+    "phone": "Insert more rows above this last one",
+    "contact_person": "Insert more rows above this last one"
+  },
+  {
+    "name": "nike",
+    "segment": "General",
+    "monthly_value": "₹0",
+    "outstanding": "₹0",
+    "days_since_order": 0,
+    "risk": "LOW",
+    "score": 50,
+    "email": "digitalnmc2@gmail.com",
+    "phone": "+918660444809"
+  }
+]

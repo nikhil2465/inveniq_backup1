@@ -347,7 +347,7 @@ export default function DiscountAIPanel({ isOpen, onClose, initialMessage }) {
             </button>
           </div>
           <div className="dap-footer-line">
-            GPT-4o · Discount Intelligence · {streaming ? 'Thinking…' : 'Ready'}
+            AI Intelligence · Discount Analysis · {streaming ? 'Thinking…' : 'Ready'}
           </div>
         </div>
       </div>

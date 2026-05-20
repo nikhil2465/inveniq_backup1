@@ -121,41 +121,9 @@ export default function Login({ onLoginSuccess }) {
           </button>
         </form>
 
-        <div style={styles.demoBox}>
-          <span style={styles.demoLabel}>Demo Credentials — 5 Roles</span>
-          <table style={styles.demoTable}>
-            <thead>
-              <tr>
-                <th style={styles.demoTh}>Role</th>
-                <th style={styles.demoTh}>Username</th>
-                <th style={styles.demoTh}>Password</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { role: 'Admin',             user: 'admin',         pwd: 'inveniq@2024' },
-                { role: 'Sales Manager',     user: 'sales_mgr',     pwd: 'sales@2024'   },
-                { role: 'CFO',               user: 'cfo_user',      pwd: 'cfo@2024'     },
-                { role: 'Warehouse Manager', user: 'warehouse_mgr', pwd: 'wh@2024'      },
-                { role: 'Finance Manager',   user: 'finance_mgr',   pwd: 'fin@2024'     },
-              ].map(({ role, user, pwd }) => (
-                <tr key={user} style={styles.demoTr}
-                  onClick={() => { setUsername(user); setPassword(pwd); }}
-                  title="Click to auto-fill">
-                  <td style={styles.demoTd}>{role}</td>
-                  <td style={styles.demoTd}><code style={styles.demoVal}>{user}</code></td>
-                  <td style={styles.demoTd}><code style={styles.demoVal}>{pwd}</code></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ fontSize: '0.7rem', color: '#3d6641', marginTop: '0.4rem' }}>
-            Click any row to auto-fill credentials
-          </div>
-        </div>
       </div>
 
-      <p style={styles.footer}>InvenIQ v3.0 · Enterprise Edition · © 2026</p>
+      <p style={styles.footer}>InvenIQ · © 2026</p>
 
       <style>{`
         @keyframes iq-spin { to { transform: rotate(360deg); } }

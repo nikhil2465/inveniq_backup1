@@ -26,6 +26,8 @@ echo        Python packages updated.
 :: ── Rebuild React frontend ───────────────────────────────────────────────────
 echo [3/5] Rebuilding frontend...
 cd /d "%ROOT%\frontend"
+set "NODE_OPTIONS=--max-old-space-size=4096"
+set "GENERATE_SOURCEMAP=false"
 call npm ci --prefer-offline --no-audit
 call npm run build
 if errorlevel 1 (

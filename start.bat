@@ -3,7 +3,7 @@ title InvenIQ Startup
 color 0A
 
 echo ==========================================
-echo   InvenIQ v3.0 - AI Inventory Platform
+echo   InvenIQ v3.1 - AI Inventory Platform
 echo ==========================================
 echo.
 

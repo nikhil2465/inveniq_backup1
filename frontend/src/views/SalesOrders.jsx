@@ -6,6 +6,7 @@ import DiscountAIPanel from '../components/DiscountAIPanel';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
 import { ExportButton } from '../utils/exportUtils';
 import Pagination from '../components/Pagination';
+import { POScannerModal, POPreviewModal } from '../components/POScannerModals';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt    = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -1824,7 +1825,21 @@ export default function SalesOrders({ onGoChat, dbStatus }) {
   const [aiOpen,    setAiOpen]    = useState(false);
   const [aiMessage, setAiMessage] = useState('');
 
+  const [showPOScanner, setShowPOScanner] = useState(false);
+  const [poScanResult,  setPoScanResult]  = useState(null);
+  const [showPOPreview, setShowPOPreview] = useState(false);
+
   const openAI = useCallback((msg) => { setAiMessage(msg); setAiOpen(true); }, []);
+
+  const closePOScanner = useCallback(() => {
+    setShowPOScanner(false); setShowPOPreview(false); setPoScanResult(null);
+  }, []);
+  const handleScanPreview = useCallback((result) => {
+    setPoScanResult(result); setShowPOPreview(true);
+  }, []);
+  const handleScanCreate = useCallback(() => {
+    setShowPOScanner(false); setShowPOPreview(false); setPoScanResult(null);
+  }, []);
 
   const fetchData = useCallback(async () => {
     setError(null);
@@ -1868,6 +1883,11 @@ export default function SalesOrders({ onGoChat, dbStatus }) {
               `rebate liability ${fmtL(kpis.rebate_liability||0)}. `+
               `What are the top 3 priorities for this week? Where are the biggest risks and opportunities?`
             )} />
+          <button
+            onClick={() => setShowPOScanner(true)}
+            style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#fff', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+            📷 Scan to PO
+          </button>
           <DataSourceBadge source={data?.data_source} updatedAt={dbStatus?.checkedAt} />
         </div>
       </div>
@@ -1933,6 +1953,22 @@ export default function SalesOrders({ onGoChat, dbStatus }) {
           <span>✨</span>
           <span>Ask AI: Pending orders, dispatch priorities & revenue at risk →</span>
         </div>
+      )}
+
+      {/* ── Scan to PO Modals ────────────────────────────────────────────────── */}
+      {showPOScanner && (
+        <POScannerModal
+          onClose={closePOScanner}
+          onPreview={handleScanPreview}
+        />
+      )}
+      {showPOPreview && poScanResult && (
+        <POPreviewModal
+          scanResult={poScanResult}
+          onEdit={() => setShowPOPreview(false)}
+          onClose={closePOScanner}
+          onSuccess={handleScanCreate}
+        />
       )}
     </div>
   );

@@ -252,6 +252,32 @@ KEYWORD_MAP = {
         "warehouse performance", "stock location", "multi-warehouse",
         "grn activity warehouse", "warehouse grn", "receiving area",
     ],
+    "sales_return": [
+        "sales return", "sales returns", "return", "returns",
+        "credit note", "credit notes", "return credit", "customer return",
+        "uom conversion", "unit of measure return", "partial return",
+        "box to pieces", "return pieces from box", "return pcs",
+        "open credit", "credit balance", "apply credit", "credit applied",
+        "refund", "reverse sale", "return invoice", "return reason",
+        "return policy", "how to process return", "return accounting",
+        "return gst", "gst reversal on return", "sr-", "cn-",
+    ],
+    "damage": [
+        "damage", "damaged", "damages",
+        "grn damage", "inward damage", "goods damaged", "received damaged",
+        "damage after receipt", "damage after grn", "damage on arrival",
+        "transit damage", "transport damage", "damage in transit",
+        "vehicle accident damage", "cargo damage", "freight damage",
+        "insurance claim", "insurance damage", "raise insurance claim",
+        "damage write off", "write down inventory", "inventory write down",
+        "damage loss account", "damage accounting",
+        "damaged goods", "broken stock", "cracked goods",
+        "supplier damage claim", "manufacturing defect return",
+        "insurance recoverable", "transit loss", "damage value",
+        "physical damage", "moisture damage", "packaging damage",
+        "damage prevention", "damage report", "damage recording",
+        "gd-", "td-", "ins-",
+    ],
 }
 
 # ── Additional keyword expansions (merged into KEYWORD_MAP on import) ──────────

@@ -24,8 +24,16 @@ const MODULE_LIST = [
   { icon: '💳', id: 'credit',     label: 'Credit Management',      section: 'Finance' },
   { icon: '🛒', id: 'pos',        label: 'Counter POS',            section: 'Finance' },
   { icon: '⭐', id: 'schemes',    label: 'Scheme Management',      section: 'Sales' },
-  { icon: '🏭', id: 'warehouse',  label: 'Warehouse Management',   section: 'Inventory' },
-  { icon: '📤', id: 'tally',     label: 'Tally Prime Export',      section: 'Integrations' },
+  { icon: '🏭', id: 'warehouse',    label: 'Warehouse Management',   section: 'Inventory' },
+  { icon: '🔄', id: 'salesreturn', label: 'Sales Return',           section: 'Sales' },
+  { icon: '⚓', id: 'landingcost', label: 'Landing Cost',           section: 'Purchasing' },
+  { icon: '🏪', id: 'distributor', label: 'My Stock Portal',        section: 'Purchasing' },
+  { icon: '🔧', id: 'damage',      label: 'Damage Recording',       section: 'Inventory' },
+  { icon: '📋', id: 'pr',          label: 'Purchase Requisition',   section: 'P2P' },
+  { icon: '🔬', id: 'qc',          label: 'QC Inspection',          section: 'P2P' },
+  { icon: '🧮', id: 'invoicematch',label: 'Invoice Matching',       section: 'P2P' },
+  { icon: '🚦', id: 'gateentry',   label: 'Gate Entry',             section: 'P2P' },
+  { icon: '📤', id: 'tally',       label: 'Tally Prime Export',     section: 'Integrations' },
   { icon: '🤖', id: 'chatbot',     label: 'AI Assistant',           section: 'AI' },
   { icon: 'ℹ️',  id: 'about',      label: 'About InvenIQ',          section: 'Info' },
   { icon: '⚙️', id: 'settings',   label: 'Settings',               section: 'Info' },
@@ -58,7 +66,7 @@ const InfoRow = ({ label, value, mono, ok }) => (
   </div>
 );
 
-export default function Settings({ onNavigate, dbStatus }) {
+export default function Settings({ onNavigate, dbStatus, currentUser, allowedModules }) {
   const [health,    setHealth]    = useState(null);
   const [dbDetail,  setDbDetail]  = useState(null);
   const [loading,   setLoading]   = useState(true);
@@ -110,41 +118,142 @@ export default function Settings({ onNavigate, dbStatus }) {
   const aiOk = health?.openai_configured ?? false;
   const src  = health?.data_source ?? 'demo';
 
-  const sections = [...new Set(MODULE_LIST.map(m => m.section))];
+  // Derive user display values
+  const displayName    = currentUser?.display_name || currentUser?.username || 'Admin';
+  const displayEmail   = currentUser?.email || '';
+  const displayRole    = currentUser?.role
+    ? currentUser.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    : 'Admin';
+  const avatarInitials = displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'IQ';
+  const isUnrestricted = !allowedModules;
+  const moduleCount    = isUnrestricted ? MODULE_LIST.length : (allowedModules?.length ?? 0);
+  const visibleModules  = isUnrestricted ? MODULE_LIST : MODULE_LIST.filter(m => (allowedModules ?? []).includes(m.id));
+  const sections       = [...new Set(visibleModules.map(m => m.section))];
+  const navShortcuts   = [
+    { keys: ['g', 'h'], desc: 'Business Overview',       module: 'overview'    },
+    { keys: ['g', 'i'], desc: 'Stock Intelligence',      module: 'inventory'   },
+    { keys: ['g', 's'], desc: 'Sales Performance',       module: 'sales'       },
+    { keys: ['g', 'c'], desc: 'Customer Intelligence',   module: 'customers'   },
+    { keys: ['g', 'o'], desc: 'Orders & Fulfilment',     module: 'orders'      },
+    { keys: ['g', 'f'], desc: 'Finance & Cash',          module: 'finance'     },
+    { keys: ['g', 'd'], desc: 'Demand Forecasting',      module: 'demand'      },
+    { keys: ['g', 'p'], desc: 'Procurement & Suppliers', module: 'procurement' },
+    { keys: ['g', 'r'], desc: 'Freight Planning',        module: 'freight'     },
+    { keys: ['g', 'w'], desc: 'Inward & Outward',        module: 'inward'      },
+    { keys: ['g', 'z'], desc: 'Dead Stock & Ageing',     module: 'deadstock'   },
+    { keys: ['g', 'a'], desc: 'Analytics & BI',          module: 'analytics'   },
+    { keys: ['g', 'q'], desc: 'Quotation Builder',       module: 'quotes'      },
+    { keys: ['g', 'x'], desc: 'AI Assistant (Chatbot)',  module: 'chatbot'     },
+    { keys: ['g', 'e'], desc: 'Settings & Status',       module: 'settings'    },
+    { keys: ['g', 'l'], desc: 'Sales Orders',            module: 'louvers'     },
+    { keys: ['g', 't'], desc: 'Project Tracker',         module: 'projects'    },
+    { keys: ['g', 'm'], desc: 'Claims & Rebates',        module: 'claims'      },
+    { keys: ['g', 'n'], desc: 'Discount Calculator',     module: 'discounts'   },
+    { keys: ['g', 'u'], desc: 'PO & GRN',               module: 'pogrn'       },
+    { keys: ['g', 'b'], desc: 'Product Catalog',         module: 'catalog'     },
+    { keys: ['g', 'k'], desc: 'Credit Management',       module: 'credit'      },
+    { keys: ['g', 'v'], desc: 'Counter POS',             module: 'pos'         },
+    { keys: ['g', 'y'], desc: 'Scheme Management',       module: 'schemes'     },
+    { keys: ['g', 'g'], desc: 'Warehouse Management',    module: 'warehouse'   },
+    { keys: ['g', '1'], desc: 'Tally Prime Export',      module: 'tally'       },
+    { keys: ['g', '2'], desc: 'Sales Return',            module: 'salesreturn' },
+    { keys: ['g', '3'], desc: 'Landing Cost',            module: 'landingcost' },
+    { keys: ['g', '4'], desc: 'My Stock Portal',         module: 'distributor' },
+    { keys: ['g', '5'], desc: 'Damage Recording',        module: 'damage'       },
+    { keys: ['g', '6'], desc: 'Purchase Requisition',   module: 'pr'           },
+    { keys: ['g', '7'], desc: 'QC Inspection',          module: 'qc'           },
+    { keys: ['g', '8'], desc: 'Invoice Matching',       module: 'invoicematch' },
+    { keys: ['g', '9'], desc: 'Gate Entry',             module: 'gateentry'    },
+    { keys: ['g', 'j'], desc: 'About InvenIQ',          module: 'about'        },
+  ].filter(s => isUnrestricted || (allowedModules ?? []).includes(s.module));
 
   return (
     <div className="view">
+
+      {/* ── User Profile Card ── */}
+      <div className="profile-card">
+        <div className="profile-card-avatar">{avatarInitials}</div>
+        <div className="profile-card-body">
+          <div className="profile-card-name">{displayName}</div>
+          {displayEmail && <div className="profile-card-email">{displayEmail}</div>}
+          <div className="profile-card-meta">
+            <span className="profile-card-role">{displayRole}</span>
+            <span className="profile-card-access">
+              {isUnrestricted ? '✦ Full access — all modules' : `${moduleCount} modules enabled`}
+            </span>
+          </div>
+        </div>
+        <div className="profile-card-right">
+          <div className="profile-card-stat">
+            <div className="profile-card-stat-val">{moduleCount}</div>
+            <div className="profile-card-stat-lbl">Modules</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Allowed Modules (restricted roles only) ── */}
+      {!isUnrestricted && allowedModules && allowedModules.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="ch">
+            <div>
+              <div className="ctit">Your Access — Enabled Modules</div>
+              <div className="csub">{allowedModules.length} of {MODULE_LIST.length} modules enabled for your role</div>
+            </div>
+            <span className="bdg ba">{displayRole}</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '4px 0 8px' }}>
+            {MODULE_LIST.map(mod => {
+              const enabled = allowedModules.includes(mod.id);
+              return (
+                <span
+                  key={mod.id}
+                  className={`module-pill${enabled ? '' : ' module-pill-locked'}`}
+                  onClick={enabled ? () => onNavigate?.(mod.id) : undefined}
+                  style={enabled ? { cursor: 'pointer' } : {}}
+                  title={enabled ? `Go to ${mod.label}` : 'Not available in your role'}
+                >
+                  {mod.icon} {mod.label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="ph">
         <div className="ph-left">
-          <div className="pg">Settings & System Status</div>
+          <div className="pg">Settings & Status</div>
           <div className="psub">
-            Configuration · Data sources · Module registry · System health
-            {' '}<DataSourceBadge source={src} updatedAt={checkedAt ? new Date().toISOString() : null} />
+            {isUnrestricted
+              ? <>Configuration · Data sources · Module registry · System health{' '}<DataSourceBadge source={src} updatedAt={checkedAt ? new Date().toISOString() : null} /></>
+              : 'Your profile, accessible modules, and application status'}
           </div>
         </div>
-        <div className="ph-actions">
-          <button
-            className="btn-primary"
-            onClick={testConnection}
-            disabled={testing}
-            style={{ height: 34, padding: '0 16px', fontSize: 12 }}
-          >
-            {testing ? '⏳ Testing…' : '⚡ Test All Connections'}
-          </button>
-          <button
-            onClick={fetchStatus}
-            disabled={loading}
-            style={{
-              height: 34, padding: '0 14px', fontSize: 12, fontWeight: 600,
-              border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
-              background: 'var(--surface)', cursor: loading ? 'not-allowed' : 'pointer',
-              color: 'var(--text2)',
-            }}
-          >
-            {loading ? '…' : '↻ Refresh'}
-          </button>
-        </div>
+        {isUnrestricted && (
+          <div className="ph-actions">
+            <button
+              className="btn-primary"
+              onClick={testConnection}
+              disabled={testing}
+              style={{ height: 34, padding: '0 16px', fontSize: 12 }}
+            >
+              {testing ? '⏳ Testing…' : '⚡ Test All Connections'}
+            </button>
+            <button
+              onClick={fetchStatus}
+              disabled={loading}
+              style={{
+                height: 34, padding: '0 14px', fontSize: 12, fontWeight: 600,
+                border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                background: 'var(--surface)', cursor: loading ? 'not-allowed' : 'pointer',
+                color: 'var(--text2)',
+              }}
+            >
+              {loading ? '…' : '↻ Refresh'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Test result banner */}
@@ -159,8 +268,8 @@ export default function Settings({ onNavigate, dbStatus }) {
           {testResult.ok ? '✅' : '❌'} {testResult.msg}
           {testResult.ok && (
             <span style={{ fontWeight: 400, color: 'var(--text2)', marginLeft: 4 }}>
-              · DB: {testResult.db ? 'MySQL connected' : 'Demo mode'}
-              · AI: {testResult.ai ? 'OpenAI ready' : 'No API key'}
+              · Database: {testResult.db ? 'Connected' : 'Demo mode'}
+              · AI: {testResult.ai ? 'Active' : 'Not configured'}
             </span>
           )}
           <button onClick={() => setTestResult(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: 'inherit', opacity: .6 }}>×</button>
@@ -170,10 +279,10 @@ export default function Settings({ onNavigate, dbStatus }) {
       {/* KPI row */}
       <div className="kg g4" style={{ marginBottom: 16 }}>
         {[
-          { cls: dbOk ? 'sg' : 'sr',  l: 'Database',  v: dbOk ? 'MySQL Live'       : 'Demo Mode',      s: dbOk ? (dbDetail?.database || 'Connected') : 'Set MYSQL_HOST in .env' },
-          { cls: aiOk ? 'sg' : 'sb',  l: 'AI Engine', v: aiOk ? 'GPT-4o Active'    : 'No API Key',     s: aiOk ? 'OpenAI configured'                 : 'Set OPENAI_API_KEY in .env' },
-          { cls: 'sg',                 l: 'Modules',   v: `${MODULE_LIST.length} Active`,                s: 'All modules operational' },
-          { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.0',                                s: `May 2026 · Checked ${checkedAt || '…'}` },
+          { cls: dbOk ? 'sg' : 'sr',  l: 'Database',  v: dbOk ? 'Live Data'        : 'Demo Mode',      s: dbOk ? 'Connected — real-time data active' : 'Running on sample data' },
+          { cls: aiOk ? 'sg' : 'sb',  l: 'AI Engine', v: aiOk ? 'Active'           : 'Not Configured', s: aiOk ? 'AI features fully operational'     : 'AI features unavailable' },
+          { cls: 'sg',                 l: 'Modules',   v: `${moduleCount} Active`,                       s: isUnrestricted ? 'All modules operational' : `${moduleCount} modules accessible` },
+          { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.1',                                s: `May 2026 · Checked ${checkedAt || '…'}` },
         ].map(k => (
           <div key={k.l} className={`kc ${k.cls}`}>
             <div className="kt"><div className="kl">{k.l}</div></div>
@@ -199,33 +308,33 @@ export default function Settings({ onNavigate, dbStatus }) {
               ) : (
                 <>
                   <Check ok={dbOk}
-                    label="MySQL Database"
-                    value={dbOk ? `${dbDetail?.host || '—'} / ${dbDetail?.database || '—'}` : 'Not connected'}
-                    sub={dbOk ? 'DB-first mode — all data is live from MySQL' : 'Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB in backend/.env'} />
+                    label="Database"
+                    value={dbOk ? 'Connected — Live Data' : 'Not connected'}
+                    sub={dbOk ? 'Real-time data active — all modules showing live data' : 'Running on sample data. Contact your administrator to connect a database.'} />
                   <Check ok={aiOk}
-                    label="OpenAI API Key"
-                    value={aiOk ? 'Configured (key hidden for security)' : 'OPENAI_API_KEY not set'}
-                    sub={aiOk ? 'AI chat, WhatsApp scanner, and quote analysis are active' : 'Set OPENAI_API_KEY in backend/.env to enable AI features'} />
+                    label="AI Engine"
+                    value={aiOk ? 'Active' : 'Not configured'}
+                    sub={aiOk ? 'AI chat, WhatsApp scanner, and quote analysis are fully active' : 'AI features require configuration. Contact your administrator.'} />
                   <Check ok={true}
-                    label="FastAPI Backend"
-                    value="Running on :8000"
-                    sub={`API server healthy — ${MODULE_LIST.length} modules · 15 routers · 84+ endpoints · Request logging active`} />
+                    label="Application Server"
+                    value="Running"
+                    sub={`Server healthy — ${MODULE_LIST.length} modules operational`} />
                   <Check ok={true}
-                    label="React Frontend"
-                    value={window.location.port === '3000' ? 'Dev server · :3000' : `Production · :${window.location.port || '80'}`}
-                    sub="React 18 · Lazy loading · Per-view ErrorBoundary · PWA-ready · Dark mode" />
+                    label="User Interface"
+                    value="Production Build"
+                    sub="Optimised production build · Dark mode · Responsive layout" />
                   <Check ok={aiOk}
                     label="WhatsApp Scanner"
-                    value={aiOk ? 'Active — GPT-4o Vision + python-multipart' : 'Requires OpenAI API key'}
+                    value={aiOk ? 'Active' : 'Requires AI configuration'}
                     sub="Scan WhatsApp screenshots to pre-fill quotations" />
                   <Check ok={true}
-                    label="SSE Streaming"
+                    label="Real-time Streaming"
                     value="Active"
-                    sub="Real-time AI chat streaming via Server-Sent Events" />
+                    sub="Live AI response streaming enabled" />
                   <Check ok={true}
-                    label="File Upload"
-                    value="python-multipart installed"
-                    sub="File uploads enabled for WhatsApp scanner and document processing" />
+                    label="File Processing"
+                    value="Active"
+                    sub="File uploads enabled for document processing" />
                 </>
               )}
             </div>
@@ -233,37 +342,30 @@ export default function Settings({ onNavigate, dbStatus }) {
 
           {/* Environment */}
           <div className="card">
-            <div className="ch"><div className="ctit">Environment Configuration</div></div>
+            <div className="ch"><div className="ctit">System Configuration</div></div>
             <div style={{ padding: '0 4px 8px' }}>
-              <InfoRow label="MYSQL_HOST"     value={dbOk ? (dbDetail?.host     || 'Set') : '⚠ Not set'} mono ok={dbOk || undefined} />
-              <InfoRow label="MYSQL_DB"       value={dbOk ? (dbDetail?.database || 'Set') : '⚠ Not set'} mono ok={dbOk || undefined} />
-              <InfoRow label="OPENAI_API_KEY" value={aiOk ? 'sk-…(hidden)'                : '⚠ Not set'} mono ok={aiOk}             />
-              <InfoRow label="Data Mode"      value={src === 'mysql' ? '🟢 MySQL (Live)' : '🟡 Demo (Mock)'} />
-              <InfoRow label="Backend Port"   value=":8000"              mono />
-              <InfoRow label="Frontend Port"  value=":3000"              mono />
-              <InfoRow label="API Proxy"      value="/api → :8000"       mono />
+              <InfoRow label="Database"   value={dbOk ? '🟢 Connected (Live Data)' : '🟡 Demo Mode (Sample Data)'} ok={dbOk || undefined} />
+              <InfoRow label="AI Engine"  value={aiOk ? '🟢 Active'               : '🔴 Not Configured'} ok={aiOk} />
+              <InfoRow label="Data Mode"  value={src === 'mysql' ? '🟢 Live — real-time data' : '🟡 Demo — sample data'} />
             </div>
-            <div style={{ padding: '10px 12px', background: 'var(--bg2)', borderRadius: 8, margin: '0 0 8px', fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', lineHeight: 1.7 }}>
-              Edit <strong style={{ color: 'var(--text2)' }}>backend/.env</strong> to configure — restart backend after changes.
-              Use <strong style={{ color: 'var(--text2)' }}>start.bat</strong> for one-click startup.
+            <div style={{ padding: '10px 12px', background: 'var(--bg2)', borderRadius: 8, margin: '0 0 8px', fontSize: 11, color: 'var(--text3)', lineHeight: 1.7 }}>
+              Contact your administrator to update configuration settings.
             </div>
           </div>
 
           {/* AI Configuration */}
           <div className="card">
-            <div className="ch"><div className="ctit">AI Configuration</div></div>
+            <div className="ch"><div className="ctit">AI Capabilities</div></div>
             <div style={{ padding: '0 4px 8px' }}>
-              <InfoRow label="Chat Model"        value="GPT-4o (gpt-4o)"                          />
-              <InfoRow label="Analysis Model"    value="GPT-4o-mini"                               />
-              <InfoRow label="Scanner Model"     value="GPT-4o Vision"                             />
-              <InfoRow label="Routing"           value="4-path: generic / knowledge / insights / tools" />
-              <InfoRow label="History Window"    value="Last 16 messages"                           />
-              <InfoRow label="Max Tokens"        value="1,800 per response"                         />
-              <InfoRow label="Streaming"         value="SSE (Server-Sent Events)"                   />
-              <InfoRow label="Knowledge Base"    value="23 topics (EOQ, ABC, GMROI, JIT, FIFO…)"   />
-              <InfoRow label="Insights Engine"   value="13 rule types (stock, margin, receivables…)" />
-              <InfoRow label="RCA Templates"     value="14 templates (5-Why, fishbone, action plan)" />
-              <InfoRow label="AI Tools (MCP)"    value="19 structured data tools"                   />
+              <InfoRow label="Status"            value={aiOk ? '🟢 Active' : '🔴 Not Configured'} ok={aiOk} />
+              <InfoRow label="Chat"              value="Conversational business intelligence"       />
+              <InfoRow label="Analysis"          value="Deep data analysis & root cause engine"     />
+              <InfoRow label="Scanner"           value="WhatsApp screenshot processing"             />
+              <InfoRow label="Context Window"    value="Last 16 messages retained"                  />
+              <InfoRow label="Knowledge Base"    value="23 topics — inventory, finance, operations" />
+              <InfoRow label="Insights Engine"   value="13 proactive insight types"                 />
+              <InfoRow label="RCA Engine"        value="14 structured analysis templates"           />
+              <InfoRow label="Data Tools"        value="19 live business data tools"                />
             </div>
           </div>
         </div>
@@ -271,7 +373,7 @@ export default function Settings({ onNavigate, dbStatus }) {
         {/* Right column — Module Registry */}
         <div className="card">
           <div className="ch">
-            <div><div className="ctit">Module Registry</div><div className="csub">All {MODULE_LIST.length} active modules — click to navigate</div></div>
+            <div><div className="ctit">{isUnrestricted ? 'Module Registry' : 'Your Modules'}</div><div className="csub">{moduleCount} {isUnrestricted ? 'active' : 'enabled'} modules — click to navigate</div></div>
             <span className={`bdg ${dbOk ? 'bg' : 'ba'}`}>{dbOk ? 'LIVE' : 'DEMO'}</span>
           </div>
           <div style={{ padding: '4px 0 8px' }}>
@@ -280,7 +382,7 @@ export default function Settings({ onNavigate, dbStatus }) {
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.8px', fontFamily: 'var(--mono)', padding: '6px 0 4px' }}>
                   {section}
                 </div>
-                {MODULE_LIST.filter(m => m.section === section).map(mod => (
+                {visibleModules.filter(m => m.section === section).map(mod => (
                   <div
                     key={mod.id}
                     onClick={() => onNavigate?.(mod.id)}
@@ -295,9 +397,7 @@ export default function Settings({ onNavigate, dbStatus }) {
                     <span style={{ fontSize: 15, width: 22, textAlign: 'center', flexShrink: 0 }}>{mod.icon}</span>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 600 }}>{mod.label}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
-                        {mod.id === 'louvers' ? '/api/louvers' : mod.id === 'chatbot' ? '/api/chat/stream' : `/api/${mod.id}`}
-                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>{mod.section}</div>
                     </div>
                     <span style={{ fontSize: 10, padding: '2px 8px', background: 'var(--g3)', color: 'var(--green)', borderRadius: 10, fontWeight: 700 }}>ACTIVE</span>
                     <svg viewBox="0 0 12 12" fill="none" width="10" height="10" style={{ color: 'var(--text3)', flexShrink: 0 }}>
@@ -320,35 +420,7 @@ export default function Settings({ onNavigate, dbStatus }) {
               { keys: ['Ctrl', 'K'], desc: 'Open global search / AI query' },
               { keys: ['Escape'],    desc: 'Close search or any dropdown' },
             ]},
-            { title: 'Navigation (press g then letter)', color: 'var(--green)', shortcuts: [
-              { keys: ['g', 'h'], desc: 'Business Overview' },
-              { keys: ['g', 'i'], desc: 'Stock Intelligence' },
-              { keys: ['g', 's'], desc: 'Sales Performance' },
-              { keys: ['g', 'c'], desc: 'Customer Intelligence' },
-              { keys: ['g', 'o'], desc: 'Orders & Fulfilment' },
-              { keys: ['g', 'f'], desc: 'Finance & Cash' },
-              { keys: ['g', 'd'], desc: 'Demand Forecasting' },
-              { keys: ['g', 'p'], desc: 'Procurement & Suppliers' },
-              { keys: ['g', 'r'], desc: 'Freight Planning' },
-              { keys: ['g', 'w'], desc: 'Inward & Outward' },
-              { keys: ['g', 'z'], desc: 'Dead Stock & Ageing' },
-              { keys: ['g', 'a'], desc: 'Analytics & BI' },
-              { keys: ['g', 'q'], desc: 'Quotation Builder' },
-              { keys: ['g', 'x'], desc: 'AI Assistant (Chatbot)' },
-              { keys: ['g', 'e'], desc: 'Settings & Status' },
-              { keys: ['g', 'l'], desc: 'Sales Orders' },
-              { keys: ['g', 't'], desc: 'Project Tracker' },
-              { keys: ['g', 'm'], desc: 'Claims & Rebates' },
-              { keys: ['g', 'n'], desc: 'Discount Calculator' },
-              { keys: ['g', 'u'], desc: 'PO & GRN' },
-              { keys: ['g', 'b'], desc: 'Product Catalog' },
-              { keys: ['g', 'k'], desc: 'Credit Management' },
-              { keys: ['g', 'v'], desc: 'Counter POS' },
-              { keys: ['g', 'y'], desc: 'Scheme Management' },
-              { keys: ['g', 'g'], desc: 'Warehouse Management' },
-              { keys: ['g', '1'], desc: 'Tally Prime Export' },
-              { keys: ['g', 'j'], desc: 'About InvenIQ' },
-            ]},
+            { title: 'Navigation (press g then letter)', color: 'var(--green)', shortcuts: navShortcuts },
           ].map(group => (
             <div key={group.title} style={{ padding: 14, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, borderTop: `3px solid ${group.color}` }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: group.color, textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 10, fontFamily: 'var(--mono)' }}>{group.title}</div>
@@ -367,8 +439,8 @@ export default function Settings({ onNavigate, dbStatus }) {
         </div>
       </div>
 
-      {/* Quick Setup Guide */}
-      <div className="card" style={{ marginTop: 12 }}>
+      {/* Quick Setup Guide — admin only */}
+      {isUnrestricted && <div className="card" style={{ marginTop: 12 }}>
         <div className="ch"><div className="ctit">Quick Setup Guide</div><div className="csub">Get InvenIQ running in under 5 minutes</div></div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, padding: '4px 0 8px' }}>
           {[
@@ -393,7 +465,7 @@ export default function Settings({ onNavigate, dbStatus }) {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

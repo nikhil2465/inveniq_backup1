@@ -3,6 +3,7 @@ import asyncio
 import json
 import smtplib
 import logging
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date
@@ -390,13 +391,32 @@ def _build_test_html(recipient: str) -> str:
 
 # ── SMTP core (synchronous — runs in thread pool) ─────────────────────────────
 
-def _smtp_send(host: str, port: int, user: str, password: str,
-               recipient: str, subject: str, html_body: str) -> None:
-    msg = MIMEMultipart("alternative")
+def _smtp_send(
+    host: str, port: int, user: str, password: str,
+    recipient: str, subject: str, html_body: str,
+    attachment: bytes | None = None,
+    attachment_filename: str | None = None,
+) -> None:
+    """Send an HTML email with an optional binary attachment (e.g. PDF)."""
+    if attachment:
+        msg = MIMEMultipart("mixed")
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(html_body, "html", "utf-8"))
+        msg.attach(alt)
+        part = MIMEApplication(attachment, _subtype="pdf")
+        part.add_header(
+            "Content-Disposition", "attachment",
+            filename=attachment_filename or "quotation.pdf",
+        )
+        msg.attach(part)
+    else:
+        msg = MIMEMultipart("alternative")
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
     msg["Subject"] = subject
-    msg["From"]    = f"InvenIQ Alerts <{user}>"
+    msg["From"]    = f"InvenIQ <{user}>"
     msg["To"]      = recipient
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
     with smtplib.SMTP(host, port, timeout=15) as srv:
         srv.ehlo()
         srv.starttls()

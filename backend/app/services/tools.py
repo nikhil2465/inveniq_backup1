@@ -1024,25 +1024,159 @@ async def schemes_tool(query: Optional[str] = None) -> dict:
     }
 
 
+async def sales_return_tool(query: Optional[str] = None) -> dict:
+    """Sales returns with UOM conversion, credit notes, and accounting — open returns, credit balances, return reasons."""
+    try:
+        from app.api.sales_return import _mock_returns, _mock_credit_notes, _SESSION_RETURNS, _SESSION_CREDIT_NOTES
+        returns  = _mock_returns()       + _SESSION_RETURNS
+        cns      = _mock_credit_notes()  + _SESSION_CREDIT_NOTES
+        total_credit  = sum(r["credit_amount"] for r in returns)
+        open_cns      = [c for c in cns if c["status"] == "OPEN"]
+        open_balance  = sum(c["balance"] for c in open_cns)
+        return {
+            "summary": {
+                "total_returns":        len(returns),
+                "total_credit_issued":  f"₹{total_credit:,.2f}",
+                "open_credit_notes":    len(open_cns),
+                "open_credit_balance":  f"₹{open_balance:,.2f}",
+            },
+            "recent_returns": [
+                {
+                    "return_id":        r["return_id"],
+                    "customer":         r["customer_name"],
+                    "product":          r["sku_name"],
+                    "original":         f"{r['original_qty']} {r['original_uom']}",
+                    "returned":         f"{r['return_qty']} {r['return_uom']}",
+                    "conversion_ratio": r["conversion_ratio"],
+                    "credit_amount":    f"₹{r['credit_amount']:,.2f}",
+                    "reason":           r["return_reason"],
+                    "status":           r["status"],
+                }
+                for r in returns[:5]
+            ],
+            "open_credit_notes": [
+                {
+                    "credit_note_id": c["credit_note_id"],
+                    "customer":       c["customer_name"],
+                    "balance":        f"₹{c['balance']:,.2f}",
+                    "valid_until":    c["valid_until"],
+                }
+                for c in open_cns[:5]
+            ],
+            "common_return_reasons": ["Damaged on arrival", "Wrong specification", "Quality issue", "Excess order"],
+            "uom_note": "Supports partial returns — e.g. 3 pcs returned from 1 box of 10 sold. Credit is auto-calculated at piece price.",
+            "data_source": "mock",
+        }
+    except Exception as exc:
+        logger.warning("sales_return_tool failed: %s", exc)
+        return {
+            "summary": {
+                "total_returns":       2,
+                "total_credit_issued": "₹2,059.69",
+                "open_credit_notes":   1,
+                "open_credit_balance": "₹171.69",
+            },
+            "common_return_reasons": ["Damaged on arrival", "Wrong specification", "Quality issue"],
+            "data_source": "mock",
+        }
+
+
+async def damage_tool(query: Optional[str] = None) -> dict:
+    """Damage incidents: GRN inward damage and transit SO damage, insurance claims, write-offs, accounting entries."""
+    try:
+        from app.api.damage import _mock_grn_damages, _mock_transit_damages, _SESSION_GRN_DAMAGES, _SESSION_TRANSIT_DAMAGES
+        grn_dmgs     = _mock_grn_damages()     + _SESSION_GRN_DAMAGES
+        transit_dmgs = _mock_transit_damages() + _SESSION_TRANSIT_DAMAGES
+        total_grn     = sum(d["damage_value"]      for d in grn_dmgs)
+        total_transit = sum(d["damage_sell_value"] for d in transit_dmgs)
+        total_insured = sum(
+            (d.get("insurance_amount") or 0)
+            for d in grn_dmgs + transit_dmgs
+            if d.get("insurance_claimable")
+        )
+        open_claims = [d for d in grn_dmgs + transit_dmgs if d["status"] in ("CLAIM_RAISED", "PENDING")]
+        return {
+            "summary": {
+                "grn_damage_incidents":     len(grn_dmgs),
+                "transit_damage_incidents": len(transit_dmgs),
+                "total_grn_damage_value":   f"₹{total_grn:,.2f}",
+                "total_transit_so_impact":  f"₹{total_transit:,.2f}",
+                "total_insurance_claimable": f"₹{total_insured:,.2f}",
+                "open_insurance_claims":    len(open_claims),
+            },
+            "recent_grn_damages": [
+                {
+                    "id":       d["damage_id"],
+                    "grn_id":   d["grn_id"],
+                    "supplier": d["supplier_name"],
+                    "product":  d["sku_name"],
+                    "qty":      f"{d['damaged_qty']} {d['uom']} damaged of {d['received_qty']} received",
+                    "value":    f"₹{d['damage_value']:,.2f}",
+                    "type":     d["damage_type"],
+                    "claim":    d.get("insurance_claim_id") or "No claim",
+                    "status":   d["status"],
+                }
+                for d in grn_dmgs[:4]
+            ],
+            "recent_transit_damages": [
+                {
+                    "id":        d["damage_id"],
+                    "so":        d["so_number"],
+                    "customer":  d["customer_name"],
+                    "product":   d["sku_name"],
+                    "qty":       f"{d['damaged_qty']} {d['uom']} damaged of {d['dispatched_qty']} dispatched",
+                    "so_impact": f"₹{d['damage_sell_value']:,.2f}",
+                    "type":      d["damage_type"],
+                    "carrier":   d.get("carrier_name", ""),
+                    "adjustment":d["so_adjustment_type"],
+                    "status":    d["status"],
+                }
+                for d in transit_dmgs[:4]
+            ],
+            "accounting_overview": {
+                "grn_damage_entry": "Damage Loss A/c Dr / Inventory A/c Cr (write-down at cost)",
+                "insurance_entry":  "Insurance Claim Receivable A/c Dr / Damage Loss A/c Cr",
+                "transit_entry":    "Transit Loss A/c Dr / Inventory A/c Cr + Credit Note to customer",
+                "supplier_defect":  "Supplier Claim Receivable A/c Dr / Damage Loss A/c Cr",
+            },
+            "data_source": "mock",
+        }
+    except Exception as exc:
+        logger.warning("damage_tool failed: %s", exc)
+        return {
+            "summary": {
+                "grn_damage_incidents":     3,
+                "transit_damage_incidents": 2,
+                "total_grn_damage_value":   "₹13,600",
+                "total_transit_so_impact":  "₹7,410",
+                "total_insurance_claimable": "₹11,120",
+                "open_insurance_claims":    2,
+            },
+            "data_source": "mock",
+        }
+
+
 TOOLS = {
-    "stock":     stock_tool,
-    "demand":    demand_tool,
-    "supplier":  supplier_tool,
-    "customer":  customer_tool,
-    "finance":   finance_tool,
-    "order":     order_tool,
-    "freight":   freight_tool,
-    "email":     email_tool,
-    "po_grn":    po_grn_tool,
-    "sales":     sales_tool,
-    "inward":    inward_tool,
-    "discount":  discount_tool,
-    "louvers":   louvers_tool,
-    "quotes":    quotes_tool,
-    "projects":  projects_tool,
-    "catalog":   catalog_tool,
-    "credit":    credit_tool,
-    "pos":       pos_tool,
-    "schemes":   schemes_tool,
-    "warehouse": warehouse_tool,
+    "stock":        stock_tool,
+    "demand":       demand_tool,
+    "supplier":     supplier_tool,
+    "customer":     customer_tool,
+    "finance":      finance_tool,
+    "order":        order_tool,
+    "freight":      freight_tool,
+    "email":        email_tool,
+    "po_grn":       po_grn_tool,
+    "sales":        sales_tool,
+    "inward":       inward_tool,
+    "discount":     discount_tool,
+    "louvers":      louvers_tool,
+    "quotes":       quotes_tool,
+    "projects":     projects_tool,
+    "catalog":      catalog_tool,
+    "credit":       credit_tool,
+    "pos":          pos_tool,
+    "schemes":      schemes_tool,
+    "warehouse":    warehouse_tool,
+    "sales_return": sales_return_tool,
+    "damage":       damage_tool,
 }
