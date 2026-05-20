@@ -38,6 +38,11 @@ _INSIGHTS_KEYWORDS = [
     "how is my business", "how is business doing", "business doing",
     "overall status", "overall health", "all in one", "everything at once",
     "give me a briefing", "give me a report", "give me a summary",
+    "procurement status", "p2p status", "purchase pipeline",
+    "pr backlog", "pr status", "pending approvals",
+    "qc status", "quality status", "rejection report",
+    "invoice status", "ap status", "payment queue",
+    "gate status", "receiving status", "inbound status",
 ]
 
 
@@ -373,6 +378,89 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             ),
             "urgency": "THIS WEEK",
             "rupee_impact": scheme_val,
+        })
+
+    # ── 14. PR Approval Bottleneck ────────────────────────────────────────────
+    pr_data = tool_data.get("pr", {})
+    pending_prs = pr_data.get("pending_prs", [])
+    if pending_prs:
+        urgent = [p for p in pending_prs if p.get("priority") in ("URGENT", "HIGH")]
+        if urgent:
+            top = urgent[0]
+            pr_val = _parse_rupee(top.get("estimated_value", "Rs.96,000"))
+            total_pending_val = sum(_parse_rupee(p.get("estimated_value", "0")) for p in urgent)
+            insights.append({
+                "id": "pr_approval_bottleneck",
+                "category": "📋 Procurement",
+                "severity": "HIGH",
+                "title": f"PR Approval Bottleneck — {len(urgent)} Urgent PRs Stuck ({len(urgent[0].get('days_pending', 0))} days)",
+                "finding": (
+                    f"{len(urgent)} URGENT/HIGH priority purchase requisitions are awaiting approval. "
+                    f"Top: '{top.get('title', 'Unknown')}' — ₹{_format_lakh(pr_val)}, pending {top.get('days_pending', '?')} day(s). "
+                    f"Required by: {top.get('required_by', 'soon')}. Total pending value: ₹{_format_lakh(total_pending_val)}."
+                ),
+                "impact": f"₹{_format_lakh(total_pending_val)} in stock replenishment delayed — stockout risk if not acted on today",
+                "action": (
+                    f"Approve {top.get('pr_id', 'pending PR')} immediately and convert to PO today. "
+                    f"Requested by: {top.get('requested_by', 'team')}."
+                ),
+                "urgency": "TODAY",
+                "rupee_impact": total_pending_val,
+            })
+
+    # ── 15. QC Rejection Spike ────────────────────────────────────────────────
+    qc_data = tool_data.get("qc", {})
+    supplier_scorecard = qc_data.get("supplier_quality_scorecard", {})
+    high_rejection_suppliers = {
+        k: v for k, v in supplier_scorecard.items()
+        if v.get("rating", "").startswith("REVIEW")
+    }
+    if high_rejection_suppliers:
+        top_sup = next(iter(high_rejection_suppliers))
+        rtv_val = _parse_rupee(qc_data.get("summary", {}).get("rejection_value_mtd", "Rs.32,400"))
+        insights.append({
+            "id": f"qc_rejection_spike_{top_sup[:20].replace(' ', '_')}",
+            "category": "🔬 Quality",
+            "severity": "HIGH",
+            "title": f"QC Rejection Spike — {top_sup} Failing {high_rejection_suppliers[top_sup].get('pass_rate', '?')} Pass Rate",
+            "finding": (
+                f"{top_sup} has a pass rate of {high_rejection_suppliers[top_sup].get('pass_rate', '?')} "
+                f"(industry benchmark: 95%). RTV value this month: ₹{_format_lakh(rtv_val)}. "
+                f"Overall QC pass rate: {qc_data.get('summary', {}).get('overall_pass_rate', '?')}."
+            ),
+            "impact": f"₹{_format_lakh(rtv_val)} in rejected goods — procurement plan disrupted, stockout risk for affected SKUs",
+            "action": (
+                f"Issue quality improvement notice to {top_sup}. Pre-inspect 100% of next batch before GRN. "
+                "Identify alternate supplier for affected SKUs as contingency."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": rtv_val,
+        })
+
+    # ── 16. Invoice Discrepancy Queue ─────────────────────────────────────────
+    im_data = tool_data.get("invoice_matching", {})
+    blocked_invoices = im_data.get("summary", {}).get("blocked_discrepancy", 0)
+    discrepancy_val = _parse_rupee(im_data.get("summary", {}).get("discrepancy_value_total", "Rs.1,24,800"))
+    if blocked_invoices > 0:
+        due_week = im_data.get("payment_queue", {}).get("due_this_week", "₹0")
+        insights.append({
+            "id": "invoice_discrepancy_queue",
+            "category": "🧮 AP / Finance",
+            "severity": "MEDIUM",
+            "title": f"{blocked_invoices} Invoices Blocked — ₹{_format_lakh(discrepancy_val)} in Discrepancies Unresolved",
+            "finding": (
+                f"{blocked_invoices} supplier invoices are blocked due to 3-way match failures. "
+                f"Total discrepancy value: ₹{_format_lakh(discrepancy_val)}. "
+                f"Payment due this week: {due_week}. "
+                f"Auto-match rate: {im_data.get('summary', {}).get('auto_match_rate', '?')} (target: 85%)."
+            ),
+            "impact": f"₹{_format_lakh(discrepancy_val)} in supplier disputes risk relationship damage and delayed procurement",
+            "action": (
+                "Review each blocked invoice: request corrected invoices from suppliers with price/qty variance. "
+                "Approve within-tolerance invoices manually to clear the payment queue."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": discrepancy_val,
         })
 
     # ── Sort: ₹ impact descending, then severity ──────────────────────────────

@@ -362,10 +362,10 @@ export default function Settings({ onNavigate, dbStatus, currentUser, allowedMod
               <InfoRow label="Analysis"          value="Deep data analysis & root cause engine"     />
               <InfoRow label="Scanner"           value="WhatsApp screenshot processing"             />
               <InfoRow label="Context Window"    value="Last 16 messages retained"                  />
-              <InfoRow label="Knowledge Base"    value="23 topics — inventory, finance, operations" />
-              <InfoRow label="Insights Engine"   value="13 proactive insight types"                 />
-              <InfoRow label="RCA Engine"        value="14 structured analysis templates"           />
-              <InfoRow label="Data Tools"        value="19 live business data tools"                />
+              <InfoRow label="Knowledge Base"    value="34 topics — inventory, finance, P2P, operations" />
+              <InfoRow label="Insights Engine"   value="16 proactive insight types"                    />
+              <InfoRow label="RCA Engine"        value="14 structured analysis templates"               />
+              <InfoRow label="Data Tools"        value="27 live business data tools"                    />
             </div>
           </div>
         </div>

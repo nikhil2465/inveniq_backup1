@@ -1237,6 +1237,156 @@ KNOWLEDGE_BASE = {
         ],
         "indian_context": "Most hardware/sanitary dealers use Tally ERP or Tally Prime for accounting and GST returns. InvenIQ's export bridges the gap: use InvenIQ for AI-powered operations intelligence, export to Tally for statutory compliance, GST filing (GSTR-1, GSTR-3B), and formal P&L reporting.",
     },
+    "landing_cost_methodology": {
+        "title": "Landing Cost Calculation — True Per-Unit Cost for Hardware/Sanitary Dealers",
+        "formula": "Total Landed Cost = Invoice Value + Freight + Custom Duty (imports) + Freight Forwarding + Port/Clearing Charges + Loading & Unloading + Insurance + Misc",
+        "per_unit_cost": "True Cost per Unit = Total Landed Cost ÷ Total Units Received",
+        "operation_types": {
+            "DOMESTIC_ROAD":   "Freight (1-3%) + Loading/Unloading + Insurance. Avg overhead: 6-10% of invoice.",
+            "IMPORT_SEA":      "Custom Duty (12-15%) + Freight Forwarding + Port Charges + Clearing Agent + Insurance. Avg overhead: 18-25%.",
+            "IMPORT_AIR":      "Custom Duty + Air Freight (high) + Port Handling + Insurance. Avg overhead: 20-30% — use only for urgent high-value items.",
+            "LOCAL_PICKUP":    "Vehicle Hire + Loading/Unloading only. Lowest overhead: 1-3%.",
+            "INTER_STATE_ROAD":"Freight + Octroi/Entry Tax (if applicable) + Loading/Unloading. Avg overhead: 8-12%.",
+        },
+        "margin_calculation": {
+            "invoice_margin":   "= (Sell Price − Invoice Price) / Sell Price × 100  [MISLEADING — excludes overhead]",
+            "true_margin":      "= (Sell Price − Landed Cost) / Sell Price × 100    [CORRECT — use this for pricing]",
+            "impact_example":   "Ebco Hinge: Invoice ₹485, Landed ₹524 (8% overhead), Sell ₹620 → Invoice Margin 21.8% → True Margin 15.5% (6.3 pp gap)",
+        },
+        "charge_heads_reference": {
+            "freight":             "Charged per kg or per km by transporter. Get freight invoice or LR copy.",
+            "custom_duty":         "BCD (Basic Customs Duty) + IGST on imports. Reference: CBIC tariff. Hardware fittings: BCD 10-20% + IGST 18%.",
+            "freight_forwarding":  "Fee charged by freight forwarder for export documentation, customs clearance. Typically 1-2% of CIF value.",
+            "port_handling":       "Port/terminal handling charges — fixed per container or per shipment.",
+            "clearing_agent":      "Custom House Agent (CHA) fee — flat ₹5,000-₹15,000 per consignment.",
+            "loading_unloading":   "Labour cost at origin + destination. Typically ₹500-₹2,000 per GRN.",
+            "insurance":           "0.1% of invoice value — mandatory for shipments > ₹2L.",
+        },
+        "apportionment_rule": "If one sheet covers multiple line items: apportion total landed cost proportionally by line-item invoice value weight.",
+        "pricing_rule": "Set selling price AFTER computing landed cost. Target margin must be calculated on landed cost, not invoice price.",
+        "indian_context": "Import of hardware fittings (Ebco, Hafele, Hettich) from China/Europe attracts BCD 10-20% + IGST 18%. Total landed cost on imported goods is often 20-35% above invoice. Never price imported goods on invoice price alone.",
+    },
+    "purchase_requisition_workflow": {
+        "title": "Purchase Requisition (PR) Workflow — Procure-to-Pay Best Practices",
+        "definition": "A Purchase Requisition is an internal document raised by a department to request purchase of goods/services. It is the starting point of the formal P2P cycle.",
+        "pr_lifecycle": {
+            "step_1": "Department raises PR in the system with item, quantity, estimated cost, and required date",
+            "step_2": "Department Head reviews and approves/rejects within SLA (URGENT: 4h, HIGH: 1 day, MEDIUM: 3 days)",
+            "step_3": "Procurement team validates PR, selects supplier, and converts to Purchase Order (PO)",
+            "step_4": "PO sent to supplier → Supplier ships → Gate Entry → GRN → QC → Stock",
+            "step_5": "Invoice received → 3-Way Match → AP Approval → Payment",
+        },
+        "priority_sla": {
+            "URGENT":  "Approval within 4 hours; PO raised same day. Stockout imminent.",
+            "HIGH":    "Approval within 1 business day; PO within 2 days. Stock critically low.",
+            "MEDIUM":  "Approval within 3 business days; PO within 5 days. Planned replenishment.",
+            "LOW":     "Approval within 5 business days. Non-urgent buffer stock.",
+        },
+        "controls": {
+            "budget_control":   "PR must stay within budget authority of requestor; excess needs higher approval",
+            "audit_trail":      "Every PR records who raised, who approved, when, and why — compliance requirement",
+            "no_bypass_rule":   "Never convert directly to PO without PR — violates internal controls and budget process",
+            "auto_escalation":  "PRs not acted on within 2× SLA auto-escalate to next level manager",
+        },
+        "kpis": {
+            "avg_approval_time": "Target < 1 business day. >3 days = process bottleneck.",
+            "pr_to_po_conversion": "Target > 95% of approved PRs convert to PO within 2 days",
+            "emergency_pr_rate": "Target < 20% of PRs flagged URGENT. High rate = poor demand planning.",
+        },
+        "indian_context": "Most Indian hardware/sanitary dealers do not use formal PR — they raise POs directly. Implementing PR adds budget visibility, eliminates maverick buying, and creates an audit trail required for GST compliance audits and statutory records.",
+    },
+    "qc_inspection_methods": {
+        "title": "QC Inspection (Post-GRN Quality Control) — Best Practices for Hardware/Sanitary Dealers",
+        "purpose": "Post-GRN QC inspects goods received before accepting into inventory. Prevents defective stock from reaching customers and protects margin.",
+        "standard_checklist": {
+            "packaging":        "Is the original packaging intact? Damaged packaging = inspect 100% of units inside.",
+            "quantity_match":   "Physical count vs DC quantity vs PO quantity — any variance is a discrepancy.",
+            "specifications":   "Verify product code, size, finish (chrome/SS/gold), and model match PO.",
+            "finish_quality":   "Check chrome plating, powder coating, paint finish — no oxidation, peeling, or blemishes.",
+            "functional_test":  "Test moving parts: hinge movement, drawer slide, tap operation, valve closure.",
+            "safety_compliance":"Check BIS mark, CE mark (imports), ISI certification for sanitary ware.",
+            "labels_markings":  "MRP sticker, brand label, HSN code correct? Mislabelled goods = GST dispute.",
+        },
+        "decision_matrix": {
+            "FULL_ACCEPT":          "All parameters PASS — move 100% to inventory",
+            "CONDITIONAL_ACCEPT":   "< 10% defective, cosmetic defects only — accept saleable units; RTV defectives",
+            "PARTIAL_ACCEPT":       "Spec mismatch on some units — accept conforming units only; reject rest",
+            "FULL_REJECT_RTV":      "> 20% defective OR functional failure — return entire batch to supplier",
+        },
+        "rtv_process": {
+            "step_1": "Document defects with photos — all units rejected must be photographed",
+            "step_2": "Raise QC rejection note with unit count, defect description, and decision",
+            "step_3": "Notify supplier within 24 hours — RTV claim lapses after 48 hours for most brands",
+            "step_4": "Arrange return logistics (supplier picks up or buyer ships at supplier cost)",
+            "step_5": "Supplier issues Credit Note / replacement within 7-14 days",
+        },
+        "supplier_benchmarks": {
+            "excellent":   "> 98% pass rate — Ebco, Hafele, Hettich typically here",
+            "good":        "95-98% pass rate — Jaquar, Cera normally here",
+            "needs_watch": "90-95% pass rate — monitor closely, pre-inspect next 3 batches",
+            "poor":        "< 90% pass rate — REVIEW supplier relationship; source alternate",
+        },
+        "indian_context": "In the Indian hardware/sanitary trade, most dealers do minimal QC and accept whatever arrives. This costs 3-5% of purchase value annually in defective stock write-offs. A 30-minute QC check per GRN saves ₹2-4L annually for a ₹5 Cr turnover dealer.",
+    },
+    "three_way_matching": {
+        "title": "3-Way Matching (PO + GRN + Invoice) — AP Automation for Hardware/Sanitary Dealers",
+        "definition": "3-way matching verifies that the Purchase Order, Goods Receipt Note, and Supplier Invoice all agree on: supplier, item, quantity, price, and GST rate before releasing payment.",
+        "matching_formula": {
+            "match_check":   "Invoice Amount ≈ PO Price × GRN Qty (within tolerance)",
+            "auto_approve":  "| Invoice − (PO Price × GRN Qty) | ÷ PO Amount < 1%",
+            "manual_review": "1% ≤ variance ≤ 5% — Finance Manager must approve",
+            "block_invoice": "Variance > 5% OR quantity mismatch — reject; request corrected invoice",
+        },
+        "discrepancy_types": {
+            "price_variance":    "Invoice price ≠ PO price. Cause: supplier price revision not updated in PO.",
+            "quantity_variance": "Invoice qty ≠ GRN qty. Cause: short shipment not reflected in invoice.",
+            "gst_mismatch":      "Invoice GST rate ≠ PO GST rate. Cause: supplier classification error.",
+            "rtv_not_deducted":  "Supplier invoices for full GRN qty without deducting RTV. Most common in India.",
+            "duplicate_invoice": "Same invoice number submitted twice. Auto-detect by invoice-number uniqueness check.",
+        },
+        "payment_terms": {
+            "standard":      "Net-30 from invoice date (30 days credit from supplier)",
+            "early_payment": "2/10 Net-30 — 2% discount if paid within 10 days",
+            "overdue_risk":  "Paying late risks supply disruption and loss of early-payment discount",
+        },
+        "kpis": {
+            "auto_match_rate": "Target > 85%. Below 85% = supplier invoicing quality or PO accuracy problem.",
+            "days_to_approve": "Target < 2 business days from invoice receipt to payment approval.",
+            "discrepancy_rate":"Target < 5% of invoices. Above 5% = systemic pricing or GRN process issue.",
+        },
+        "indian_context": "Most Indian dealers pay invoices manually without any matching — they pay whatever the supplier claims. This leads to overpayments, missed RTV deductions, and duplicate payments totalling 2-3% of purchase cost. 3-way matching eliminates this leakage.",
+    },
+    "gate_entry_management": {
+        "title": "Gate Entry & Receiving Management — Inbound Vehicle Control for Dealers",
+        "purpose": "Gate entry is the first control point in the inbound supply chain. It prevents unauthorized deliveries, documents short shipments, and initiates the formal GRN + QC process.",
+        "required_documents": {
+            "from_supplier":  "Delivery Challan (DC) — lists items, quantities, DC number, date, and supplier GSTIN",
+            "from_vehicle":   "Vehicle number, driver name, driver ID",
+            "from_buyer_system": "Valid Purchase Order (PO) number matching the delivery",
+        },
+        "gate_process": {
+            "step_1": "Security logs vehicle number, driver details, arrival time",
+            "step_2": "Verify supplier DC number against open POs in system — must match",
+            "step_3": "Count boxes/packages against DC quantity — record any discrepancy",
+            "step_4": "If all OK: stamp DC, issue gate pass, direct to receiving dock",
+            "step_5": "If short shipment: hold vehicle; call supplier for confirmation; partial GRN only",
+            "step_6": "If no PO: reject entry; log supplier name; notify Procurement team",
+            "step_7": "After clearance: GRN team takes over within 2 hours",
+        },
+        "rejection_criteria": {
+            "no_po_match":       "Delivery challan references no open PO — reject and return",
+            "wrong_supplier":    "DC supplier ≠ PO supplier — reject; security incident log",
+            "quantity_exceeds_po": "DC qty > PO qty — accept only PO quantity; return excess",
+            "damaged_packaging": "Visible outer damage — accept under protest; document on DC; QC team to inspect 100%",
+        },
+        "kpis": {
+            "avg_clearance_time": "Target < 15 minutes. > 30 min = gate process bottleneck.",
+            "po_reference_compliance": "Target > 98%. Below 98% = suppliers delivering without PO — tighten supplier communication.",
+            "short_shipment_rate": "Target < 2%. Above 5% = supplier fulfillment reliability issue.",
+            "rejection_rate": "Track monthly — recurring rejections from same supplier = reliability risk.",
+        },
+        "indian_context": "In Indian hardware/sanitary trade, gate entry is often informal — stock is accepted without proper PO verification, leading to inventory discrepancies, unauthorized purchases, and audit trail gaps. A formal gate entry process with PO cross-check prevents these issues and is mandatory for GST-compliant inward supply records.",
+    },
 }
 
 
@@ -1393,6 +1543,51 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
     ]):
         relevant_keys.append("damage_recording")
 
+    if any(w in q for w in [
+        "landed cost", "landing cost", "true cost", "true landed cost", "import cost",
+        "custom duty calculation", "landed cost calculation", "landing cost method",
+        "how to calculate landed cost", "charge heads", "per unit true cost",
+        "freight overhead", "import overhead", "true margin", "margin after freight",
+        "total cost of goods", "cost of procurement",
+    ]):
+        relevant_keys.append("landing_cost_methodology")
+
+    if any(w in q for w in [
+        "purchase requisition", "pr workflow", "material request", "indent process",
+        "how to raise pr", "pr to po", "pr approval", "requisition process",
+        "procurement request process", "internal purchase request", "pr sla",
+        "pr vs po", "when to raise pr", "pr controls", "maverick buying",
+        "budget control procurement", "pr audit trail",
+    ]):
+        relevant_keys.append("purchase_requisition_workflow")
+
+    if any(w in q for w in [
+        "qc inspection", "quality control method", "how to inspect goods",
+        "qc checklist", "rtv process", "return to vendor", "goods inspection process",
+        "incoming inspection", "post grn inspection", "what to check in qc",
+        "qc decision", "accept reject", "conditional acceptance",
+        "supplier quality", "defect rate benchmark", "qc kpi",
+    ]):
+        relevant_keys.append("qc_inspection_methods")
+
+    if any(w in q for w in [
+        "3 way match", "three way match", "3-way matching", "invoice matching",
+        "po grn invoice reconciliation", "ap automation", "accounts payable process",
+        "invoice discrepancy", "price variance invoice", "qty mismatch invoice",
+        "auto match invoice", "invoice approval process", "payment approval workflow",
+        "how does 3 way match work", "why was invoice blocked", "invoice tolerance",
+    ]):
+        relevant_keys.append("three_way_matching")
+
+    if any(w in q for w in [
+        "gate entry", "gate entry process", "vehicle arrival process",
+        "inbound receiving", "delivery challan verification", "dc check",
+        "how to manage gate entry", "security gate process", "inbound control",
+        "short shipment handling", "no po delivery", "gate pass process",
+        "receiving dock management", "vehicle clearance process",
+    ]):
+        relevant_keys.append("gate_entry_management")
+
     # ── Fallback: general best practices ─────────────────────────────────────
     if not relevant_keys:
         relevant_keys = ["industry_benchmarks"]
@@ -1463,6 +1658,21 @@ def get_tools_for_knowledge_query(query: str) -> list:
     if any(w in q for w in ["warehouse", "godown", "warehouse capacity", "godown capacity",
                              "grn accuracy", "putaway", "pick accuracy", "stock distribution"]):
         tools.append("warehouse")
+
+    if any(w in q for w in ["landed cost", "landing cost", "true cost", "import cost", "custom duty"]):
+        tools.append("landing_cost")
+
+    if any(w in q for w in ["purchase requisition", "pr workflow", "material request", "indent"]):
+        tools.append("pr")
+
+    if any(w in q for w in ["qc inspection", "quality control", "rtv", "rejection rate", "defect rate"]):
+        tools.append("qc")
+
+    if any(w in q for w in ["3 way match", "invoice matching", "ap approval", "invoice discrepancy"]):
+        tools.append("invoice_matching")
+
+    if any(w in q for w in ["gate entry", "vehicle arrival", "dc verification", "delivery challan check"]):
+        tools.append("gate_entry")
 
     # Default: stock + finance are always useful for context
     if not tools:

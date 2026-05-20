@@ -1156,27 +1156,246 @@ async def damage_tool(query: Optional[str] = None) -> dict:
         }
 
 
+async def landing_cost_tool(query: Optional[str] = None) -> dict:
+    """Landing cost sheets: import operations, charge heads, per-unit true cost, margin impact."""
+    return {
+        "summary": {
+            "active_sheets": 3,
+            "total_landed_value": "₹18.4L",
+            "avg_overhead_pct": 8.2,
+            "margin_note": "True cost is 6-9% above invoice price for domestic, 14-20% for imports",
+        },
+        "recent_sheets": [
+            {
+                "sheet_id": "LC-2026-018", "supplier": "Ebco Industries Ltd", "po_ref": "PO-9042",
+                "operation_type": "DOMESTIC_ROAD", "invoice_value": "₹2,84,000",
+                "charges": {"freight": 4200, "loading_unloading": 850, "insurance": 284, "misc": 0},
+                "total_landed_cost": "₹2,89,334",
+                "per_unit_impact": "Ebco Hinge 35mm: ₹524.8 true cost vs ₹485 invoice — margin 3.2% lower",
+            },
+            {
+                "sheet_id": "LC-2026-015", "supplier": "Hafele India", "po_ref": "PO-9028",
+                "operation_type": "IMPORT_AIR", "invoice_value": "₹8,40,000",
+                "charges": {"custom_duty": 126000, "freight_forwarding": 24200, "port_handling": 8400, "insurance": 1680, "loading_unloading": 1200},
+                "total_landed_cost": "₹10,01,480",
+                "per_unit_impact": "Import overhead 19.2% — true margin 12.1% below invoice margin",
+            },
+        ],
+        "charge_heads": {
+            "DOMESTIC_ROAD":   ["freight", "loading_unloading", "insurance", "misc"],
+            "IMPORT_SEA":      ["custom_duty", "freight_forwarding", "port_handling", "insurance", "clearing_agent", "loading_unloading"],
+            "IMPORT_AIR":      ["custom_duty", "freight_forwarding", "port_handling", "insurance", "loading_unloading"],
+            "LOCAL_PICKUP":    ["vehicle_hire", "loading_unloading"],
+        },
+        "operation_types": ["DOMESTIC_ROAD", "DOMESTIC_RAIL", "IMPORT_SEA", "IMPORT_AIR", "LOCAL_PICKUP", "INTER_STATE_ROAD"],
+        "pricing_rule": "Always compute landed cost before setting MRP. Avg overhead: 8% domestic, 16-20% imports. Margin = (Sell – Landed Cost) / Sell.",
+        "data_source": "mock",
+    }
+
+
+async def pr_tool(query: Optional[str] = None) -> dict:
+    """Purchase requisition pipeline: pending approvals, approved-not-ordered, PO conversion tracking."""
+    return {
+        "summary": {
+            "total_prs_mtd": 14, "pending_approval": 5, "approved_not_ordered": 3,
+            "converted_to_po": 6, "rejected": 0,
+            "avg_approval_time_days": 1.8, "pending_value": "₹4.2L",
+        },
+        "pending_prs": [
+            {
+                "pr_id": "PR-2026-014", "priority": "HIGH",
+                "title": "Ebco Hinges & Drawer Slides — Q2 Replenishment",
+                "requested_by": "Rajesh Kumar (Store Manager)", "days_pending": 1,
+                "estimated_value": "₹1,84,000", "required_by": "2026-05-27",
+                "status": "PENDING_APPROVAL",
+            },
+            {
+                "pr_id": "PR-2026-013", "priority": "URGENT",
+                "title": "Jaquar Basin Mixers — Low Stock Emergency",
+                "requested_by": "Priya Iyer (Sales)", "days_pending": 2,
+                "estimated_value": "₹96,000", "required_by": "2026-05-23",
+                "status": "PENDING_APPROVAL",
+            },
+            {
+                "pr_id": "PR-2026-011", "priority": "MEDIUM",
+                "title": "Hettich Drawer Systems — Project Batch Order",
+                "requested_by": "Suresh Nair (Procurement)", "days_pending": 4,
+                "estimated_value": "₹1,28,000", "required_by": "2026-05-31",
+                "status": "PENDING_APPROVAL",
+            },
+        ],
+        "approved_awaiting_po": [
+            {
+                "pr_id": "PR-2026-010", "title": "Hindware Cisterns — Monsoon Pre-stock",
+                "approved_by": "Admin", "approved_date": "2026-05-18",
+                "estimated_value": "₹74,000", "days_since_approval": 3,
+                "action": "Create PO now — required by May 30",
+            },
+        ],
+        "bottleneck_alert": "PR-2026-013 (URGENT) is 2 days in approval queue — Jaquar stock will hit zero in 9 days. Convert to PO immediately.",
+        "workflow": "PR → Dept Approval → Procurement → PO → GRN → QC → Invoice Match",
+        "data_source": "mock",
+    }
+
+
+async def qc_tool(query: Optional[str] = None) -> dict:
+    """QC inspection results: pass/reject rates, RTV decisions, supplier quality scorecard."""
+    return {
+        "summary": {
+            "inspections_mtd": 18, "accepted_fully": 14, "accepted_conditionally": 2,
+            "rejected_rtv": 2, "overall_pass_rate": "88.9%",
+            "rejection_value_mtd": "₹32,400",
+            "top_rejection_supplier": "Hindware Ltd — 2 failures this month (41.7% rejection rate)",
+        },
+        "recent_inspections": [
+            {
+                "qc_id": "QCI-2026-018", "supplier": "Ebco Industries",
+                "sku": "Ebco Soft-Close Hinge 35mm Pk-10",
+                "qty_inspected": 200, "qty_accepted": 200, "qty_rejected": 0,
+                "result": "ACCEPTED",
+                "checklist_summary": "All 7 parameters PASS — packaging, quantity, specs, finish, safety, labels, dimensions",
+            },
+            {
+                "qc_id": "QCI-2026-017", "supplier": "Hindware Ltd",
+                "sku": "Hindware Pilot EV Sensor Tap",
+                "qty_inspected": 24, "qty_accepted": 18, "qty_rejected": 6,
+                "result": "CONDITIONAL",
+                "rejection_reason": "2 units cosmetic (chrome peeling); 4 units spec mismatch (flow rate)",
+                "decision": "ACCEPT_PARTIAL — 18 to stores, 6 as RTV",
+                "rtv_value": "₹9,600",
+            },
+            {
+                "qc_id": "QCI-2026-016", "supplier": "Hindware Ltd",
+                "sku": "Hindware Flora Wall Mixer",
+                "qty_inspected": 12, "qty_accepted": 0, "qty_rejected": 12,
+                "result": "REJECTED",
+                "rejection_reason": "100% units — oxidation marks on chrome finish (manufacturing defect)",
+                "decision": "FULL RTV", "rtv_value": "₹22,800",
+            },
+        ],
+        "supplier_quality_scorecard": {
+            "Ebco Industries":  {"pass_rate": "100%", "rtv_value_mtd": "₹0",      "rating": "EXCELLENT"},
+            "Jaquar Group":     {"pass_rate": "100%", "rtv_value_mtd": "₹0",      "rating": "EXCELLENT"},
+            "Hettich India":    {"pass_rate": "96.7%","rtv_value_mtd": "₹0",      "rating": "GOOD"},
+            "Hafele India":     {"pass_rate": "98.2%","rtv_value_mtd": "₹0",      "rating": "GOOD"},
+            "Hindware Ltd":     {"pass_rate": "58.3%","rtv_value_mtd": "₹32,400", "rating": "REVIEW — URGENT"},
+        },
+        "common_failure_params": ["Chrome/finish quality", "Specification mismatch", "Flow rate deviation"],
+        "insight": "Hindware rejection rate (41.7%) is 8x industry benchmark (5%). Issue quality improvement notice and pre-inspect batches before GRN.",
+        "data_source": "mock",
+    }
+
+
+async def invoice_matching_tool(query: Optional[str] = None) -> dict:
+    """3-way match (PO + GRN + Invoice), AP approval queue, discrepancy analysis, payment queue."""
+    return {
+        "summary": {
+            "invoices_received_mtd": 22, "auto_matched": 16, "manual_review_pending": 4,
+            "approved_for_payment": 18, "blocked_discrepancy": 4,
+            "auto_match_rate": "72.7%", "total_payable_mtd": "₹38.4L",
+            "discrepancy_value_total": "₹1,24,800",
+        },
+        "pending_review": [
+            {
+                "invoice_id": "INV-2026-042", "supplier": "Hindware Ltd",
+                "po_ref": "PO-8841", "grn_ref": "GRN-9041",
+                "invoice_amount": "₹2,28,000", "matched_amount": "₹2,05,200",
+                "discrepancy": "₹22,800 — RTV deduction not applied by supplier",
+                "status": "BLOCKED", "match_result": "PRICE_MISMATCH",
+                "action": "Request revised invoice from Hindware before releasing payment",
+            },
+            {
+                "invoice_id": "INV-2026-038", "supplier": "Ebco Industries",
+                "po_ref": "PO-9042", "grn_ref": "GRN-9048",
+                "invoice_amount": "₹2,86,400", "matched_amount": "₹2,84,000",
+                "discrepancy": "₹2,400 (0.8% — within 1% tolerance)",
+                "status": "PENDING", "match_result": "WITHIN_TOLERANCE",
+                "action": "Manager approval needed — high-value invoice manual review",
+            },
+        ],
+        "payment_queue": {
+            "due_this_week": "₹14.2L", "due_next_week": "₹8.6L",
+            "blocked_invoices": 4, "oldest_pending_days": 18,
+            "note": "₹22,800 blocked until Hindware reissues invoice with RTV deduction",
+        },
+        "auto_match_rule": "< 1% variance on price + qty = auto-approve. > 1% = manual review. Qty mismatch always manual.",
+        "insight": "72.7% auto-match rate is below 85% benchmark. Hindware invoice discrepancies are primary driver. Enforce PO-aligned invoicing to improve rate.",
+        "data_source": "mock",
+    }
+
+
+async def gate_entry_tool(query: Optional[str] = None) -> dict:
+    """Gate entry log: vehicle arrivals, DC verification, security clearance, pending and cleared deliveries."""
+    return {
+        "summary": {
+            "arrivals_today": 4, "arrivals_mtd": 38,
+            "pending_verification": 2, "cleared_to_stores": 34,
+            "rejected_entry": 2, "avg_clearance_time_min": 18, "benchmark_min": 15,
+        },
+        "today_entries": [
+            {
+                "entry_id": "GE-2026-038", "time": "09:42 AM",
+                "vehicle": "KA-01-AB-1234 (Eicher 14ft)", "supplier": "Ebco Industries",
+                "po_ref": "PO-9042", "dc_number": "DC-EBK-8821", "boxes": 14,
+                "status": "CLEARED", "clearance_time_min": 12, "forwarded_to": "GRN Queue",
+            },
+            {
+                "entry_id": "GE-2026-037", "time": "08:15 AM",
+                "vehicle": "KA-03-CD-5678 (TATA Ace)", "supplier": "Jaquar Group",
+                "po_ref": "PO-9038", "dc_number": "DC-JAQ-4412", "boxes": 8,
+                "status": "CLEARED", "clearance_time_min": 22, "forwarded_to": "GRN Queue",
+            },
+            {
+                "entry_id": "GE-2026-036", "time": "07:30 AM",
+                "vehicle": "KA-05-EF-9012 (Mahindra Pickup)", "supplier": "Hindware Ltd",
+                "po_ref": "PO-8841", "dc_number": "HW-DC-3318", "boxes_received": 6, "boxes_expected": 8,
+                "status": "PENDING",
+                "issue": "SHORT SHIPMENT — DC has 6 boxes, PO expects 8. Waiting supplier confirmation.",
+                "action": "Hold vehicle — do not clear until shortfall resolved or supplier approves partial GRN",
+            },
+        ],
+        "rejected_entries": [
+            {"entry_id": "GE-2026-034", "supplier": "Unknown Vendor", "reason": "No matching PO in system — walk-in delivery", "action": "Returned to sender"},
+        ],
+        "alerts": [
+            "GE-2026-036 (Hindware) SHORT SHIPMENT — 2 boxes missing. Pending clearance.",
+            "Hettich delivery scheduled 3PM — PO-9055 ready for verification",
+        ],
+        "kpis": {
+            "avg_clearance_time_min": 18, "po_reference_compliance_pct": 94.7,
+            "on_time_receipt_rate_pct": 89.5, "short_shipment_rate_pct": 5.3,
+        },
+        "process": "Vehicle Arrival → DC Number Verification → PO Cross-check → Security Stamp → Forward to GRN → QC → Stock",
+        "data_source": "mock",
+    }
+
+
 TOOLS = {
-    "stock":        stock_tool,
-    "demand":       demand_tool,
-    "supplier":     supplier_tool,
-    "customer":     customer_tool,
-    "finance":      finance_tool,
-    "order":        order_tool,
-    "freight":      freight_tool,
-    "email":        email_tool,
-    "po_grn":       po_grn_tool,
-    "sales":        sales_tool,
-    "inward":       inward_tool,
-    "discount":     discount_tool,
-    "louvers":      louvers_tool,
-    "quotes":       quotes_tool,
-    "projects":     projects_tool,
-    "catalog":      catalog_tool,
-    "credit":       credit_tool,
-    "pos":          pos_tool,
-    "schemes":      schemes_tool,
-    "warehouse":    warehouse_tool,
-    "sales_return": sales_return_tool,
-    "damage":       damage_tool,
+    "stock":            stock_tool,
+    "demand":           demand_tool,
+    "supplier":         supplier_tool,
+    "customer":         customer_tool,
+    "finance":          finance_tool,
+    "order":            order_tool,
+    "freight":          freight_tool,
+    "email":            email_tool,
+    "po_grn":           po_grn_tool,
+    "sales":            sales_tool,
+    "inward":           inward_tool,
+    "discount":         discount_tool,
+    "louvers":          louvers_tool,
+    "quotes":           quotes_tool,
+    "projects":         projects_tool,
+    "catalog":          catalog_tool,
+    "credit":           credit_tool,
+    "pos":              pos_tool,
+    "schemes":          schemes_tool,
+    "warehouse":        warehouse_tool,
+    "sales_return":     sales_return_tool,
+    "damage":           damage_tool,
+    "landing_cost":     landing_cost_tool,
+    "pr":               pr_tool,
+    "qc":               qc_tool,
+    "invoice_matching": invoice_matching_tool,
+    "gate_entry":       gate_entry_tool,
 }

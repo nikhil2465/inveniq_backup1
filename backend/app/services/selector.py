@@ -278,6 +278,54 @@ KEYWORD_MAP = {
         "damage prevention", "damage report", "damage recording",
         "gd-", "td-", "ins-",
     ],
+    "landing_cost": [
+        "landed cost", "landing cost", "true cost", "total landed", "import cost",
+        "custom duty", "customs duty", "freight forwarding", "port charges",
+        "clearing agent", "import charges", "import duty", "cif", "fob",
+        "charge heads", "landing cost sheet", "per unit cost", "true landed cost",
+        "import overhead", "landing cost calculation", "domestic freight cost",
+        "inter state road", "loading unloading cost", "insurance cost shipment",
+        "lc-", "landed margin", "actual cost per unit", "true margin",
+    ],
+    "pr": [
+        "purchase requisition", "pr", "pr-", "material request", "indent",
+        "purchase request", "approval pending", "pending approval pr",
+        "requisition status", "who approved", "pr approval", "approve pr",
+        "convert pr to po", "pr to po", "pr pipeline", "pending requisition",
+        "raise requisition", "create pr", "new pr", "requisition list",
+        "material indent", "dept requisition", "department request", "procurement request",
+        "procurement approval", "pr workflow", "pr bottleneck", "pr backlog",
+    ],
+    "qc": [
+        "qc", "quality control", "quality check", "qc inspection", "inspection",
+        "inspection result", "qc pass", "qc fail", "qc rejection", "rejection rate",
+        "rtv", "return to vendor", "vendor return", "batch rejection",
+        "qci-", "acceptance rate", "reject goods", "failed inspection",
+        "quality issue supplier", "supplier quality", "defect rate",
+        "checklist inspection", "incoming inspection", "goods inspection",
+        "product quality", "qc checklist", "inspection checklist", "accept to inventory",
+        "quality scorecard", "reject batch", "conditional acceptance",
+    ],
+    "invoice_matching": [
+        "invoice matching", "3 way match", "three way match", "3-way match",
+        "po grn invoice", "ap approval", "accounts payable approval",
+        "invoice discrepancy", "invoice mismatch", "invoice blocked",
+        "invoice pending approval", "invoice variance", "price mismatch invoice",
+        "qty mismatch invoice", "invoice auto match", "match rate",
+        "payment blocked", "invoice queue", "ap queue", "invoice reconciliation",
+        "invoice reconcile", "payment approval", "invoice to pay",
+        "im-", "inv-", "matching status", "3-way reconciliation",
+    ],
+    "gate_entry": [
+        "gate entry", "gate pass", "vehicle arrival", "truck arrival",
+        "vehicle entry", "delivery vehicle", "dc verification",
+        "delivery challan", "dc number", "vehicle at gate", "security clearance",
+        "ge-", "gate log", "arrival log", "inbound vehicle",
+        "vehicle clearance", "vehicle pending", "short shipment gate",
+        "who arrived today", "which vehicles came", "supplier arrival",
+        "receiving dock", "delivery expected", "vehicle register",
+        "entry rejected", "no po vehicle", "walk in delivery",
+    ],
 }
 
 # ── Additional keyword expansions (merged into KEYWORD_MAP on import) ──────────
@@ -367,6 +415,17 @@ def select_tools(query: str, mode: str = "ask") -> List[str]:
     if any(w in q for w in ["quote", "quotation", "win rate", "pipeline", "project"]):
         if "finance" not in tools:
             tools.append("finance")
+
+    # P2P workflow queries pull related tools for full procurement context
+    if any(t in tools for t in ["pr", "qc", "invoice_matching", "gate_entry"]):
+        if "po_grn" not in tools:
+            tools.append("po_grn")
+        if "supplier" not in tools:
+            tools.append("supplier")
+
+    # Landing cost queries also pull stock for margin impact context
+    if "landing_cost" in tools and "stock" not in tools:
+        tools.append("stock")
 
     # Default fallback — stock + demand + finance covers 85% of dealer questions
     if not tools:

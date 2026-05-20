@@ -51,10 +51,10 @@ export default function About({ onGoChat }) {
       <div className="card" style={{ marginBottom:16 }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', borderBottom:'1px solid var(--border)' }}>
           <Stat value="35" label="Intelligence Modules" color="var(--b2)" />
-          <Stat value="20" label="AI Data Tools" color="#10b981" />
+          <Stat value="27" label="AI Data Tools" color="#10b981" />
           <Stat value="3" label="Chat Modes (Ask/Explain/Act)" color="#8b5cf6" />
           <Stat value="136+" label="API Endpoints" color="#0ea5e9" />
-          <Stat value="25" label="Knowledge Base Topics" color="#f59e0b" />
+          <Stat value="34" label="Knowledge Base Topics" color="#f59e0b" />
           <Stat value="0" label="Setup Time (Demo Mode)" color="#10b981" />
         </div>
         <div style={{ padding:'12px 16px', textAlign:'center', fontSize:12, color:'var(--text3)' }}>
@@ -118,7 +118,7 @@ export default function About({ onGoChat }) {
           { icon:'⭐', title:'Scheme Management',   desc:'Supplier promotional schemes, volume targets, accrual tracking, and salesperson-wise target-vs-actual scorecards.', color:'#f59e0b' },
           { icon:'🏭', title:'Warehouse Management', desc:'Multi-warehouse capacity tracking, zone utilisation, GRN activity log, and stock distribution across locations.', color:'#14b8a6' },
           { icon:'📤', title:'Tally Prime Export',  desc:'One-click export of stock items, customer ledgers, supplier ledgers, sales vouchers, and purchase vouchers to Tally-compatible CSV.', color:'#6366f1' },
-          { icon:'🤖', title:'AI Assistant',        desc:'Intelligent AI chat with 3 modes (Ask/Explain/Act), 20 live data tools, RCA engine, WhatsApp scanner, and PO creation.', color:'#10a37f' },
+          { icon:'🤖', title:'AI Assistant',        desc:'Intelligent AI chat with 3 modes (Ask/Explain/Act), 27 live data tools, 34-topic knowledge base, RCA engine, WhatsApp scanner, and PO creation.', color:'#10a37f' },
           { icon:'⚙️', title:'Settings & Status',  desc:'System health dashboard, connection status, module registry, keyboard shortcuts reference, and quick setup guide.', color:'#64748b' },
           { icon:'↩️', title:'Sales Returns',       desc:'Customer return processing with UOM conversion, auto credit note generation, and accounting journal entries.', color:'#dc2626' },
           { icon:'⚖️', title:'Landing Cost',        desc:'Capture freight, insurance, and handling charges at GRN to calculate accurate landed cost per unit for true margin analysis.', color:'#f59e0b' },

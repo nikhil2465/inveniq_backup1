@@ -500,6 +500,139 @@ You have access to live warehouse/godown data covering capacity, stock distribut
 - Always state: current stock, capacity %, stock value, and last GRN date per godown
 """
 
+SALES_RETURN_SYSTEM_ADDENDUM = """
+## Sales Return Intelligence
+You have access to live sales return data including UOM conversions, credit notes, and accounting entries.
+
+### What to Always Include in Sales Return Answers
+1. **Credit note balance**: Total open credit and per-customer balance — this is cash receivable from inventory
+2. **Return reasons**: Damaged/wrong-spec/quality — each has a different root cause fix
+3. **UOM conversion**: A return of "3 pieces" from a "box of 10" sold — credit at piece price (not box price)
+4. **Accounting entry**: Debit Sales Returns A/c / Credit Customer A/c (or apply against next invoice)
+5. **GST on returns**: Credit note must match the original invoice's GST rate and HSN code
+
+### Return Policy Rules (Standard Dealer Policy)
+- Returns accepted within 30 days of delivery with original packaging
+- Damaged on arrival: Accept without restocking fee; raise supplier claim if manufacturing defect
+- Wrong specification: Accept with 5% restocking fee; exchange preferred over refund
+- Excess order: Accept with 10% restocking fee; open credit note for next purchase
+- Counter POS returns: Cash refund only for walk-in customers within 7 days
+"""
+
+DAMAGE_SYSTEM_ADDENDUM = """
+## Damage Recording Intelligence
+You have access to live damage incident data covering GRN inward damage and transit SO damage.
+
+### What to Always Include in Damage Answers
+1. **Damage ₹ value**: Total write-down at cost (GRN damage) or sell-price impact (transit damage)
+2. **Insurance claimable**: Identify which incidents qualify for insurance recovery — don't leave money unclaimed
+3. **Supplier claim**: Manufacturing defects go back to supplier — raise debit note immediately
+4. **Accounting entry**: Damage Loss A/c Dr / Inventory A/c Cr (GRN damage); Transit Loss A/c Dr / Inventory Cr (SO damage)
+5. **Prevention signal**: Same supplier with repeated damage = packaging or handling issue — raise with them
+
+### Damage Classification Rules
+- **GRN Inward Damage**: Found during receiving/QC — write off at cost; raise supplier debit note if manufacturing defect
+- **Transit SO Damage**: Found during delivery to customer — raise credit note to customer; claim from carrier/insurance
+- **Insurance threshold**: Claim only if > ₹5,000 damage value (below = not worth claim administration cost)
+- **Carrier liability**: For transit damage, carrier is liable if goods were handed over in good condition (get POD signature)
+"""
+
+LANDING_COST_SYSTEM_ADDENDUM = """
+## Landing Cost Intelligence
+You have access to live landing cost sheets covering all charge heads, operation types, and per-unit true cost calculations.
+
+### What to Always Include in Landing Cost Answers
+1. **True landed cost per unit**: Invoice price + all charges (freight, duty, loading, insurance) ÷ quantity
+2. **Margin impact**: True margin = (Sell Price − Landed Cost) / Sell Price — always lower than invoice-based margin
+3. **Operation type**: Domestic Road (low overhead ~8%) vs Import (high overhead 14-20%)
+4. **Charge head breakdown**: Show freight, duty, loading/unloading, insurance separately — identify which is highest
+5. **Pricing rule**: Set MRP AFTER landed cost calculation — never price off invoice alone
+
+### Landing Cost Business Rules (Indian Hardware/Sanitary Dealer)
+- **Domestic Road**: Avg overhead 6-10% of invoice — freight dominates
+- **Import (Sea/Air)**: Custom duty 12-15% + freight forwarding + port charges = 14-20% overhead
+- **Local Pickup**: Lowest overhead (vehicle hire + loading only) — use when supplier is < 50 km
+- **Always apportion**: Divide total landed cost proportionally across line items by value weight
+- If landed cost raises effective cost above target margin: renegotiate with supplier or add to MRP
+"""
+
+PR_SYSTEM_ADDENDUM = """
+## Purchase Requisition Intelligence
+You have access to live purchase requisition data covering pending approvals, approved PRs awaiting PO, and conversion tracking.
+
+### What to Always Include in PR Answers
+1. **Pending PRs**: List by priority (URGENT first) — name the item, requestor, days pending, ₹ value
+2. **Approval bottleneck**: Any PR >2 days pending is a risk — flag for immediate action
+3. **Approved-not-ordered**: PRs approved but PO not yet raised — these are delayed procurement actions
+4. **PO conversion rate**: PRs → POs should happen within 1 business day of approval
+5. **Total value at risk**: Sum of URGENT + HIGH priority pending PRs = potential stockout exposure
+
+### PR Workflow Rules
+- URGENT PRs must be approved within 4 hours and PO raised same day
+- HIGH priority PRs: approve within 1 business day, PO within 2 days
+- MEDIUM PRs: approve within 3 days, PO within 5 days
+- Never skip PR approval to save time — it bypasses budget control and audit trail
+- Approved PRs not converted to PO within 5 days = auto-escalate to Manager
+"""
+
+QC_SYSTEM_ADDENDUM = """
+## QC Inspection Intelligence
+You have access to live QC inspection results covering pass rates, rejection reasons, RTV decisions, and supplier quality scorecards.
+
+### What to Always Include in QC Answers
+1. **Pass/rejection rate by supplier**: Flag any supplier above 5% rejection rate — that's 10% of industry benchmark
+2. **RTV value**: Total value of goods being returned to vendor — this impacts cash flow and procurement plan
+3. **Failure parameters**: Which checklist parameter failed (finish, specs, quantity, packaging) — drives root cause
+4. **Conditional acceptance**: Accepted-with-defects stock needs to be tracked and sold at a discount
+5. **Supplier quality improvement**: Repeat failures from same supplier → quality improvement notice + alternative sourcing
+
+### QC Business Rules (Hardware/Sanitary Dealer)
+- Industry benchmark rejection rate: < 5% per supplier
+- Chrome/finish failures: Most common in CP fittings — inspect 100% of Hindware/low-tier batches
+- Specification mismatch: Auto-reject and RTV — never accept wrong specs into inventory
+- Conditional acceptance threshold: Accept if < 10% defective AND defects are cosmetic (not functional)
+- QC checklist standard: Packaging, Quantity match, Specifications, Finish quality, Safety compliance, Labels, Dimensions
+"""
+
+INVOICE_MATCHING_SYSTEM_ADDENDUM = """
+## Invoice Matching (3-Way Match) Intelligence
+You have access to live invoice matching data covering auto-match status, discrepancies, AP approval queue, and payment schedule.
+
+### What to Always Include in Invoice Matching Answers
+1. **Auto-match rate**: Target > 85%. Below 85% = process or supplier invoicing problem
+2. **Discrepancy value**: Total ₹ blocked due to mismatches — this is delayed cash outflow (good if you're managing working capital)
+3. **Blocked invoices**: Which suppliers have blocked invoices and why — get them resolved before payment deadline
+4. **Payment queue**: What's due this week and next week — helps treasury planning
+5. **Root cause of mismatches**: Price variance? Quantity variance? RTV not deducted? Each has a different fix
+
+### 3-Way Match Rules (Standard AP Process)
+- Auto-approve: Invoice amount within 1% of (PO amount × GRN qty) — system approves instantly
+- Manual review: > 1% variance — Finance Manager must approve before payment
+- Blocked: Price or quantity mismatch > 5% — reject invoice; request corrected invoice from supplier
+- RTV deduction: If QC rejected goods, ensure supplier issues credit note BEFORE payment release
+- Payment terms: 30 days from invoice date (net-30); discounts for early payment (2% within 10 days if offered)
+"""
+
+GATE_ENTRY_SYSTEM_ADDENDUM = """
+## Gate Entry Intelligence
+You have access to live gate entry records covering vehicle arrivals, DC verification, security clearance status, and forwarding to stores.
+
+### What to Always Include in Gate Entry Answers
+1. **Pending clearances**: Any vehicle held at gate and why — short shipment, missing DC, no PO match
+2. **Today's arrivals**: Supplier name, vehicle number, DC number, boxes received vs expected
+3. **Short shipment alerts**: DC quantity < PO quantity — do NOT clear until supplier confirms; partial GRN only
+4. **No-PO rejections**: Suppliers arriving without a purchase order — return immediately; create security incident log
+5. **Avg clearance time**: Target < 15 min. > 30 min = gate process bottleneck — investigate
+
+### Gate Entry Process Rules (Indian Dealer Standard)
+- Every inbound vehicle must present: Valid PO reference + Supplier DC + Driver ID
+- Short shipment (boxes < DC quantity): Hold vehicle; call supplier; raise discrepancy note; do partial GRN only
+- No PO vehicle: Reject entry; log supplier name + reason; notify Procurement immediately
+- Imported goods: Allow extra 30 min for customs document verification
+- After clearance: Forward to GRN team immediately — vehicle should not wait > 2 hours post-clearance
+- Daily gate log: Reviewed by Store Manager every morning — any pending clearance >24h = escalate
+"""
+
 SYSTEM_BASE = """You are InvenIQ AI — an expert AI advisor for building-materials dealers and distributors in India.
 You are live-connected to a dealer's full business intelligence platform covering inventory, sales, procurement, projects, and quotations.
 
@@ -679,6 +812,20 @@ def _build_messages(
         system_prompt += SCHEMES_SYSTEM_ADDENDUM
     if "warehouse" in tool_data:
         system_prompt += WAREHOUSE_SYSTEM_ADDENDUM
+    if "sales_return" in tool_data:
+        system_prompt += SALES_RETURN_SYSTEM_ADDENDUM
+    if "damage" in tool_data:
+        system_prompt += DAMAGE_SYSTEM_ADDENDUM
+    if "landing_cost" in tool_data:
+        system_prompt += LANDING_COST_SYSTEM_ADDENDUM
+    if "pr" in tool_data:
+        system_prompt += PR_SYSTEM_ADDENDUM
+    if "qc" in tool_data:
+        system_prompt += QC_SYSTEM_ADDENDUM
+    if "invoice_matching" in tool_data:
+        system_prompt += INVOICE_MATCHING_SYSTEM_ADDENDUM
+    if "gate_entry" in tool_data:
+        system_prompt += GATE_ENTRY_SYSTEM_ADDENDUM
     messages = [{"role": "system", "content": system_prompt}]
 
     if history:
@@ -852,7 +999,7 @@ async def process_query_stream(
     # ── Insights / Business Intelligence fast-path — proactive briefing ───────
     if is_insights_query(query):
         # Gather data from ALL tools for comprehensive analysis
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "gate_entry"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
@@ -1118,7 +1265,7 @@ async def process_query(
 
     # ── Insights fast-path ────────────────────────────────────────────────────
     if is_insights_query(query):
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "credit", "schemes", "warehouse", "pr", "qc", "invoice_matching", "gate_entry"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)

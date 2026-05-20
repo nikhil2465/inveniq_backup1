@@ -435,9 +435,9 @@ async def get_settings_info():
             "scanner_model": "gpt-4o (vision)",
             "streaming": "SSE",
             "history_window": 16,
-            "tools_count": 20,
-            "knowledge_topics": 25,
-            "insight_types": 13,
+            "tools_count": 27,
+            "knowledge_topics": 34,
+            "insight_types": 16,
             "rca_templates": 14,
         },
         "modules": [
