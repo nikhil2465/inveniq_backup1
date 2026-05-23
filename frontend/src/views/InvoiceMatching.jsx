@@ -140,33 +140,71 @@ function MatchDetailModal({ match, onClose, onAction }) {
   );
 }
 
+const MATCH_TYPE_INFO = {
+  '2-Way': {
+    label: '2-Way (PO + Invoice)',
+    desc: 'Matches PO against supplier invoice. No GRN required. Used for service invoices or advance payments.',
+    requires: ['po_number', 'invoice_number', 'supplier_name', 'invoice_date'],
+    color: '#2563eb',
+  },
+  '3-Way': {
+    label: '3-Way (PO + GRN + Invoice)',
+    desc: 'Standard match: PO → GRN → Invoice. GRN must be recorded before matching.',
+    requires: ['po_number', 'grn_number', 'invoice_number', 'supplier_name', 'invoice_date'],
+    color: '#16a34a',
+  },
+  '4-Way': {
+    label: '4-Way (PO + GRN + Invoice + QC)',
+    desc: 'Strictest: requires QC inspection clearance in addition to GRN. Used for quality-critical materials.',
+    requires: ['po_number', 'grn_number', 'qc_reference', 'invoice_number', 'supplier_name', 'invoice_date'],
+    color: '#7c3aed',
+  },
+};
+
 function CreateMatchModal({ onClose, onSuccess }) {
+  const [matchingType, setMatchingType] = useState('3-Way');
   const [form, setForm] = useState({
-    po_number: '', grn_number: '', invoice_number: '', supplier_name: '',
-    invoice_date: '', po_value: '', grn_value: '', invoice_value: '',
-    payment_terms: 'Net 30', notes: '',
+    po_number: '', grn_number: '', qc_reference: '', invoice_number: '',
+    supplier_name: '', invoice_date: '', po_value: '', grn_value: '',
+    invoice_value: '', payment_terms: 'Net 30', notes: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
   const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const info = MATCH_TYPE_INFO[matchingType];
+  const needs3Way = matchingType === '3-Way' || matchingType === '4-Way';
+  const needs4Way = matchingType === '4-Way';
+
   const handleSubmit = async () => {
-    const required = ['po_number', 'grn_number', 'invoice_number', 'supplier_name', 'invoice_date'];
-    if (required.some(k => !form[k].trim())) { setError('PO, GRN, Invoice #, Supplier and Date are required.'); return; }
+    // Gate validation based on matching type
+    if (!form.po_number.trim()) { setError('PO Number is required.'); return; }
+    if (needs3Way && !form.grn_number.trim()) {
+      setError(`${matchingType} match requires a GRN Number. Record a GRN first.`); return;
+    }
+    if (needs4Way && !form.qc_reference.trim()) {
+      setError('4-Way match requires a QC inspection reference number.'); return;
+    }
+    if (!form.invoice_number.trim() || !form.supplier_name.trim() || !form.invoice_date) {
+      setError('Invoice Number, Supplier and Invoice Date are required.'); return;
+    }
     if (!form.invoice_value) { setError('Invoice value is required.'); return; }
+
     setSaving(true); setError('');
     try {
-      const res  = await fetch('/api/invoice-matching', {
+      const res = await fetch('/api/invoice-matching', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          matching_type: matchingType,
           po_value:      parseFloat(form.po_value)      || 0,
           grn_value:     parseFloat(form.grn_value)     || 0,
           invoice_value: parseFloat(form.invoice_value) || 0,
         }),
       });
       const data = await res.json();
+      if (!res.ok) { setError(data.detail || 'Failed to create match.'); return; }
       onSuccess(data.match_number, data.match_status);
     } catch { setError('Failed to create match. Please retry.'); }
     finally { setSaving(false); }
@@ -176,14 +214,65 @@ function CreateMatchModal({ onClose, onSuccess }) {
     <div className="im-overlay" onClick={onClose}>
       <div className="im-modal" onClick={e => e.stopPropagation()}>
         <div className="im-modal-hdr">
-          <div><div className="im-modal-title">New 3-Way Invoice Match</div><div className="im-modal-sub">PO · GRN · Supplier Invoice</div></div>
+          <div>
+            <div className="im-modal-title">New Invoice Match</div>
+            <div className="im-modal-sub">Select matching type then fill in the required references</div>
+          </div>
           <button className="im-close" onClick={onClose}>×</button>
         </div>
         <div className="im-modal-body">
+
+          {/* Matching type selector */}
+          <div style={{ marginBottom: 16 }}>
+            <div className="im-form-lbl" style={{ marginBottom: 8 }}>Matching Type *</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {Object.entries(MATCH_TYPE_INFO).map(([key, val]) => (
+                <button key={key} onClick={() => { setMatchingType(key); setError(''); }}
+                  style={{
+                    padding: '7px 14px', borderRadius: 7, border: `2px solid ${matchingType === key ? val.color : 'var(--border)'}`,
+                    background: matchingType === key ? `${val.color}18` : 'var(--s3)',
+                    color: matchingType === key ? val.color : 'var(--text3)',
+                    fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all .15s',
+                  }}>
+                  {val.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 8, padding: '8px 12px', background: `${info.color}10`,
+              border: `1px solid ${info.color}40`, borderRadius: 6, fontSize: 12, color: info.color }}>
+              {info.desc}
+            </div>
+          </div>
+
           <div className="im-form-grid">
+            {/* PO Number — always required */}
+            <div className="im-form-field">
+              <label className="im-form-lbl">PO Number *</label>
+              <input className="im-form-input" type="text" placeholder="PO-20260519-001"
+                value={form.po_number} onChange={e => setField('po_number', e.target.value)} />
+            </div>
+
+            {/* GRN Number — required for 3-Way and 4-Way */}
+            <div className="im-form-field">
+              <label className="im-form-lbl">
+                GRN Number {needs3Way ? '*' : <span style={{ color: 'var(--text3)', fontWeight: 400 }}>(optional for 2-Way)</span>}
+              </label>
+              <input className="im-form-input" type="text" placeholder="GRN-20260520-001"
+                value={form.grn_number} onChange={e => setField('grn_number', e.target.value)}
+                style={{ borderColor: needs3Way && !form.grn_number ? '#fca5a5' : undefined }} />
+            </div>
+
+            {/* QC Reference — required only for 4-Way */}
+            {needs4Way && (
+              <div className="im-form-field">
+                <label className="im-form-lbl">QC Inspection Ref *</label>
+                <input className="im-form-input" type="text" placeholder="QCI-20260520-001"
+                  value={form.qc_reference} onChange={e => setField('qc_reference', e.target.value)}
+                  style={{ borderColor: !form.qc_reference ? '#fca5a5' : undefined }} />
+              </div>
+            )}
+
             {[
-              ['PO Number *',      'po_number',      'text',   'PO-20260519-001'],
-              ['GRN Number *',     'grn_number',     'text',   'GRN-20260520-001'],
               ['Invoice Number *', 'invoice_number', 'text',   'SUPP/INV/2026/XXX'],
               ['Supplier *',       'supplier_name',  'text',   'Supplier name'],
               ['Invoice Date *',   'invoice_date',   'date',   ''],
@@ -204,14 +293,16 @@ function CreateMatchModal({ onClose, onSuccess }) {
                 value={form.notes} onChange={e => setField('notes', e.target.value)} />
             </div>
           </div>
+
           <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 8 }}>
-            System auto-detects discrepancies and sets match status accordingly.
+            System auto-detects discrepancies and sets match status. {needs3Way ? 'GRN must be recorded in PO & GRN module first.' : ''}
           </p>
           {error && <div className="im-msg error">{error}</div>}
           <div className="im-modal-footer">
             <button className="im-btn-cancel" onClick={onClose}>Cancel</button>
-            <button className="im-btn-primary" disabled={saving} onClick={handleSubmit}>
-              {saving ? 'Processing…' : 'Run 3-Way Match'}
+            <button className="im-btn-primary" disabled={saving} onClick={handleSubmit}
+              style={{ background: info.color }}>
+              {saving ? 'Processing…' : `Run ${matchingType} Match`}
             </button>
           </div>
         </div>
@@ -273,7 +364,7 @@ export default function InvoiceMatching({ onGoChat, dbStatus, period }) {
       <div className="im-header">
         <div>
           <h1 className="im-title">Invoice Matching</h1>
-          <p className="im-subtitle">3-Way Match: PO · GRN · Supplier Invoice · AP Approval</p>
+          <p className="im-subtitle">2-Way / 3-Way / 4-Way Match: PO · GRN · Invoice · QC · AP Approval</p>
         </div>
         <div className="im-header-actions">
           <DataSourceBadge source={dataSource} />

@@ -32,29 +32,39 @@ function QCDetailModal({ qc, onClose, onAction }) {
   const [decisionMode, setDecisionMode] = useState(false);
   const [acceptQty, setAcceptQty]       = useState(qc.total_qty_inspected || 0);
   const [rejectQty, setRejectQty]       = useState(0);
+  const [reworkQty, setReworkQty]       = useState(0);
+  const [holdQty, setHoldQty]           = useState(0);
   const [rejReason, setRejReason]       = useState('');
   const [initiateRtv, setInitiateRtv]   = useState(false);
   const [saving, setSaving]             = useState(false);
   const [msg, setMsg]                   = useState(null);
 
   const handleDecision = async () => {
-    if (acceptQty + rejectQty <= 0) { setMsg({ type: 'error', text: 'Total qty must be > 0.' }); return; }
+    const a = parseFloat(acceptQty) || 0;
+    const r = parseFloat(rejectQty) || 0;
+    const rw = parseFloat(reworkQty) || 0;
+    const h = parseFloat(holdQty) || 0;
+    if (a + r + rw + h <= 0) { setMsg({ type: 'error', text: 'At least one quantity must be > 0.' }); return; }
+    if (r > 0 && !rejReason.trim()) { setMsg({ type: 'error', text: 'Rejection reason is required when rejected qty > 0.' }); return; }
     setSaving(true);
     try {
       const res = await fetch(`/api/qc/${qc.qc_id}/decision`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accepted_qty: parseFloat(acceptQty) || 0,
-          rejected_qty: parseFloat(rejectQty) || 0,
+          accepted_qty:     a,
+          rejected_qty:     r,
+          rework_qty:       rw,
+          hold_qty:         h,
           rejection_reason: rejReason || null,
-          initiate_rtv: initiateRtv,
+          initiate_rtv:     initiateRtv,
         }),
       });
       const data = await res.json();
       const rate = data.acceptance_rate ?? 100;
-      setMsg({ type: 'success', text: `Decision recorded. Acceptance rate: ${rate}%${initiateRtv ? ' · RTV initiated.' : ''}` });
-      setTimeout(() => { onAction(); onClose(); }, 1800);
+      const parts = [`Accepted: ${a}`, r > 0 ? `Rejected: ${r}` : null, rw > 0 ? `Rework: ${rw}` : null, h > 0 ? `Hold: ${h}` : null].filter(Boolean).join(' · ');
+      setMsg({ type: 'success', text: `Decision recorded. ${parts}. Acceptance: ${rate}%${initiateRtv ? ' · RTV initiated.' : ''}` });
+      setTimeout(() => { onAction(); onClose(); }, 2000);
     } catch { setMsg({ type: 'error', text: 'Failed to record decision.' }); }
     finally { setSaving(false); }
   };
@@ -84,8 +94,14 @@ function QCDetailModal({ qc, onClose, onAction }) {
             <div className="qci-info-item"><span className="qci-info-lbl">Insp. Date</span><span>{fmtDate(qc.inspection_date)}</span></div>
             <div className="qci-info-item"><span className="qci-info-lbl">Batch No.</span><span style={{ fontFamily: 'var(--mono)' }}>{qc.batch_no || '—'}</span></div>
             <div className="qci-info-item"><span className="qci-info-lbl">Total Qty</span><span style={{ fontWeight: 700 }}>{qc.total_qty_inspected}</span></div>
-            <div className="qci-info-item"><span className="qci-info-lbl">Accepted</span><span style={{ color: 'var(--green)', fontWeight: 700 }}>{qc.accepted_qty}</span></div>
-            <div className="qci-info-item"><span className="qci-info-lbl">Rejected</span><span style={{ color: 'var(--r2)', fontWeight: 700 }}>{qc.rejected_qty}</span></div>
+            <div className="qci-info-item"><span className="qci-info-lbl">Accepted</span><span style={{ color: 'var(--green)', fontWeight: 700 }}>{qc.accepted_qty ?? '—'}</span></div>
+            <div className="qci-info-item"><span className="qci-info-lbl">Rejected</span><span style={{ color: 'var(--r2)', fontWeight: 700 }}>{qc.rejected_qty ?? '—'}</span></div>
+            {(parseFloat(qc.rework_qty) > 0 || ['ACCEPTED','PARTIAL','REJECTED'].includes(qc.status)) && (
+              <div className="qci-info-item"><span className="qci-info-lbl">Rework</span><span style={{ color: parseFloat(qc.rework_qty) > 0 ? '#ea580c' : 'var(--text3)', fontWeight: 700 }}>{qc.rework_qty ?? 0}</span></div>
+            )}
+            {(parseFloat(qc.hold_qty) > 0 || ['ACCEPTED','PARTIAL','REJECTED'].includes(qc.status)) && (
+              <div className="qci-info-item"><span className="qci-info-lbl">On Hold</span><span style={{ color: parseFloat(qc.hold_qty) > 0 ? '#7c3aed' : 'var(--text3)', fontWeight: 700 }}>{qc.hold_qty ?? 0}</span></div>
+            )}
           </div>
 
           {/* Pass/Fail Summary */}
@@ -139,28 +155,46 @@ function QCDetailModal({ qc, onClose, onAction }) {
           {['PENDING', 'IN_PROGRESS'].includes(qc.status) && decisionMode && (
             <div className="qci-action-area">
               <div className="qci-section-title">Record Decision</div>
-              <div className="qci-decision-grid">
+              <div className="qci-decision-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 <div className="qci-form-field">
                   <label className="qci-form-lbl">Accepted Qty</label>
-                  <input className="qci-form-input" type="number" min="0" step="1"
+                  <input className="qci-form-input" type="number" min="0" step="0.001"
                     value={acceptQty} onChange={e => setAcceptQty(e.target.value)} />
                 </div>
                 <div className="qci-form-field">
                   <label className="qci-form-lbl">Rejected Qty</label>
-                  <input className="qci-form-input" type="number" min="0" step="1"
+                  <input className="qci-form-input" type="number" min="0" step="0.001"
                     value={rejectQty} onChange={e => setRejectQty(e.target.value)} />
+                </div>
+                <div className="qci-form-field">
+                  <label className="qci-form-lbl" style={{ color: '#ea580c' }}>Rework Qty</label>
+                  <input className="qci-form-input" type="number" min="0" step="0.001"
+                    value={reworkQty} onChange={e => setReworkQty(e.target.value)}
+                    placeholder="Qty requiring rework" />
+                </div>
+                <div className="qci-form-field">
+                  <label className="qci-form-lbl" style={{ color: '#7c3aed' }}>Hold Qty</label>
+                  <input className="qci-form-input" type="number" min="0" step="0.001"
+                    value={holdQty} onChange={e => setHoldQty(e.target.value)}
+                    placeholder="Qty placed on hold" />
                 </div>
               </div>
               {parseFloat(rejectQty) > 0 && (
                 <>
                   <textarea className="qci-reason-input" rows={2}
-                    placeholder="Rejection reason (required)…"
+                    placeholder="Rejection reason (required when rejected qty > 0)…"
                     value={rejReason} onChange={e => setRejReason(e.target.value)} />
                   <label className="qci-rtv-label">
                     <input type="checkbox" checked={initiateRtv} onChange={e => setInitiateRtv(e.target.checked)} />
                     <span>Initiate Return to Vendor (RTV)</span>
                   </label>
                 </>
+              )}
+              {(parseFloat(reworkQty) > 0 || parseFloat(holdQty) > 0) && (
+                <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(124,58,237,.06)', border: '1px solid rgba(124,58,237,.2)', borderRadius: 6, fontSize: 12, color: 'var(--text2)' }}>
+                  {parseFloat(reworkQty) > 0 && <div>Rework items will be tracked separately pending re-inspection.</div>}
+                  {parseFloat(holdQty) > 0 && <div>Hold items are quarantined pending disposition decision.</div>}
+                </div>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="qci-btn-primary" disabled={saving} onClick={handleDecision}>
@@ -324,6 +358,7 @@ export default function QCInspection({ onGoChat, dbStatus, period }) {
             Inspection_No: q.inspection_no, Supplier: q.supplier_name, GRN: q.grn_number,
             Date: q.inspection_date, Status: q.status, Category: q.category,
             Total_Qty: q.total_qty_inspected, Accepted: q.accepted_qty, Rejected: q.rejected_qty,
+            Rework: q.rework_qty ?? 0, Hold: q.hold_qty ?? 0,
           })), `qc_inspections_${period}`)} label="Export" />
           <button className="qci-btn-primary" onClick={() => setShowCreate(true)}>+ New Inspection</button>
         </div>
@@ -357,12 +392,12 @@ export default function QCInspection({ onGoChat, dbStatus, period }) {
             <tr>
               <th>Inspection #</th><th>Supplier</th><th>GRN #</th><th>PO #</th>
               <th>Category</th><th>Date</th><th>Total Qty</th>
-              <th>Accepted</th><th>Rejected</th><th>Status</th>
+              <th>Accepted</th><th>Rejected</th><th>Rework</th><th>Hold</th><th>Status</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--text3)', padding: 40 }}>
+              <tr><td colSpan={12} style={{ textAlign: 'center', color: 'var(--text3)', padding: 40 }}>
                 No QC inspections found.
               </td></tr>
             )}
@@ -377,6 +412,8 @@ export default function QCInspection({ onGoChat, dbStatus, period }) {
                 <td style={{ fontFamily: 'var(--mono)', textAlign: 'right' }}>{q.total_qty_inspected}</td>
                 <td style={{ fontFamily: 'var(--mono)', textAlign: 'right', color: 'var(--green)' }}>{q.accepted_qty || '—'}</td>
                 <td style={{ fontFamily: 'var(--mono)', textAlign: 'right', color: q.rejected_qty > 0 ? 'var(--r2)' : undefined }}>{q.rejected_qty || '—'}</td>
+                <td style={{ fontFamily: 'var(--mono)', textAlign: 'right', color: parseFloat(q.rework_qty) > 0 ? '#ea580c' : 'var(--text3)' }}>{parseFloat(q.rework_qty) > 0 ? q.rework_qty : '—'}</td>
+                <td style={{ fontFamily: 'var(--mono)', textAlign: 'right', color: parseFloat(q.hold_qty) > 0 ? '#7c3aed' : 'var(--text3)' }}>{parseFloat(q.hold_qty) > 0 ? q.hold_qty : '—'}</td>
                 <td><StatusBadge status={q.status} /></td>
               </tr>
             ))}

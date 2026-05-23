@@ -334,6 +334,328 @@ function DeliveryChallanModal({ order, onClose }) {
 }
 const fmtPct = (n) => `${Number(n).toFixed(1)}%`;
 
+// ── Sales Invoice Modal ────────────────────────────────────────────────────────
+function SalesInvoiceModal({ order, onClose, onConfirm }) {
+  const isAlreadyInvoiced = Boolean(order.invoice_number);
+  const invoiceNo  = order.invoice_number || `INV-${order.order_number}-${Date.now().toString().slice(-4)}`;
+  const [confirming, setConfirming] = useState(false);
+  const [raised,     setRaised]     = useState(isAlreadyInvoiced);
+  const printDate  = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dueDate    = new Date(Date.now() + 30 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const totalValue = Number(order.total_value || (Number(order.sell_price || 0) * Number(order.quantity || 1)));
+  const taxableAmt = totalValue / 1.18;
+  const gstAmt     = totalValue - taxableAmt;
+  const cgstAmt    = gstAmt / 2;
+  const sgstAmt    = gstAmt / 2;
+  const fmtCur = (n) => `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const handlePrint = () => {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tax Invoice — ${invoiceNo}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Arial', sans-serif; font-size: 12px; color: #1a1a2e; background: #fff; padding: 24px; }
+  h1 { font-size: 22px; font-weight: 900; color: #1e3a5f; letter-spacing: 1px; }
+  .header { display: flex; justify-content: space-between; border-bottom: 2.5px solid #1e3a5f; padding-bottom: 14px; margin-bottom: 18px; }
+  .co-info { font-size: 11px; color: #6b7280; margin-top: 3px; }
+  .meta { text-align: right; font-size: 12px; }
+  .meta div { margin-bottom: 3px; }
+  .meta strong { color: #1a1a2e; }
+  .invoice-tag { display: inline-block; background: #1e3a5f; color: #fff; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: .8px; margin-top: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  .box { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px; background: #f9fafb; }
+  .box-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #6b7280; margin-bottom: 6px; }
+  .box-val { font-size: 13px; font-weight: 700; color: #111827; }
+  .box-sub { font-size: 11px; color: #6b7280; margin-top: 3px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+  thead tr { background: #1e3a5f; color: #fff; }
+  th { padding: 8px 10px; text-align: left; font-weight: 700; }
+  th.r { text-align: right; }
+  tbody tr { border-bottom: 1px solid #e5e7eb; }
+  td { padding: 9px 10px; color: #374151; }
+  td.r { text-align: right; font-family: monospace; }
+  td.bold { font-weight: 700; color: #111827; }
+  .totals { margin-left: auto; width: 300px; margin-bottom: 18px; }
+  .totals table { margin-bottom: 0; }
+  .totals td { padding: 5px 10px; }
+  .totals .tax-row { background: #eff6ff; }
+  .totals .grandtotal { background: #1e3a5f; color: #fff; font-weight: 800; font-size: 13px; }
+  .totals .grandtotal td { color: #fff; }
+  .bank-box { border: 1px solid #dbeafe; border-radius: 6px; padding: 10px 14px; background: #eff6ff; margin-bottom: 18px; }
+  .bank-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #1e40af; margin-bottom: 6px; }
+  .bank-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 11px; }
+  .bank-item label { font-weight: 600; color: #6b7280; display: block; }
+  .bank-item span { color: #111827; font-weight: 700; }
+  .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 14px; }
+  .sig-box .sig-line { height: 38px; border-bottom: 1px solid #374151; margin-bottom: 5px; }
+  .sig-box .sig-label { font-size: 10px; color: #6b7280; font-weight: 600; }
+  .note { margin-top: 16px; padding: 9px 12px; background: #f3f4f6; border-radius: 5px; font-size: 10px; color: #6b7280; border-left: 3px solid #1e3a5f; }
+  @media print { body { padding: 0; } @page { margin: 18mm 14mm; size: A4 portrait; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>TAX INVOICE</h1>
+    <div class="co-info">Building Materials &amp; Hardware · Bangalore</div>
+    <div class="co-info">GSTIN: [Your GSTIN] &nbsp;|&nbsp; PAN: [Your PAN] &nbsp;|&nbsp; Contact: [Your Phone]</div>
+    <div><span class="invoice-tag">ORIGINAL FOR RECIPIENT</span></div>
+  </div>
+  <div class="meta">
+    <div><strong>Invoice No.:</strong> ${invoiceNo}</div>
+    <div><strong>Date:</strong> ${printDate}</div>
+    <div><strong>Payment Due:</strong> ${dueDate}</div>
+    <div><strong>Ref. Order:</strong> ${order.order_number}</div>
+    <div><strong>Place of Supply:</strong> Karnataka (29)</div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="box">
+    <div class="box-title">Bill To</div>
+    <div class="box-val">${order.customer_name}</div>
+    ${order.customer_type ? `<div class="box-sub">${order.customer_type}</div>` : ''}
+    ${order.billing_address ? `<div class="box-sub" style="margin-top:4px">${order.billing_address}</div>` : ''}
+    <div class="box-sub">GSTIN: [Customer GSTIN]</div>
+  </div>
+  <div class="box">
+    <div class="box-title">Deliver To</div>
+    <div class="box-val">${order.site_location || order.delivery_address || order.customer_name}</div>
+    ${order.delivery_date ? `<div class="box-sub">Delivery: ${order.delivery_date}</div>` : ''}
+    <div class="box-sub">HSN / SAC Code: 8302</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Description of Goods / Services</th>
+      <th class="r">HSN</th>
+      <th class="r">Qty</th>
+      <th class="r">Unit</th>
+      <th class="r">Unit Rate (₹)</th>
+      <th class="r">Taxable Amt (₹)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td class="bold">${order.product_name}${order.specifications ? `<br><span style="font-size:10px;color:#6b7280">Spec: ${order.specifications}</span>` : ''}</td>
+      <td class="r">8302</td>
+      <td class="r bold">${Number(order.quantity || 0).toLocaleString('en-IN')}</td>
+      <td class="r">${order.unit || 'Nos'}</td>
+      <td class="r">${fmtCur(Number(order.sell_price || 0))}</td>
+      <td class="r">${fmtCur(taxableAmt)}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr><td>Taxable Amount</td><td class="r">${fmtCur(taxableAmt)}</td></tr>
+    <tr class="tax-row"><td>CGST @ 9%</td><td class="r">${fmtCur(cgstAmt)}</td></tr>
+    <tr class="tax-row"><td>SGST @ 9%</td><td class="r">${fmtCur(sgstAmt)}</td></tr>
+    <tr class="grandtotal"><td><strong>TOTAL (incl. GST)</strong></td><td class="r"><strong>${fmtCur(totalValue)}</strong></td></tr>
+  </table>
+</div>
+
+<div class="bank-box">
+  <div class="bank-title">💳 Payment Details</div>
+  <div class="bank-grid">
+    <div class="bank-item"><label>Bank Name</label><span>[Your Bank Name]</span></div>
+    <div class="bank-item"><label>Account No.</label><span>[Your A/c No.]</span></div>
+    <div class="bank-item"><label>IFSC Code</label><span>[Your IFSC]</span></div>
+    <div class="bank-item"><label>Account Type</label><span>Current</span></div>
+    <div class="bank-item"><label>Payment Due</label><span>${dueDate}</span></div>
+    <div class="bank-item"><label>UPI / QR</label><span>[UPI ID]</span></div>
+  </div>
+</div>
+
+<div class="sigs">
+  <div class="sig-box"><div class="sig-line"></div><div class="sig-label">For InvenIQ — Authorised Signatory</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Received in Good Order — Customer Seal &amp; Signature</div></div>
+</div>
+
+<div class="note">
+  E&amp;OE. This is a computer-generated tax invoice. Goods once sold are not returnable without prior written approval.
+  All disputes subject to Bangalore jurisdiction. Payment to be made within the due date to avoid interest charges.
+</div>
+
+<script>window.onload = function(){ window.print(); };<\/script>
+</body>
+</html>`;
+    const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
+    if (win) { win.document.write(html); win.document.close(); }
+  };
+
+  const handleRaise = async () => {
+    if (!onConfirm) return;
+    setConfirming(true);
+    try {
+      await onConfirm(order.order_id, invoiceNo);
+      setRaised(true);
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const TI = { width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' };
+  const TL = { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.4px', fontFamily: 'var(--mono)' };
+
+  return (
+    <div className="qb-modal-overlay" onClick={onClose}>
+      <div className="qb-modal" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
+        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', borderTop: 'none', borderRadius: '12px 12px 0 0' }}>
+          <div>
+            <div className="qb-modal-title" style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>
+              Tax Invoice — {invoiceNo}
+              {raised && <span style={{ marginLeft: 8, fontSize: 11, background: '#16a34a', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>✓ Raised</span>}
+            </div>
+            <div className="qb-modal-sub" style={{ color: 'rgba(255,255,255,.75)', fontSize: 12 }}>
+              {order.order_number} · {order.customer_name}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="qb-print-btn" onClick={handlePrint} style={{ background: 'rgba(255,255,255,.15)', color: '#fff', border: '1px solid rgba(255,255,255,.25)' }}>
+              🖨 Print
+            </button>
+            {onConfirm && !raised && (
+              <button
+                onClick={handleRaise}
+                disabled={confirming}
+                style={{ padding: '6px 14px', borderRadius: 7, border: 'none', cursor: confirming ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, color: '#fff', background: confirming ? '#64748b' : '#16a34a', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                {confirming ? 'Saving…' : '✓ Raise Invoice'}
+              </button>
+            )}
+            <button className="qb-close-btn" onClick={onClose} style={{ color: '#fff', opacity: .8 }}>×</button>
+          </div>
+        </div>
+
+        <div style={{ padding: '20px 24px', maxHeight: '80vh', overflowY: 'auto' }}>
+          {/* Invoice Preview */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: 1.4, textTransform: 'uppercase', fontFamily: 'var(--mono)', marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+            📄 Invoice Preview
+          </div>
+
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: '2.5px solid #1e3a5f' }}>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: '#1e3a5f', letterSpacing: 1 }}>TAX INVOICE</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Building Materials &amp; Hardware · Bangalore</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>GSTIN: [Your GSTIN] · [Your Phone]</div>
+              <span style={{ fontSize: 9, background: '#1e3a5f', color: '#fff', padding: '2px 7px', borderRadius: 3, fontWeight: 700, letterSpacing: '.6px', marginTop: 4, display: 'inline-block' }}>ORIGINAL FOR RECIPIENT</span>
+            </div>
+            <div style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12 }}>
+              <div><strong>Invoice No.:</strong> {invoiceNo}</div>
+              <div><strong>Date:</strong> {printDate}</div>
+              <div><strong>Due Date:</strong> {dueDate}</div>
+              <div><strong>Ref. Order:</strong> {order.order_number}</div>
+            </div>
+          </div>
+
+          {/* Bill-to / Ship-to */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+            <div style={{ padding: '12px 14px', background: 'var(--s2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Bill To</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{order.customer_name}</div>
+              {order.customer_type && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{order.customer_type}</div>}
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, fontFamily: 'var(--mono)' }}>GSTIN: [Customer GSTIN]</div>
+            </div>
+            <div style={{ padding: '12px 14px', background: 'var(--s2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Deliver To</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{order.site_location || order.delivery_address || order.customer_name}</div>
+              {order.delivery_date && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>Delivery: {order.delivery_date}</div>}
+            </div>
+          </div>
+
+          {/* Items table */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
+            <thead>
+              <tr style={{ background: '#1e3a5f', color: '#fff' }}>
+                <th style={{ padding: '7px 10px', textAlign: 'left' }}>#</th>
+                <th style={{ padding: '7px 10px', textAlign: 'left' }}>Product / Description</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right' }}>HSN</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center' }}>Qty</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center' }}>Unit</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right' }}>Unit Rate (₹)</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right' }}>Taxable (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '8px 10px' }}>1</td>
+                <td style={{ padding: '8px 10px' }}>
+                  <div style={{ fontWeight: 700 }}>{order.product_name}</div>
+                  {order.specifications && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>{order.specifications}</div>}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>8302</td>
+                <td style={{ padding: '8px 10px', textAlign: 'center', fontFamily: 'var(--mono)', fontWeight: 700 }}>
+                  {Number(order.quantity || 0).toLocaleString('en-IN')}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'center' }}>{order.unit || 'Nos'}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(Number(order.sell_price || 0))}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(taxableAmt)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* GST breakdown */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+            <table style={{ width: 280, borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>Taxable Amount</td>
+                  <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(taxableAmt)}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--border)', background: '#eff6ff' }}>
+                  <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>CGST @ 9%</td>
+                  <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(cgstAmt)}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--border)', background: '#eff6ff' }}>
+                  <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>SGST @ 9%</td>
+                  <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(sgstAmt)}</td>
+                </tr>
+                <tr style={{ background: '#1e3a5f', color: '#fff' }}>
+                  <td style={{ padding: '7px 10px', fontWeight: 800 }}>TOTAL (incl. GST)</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 800 }}>{fmtCur(totalValue)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Payment Info */}
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>💳 Payment Details</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, fontSize: 11 }}>
+              {[['Bank', '[Your Bank Name]'], ['A/c No.', '[Account No.]'], ['IFSC', '[IFSC Code]'], ['A/c Type', 'Current'], ['Due Date', dueDate], ['UPI', '[UPI ID]']].map(([l, v]) => (
+                <div key={l}><span style={{ fontWeight: 600, color: 'var(--text3)' }}>{l}: </span><span style={{ fontWeight: 700, fontFamily: 'var(--mono)' }}>{v}</span></div>
+              ))}
+            </div>
+          </div>
+
+          {/* Signature lines */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, marginTop: 28, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            {['For InvenIQ — Authorised Signatory', 'Received in Good Order — Customer Seal & Signature'].map(lbl => (
+              <div key={lbl}>
+                <div style={{ height: 36, borderBottom: '1px solid var(--text)', marginBottom: 5 }} />
+                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>{lbl}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 14, padding: '9px 12px', background: 'var(--s3)', borderRadius: 5, fontSize: 10, color: 'var(--text3)', borderLeft: '3px solid #1e3a5f' }}>
+            E&amp;OE. Computer-generated tax invoice. Goods once sold are not returnable without prior written approval. Subject to Bangalore jurisdiction.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Status configs ────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
   DRAFT:         { label:'Draft',         cls:'ba', next:'CONFIRMED' },
@@ -374,6 +696,98 @@ const REBATE_TYPE_LABELS = {
 function StatusBadge({ status, map }) {
   const cfg = map[status] || { label: status, cls: 'ba' };
   return <span className={`bdg ${cfg.cls}`}>{cfg.label}</span>;
+}
+
+// ── POD Capture Modal ─────────────────────────────────────────────────────────
+function PODCaptureModal({ order, onClose, onConfirm }) {
+  const nowStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  })();
+  const [receiverName, setReceiverName] = useState('');
+  const [deliveredAt, setDeliveredAt]   = useState(nowStr);
+  const [remarks, setRemarks]           = useState('');
+  const [accepted, setAccepted]         = useState(false);
+  const [saving, setSaving]             = useState(false);
+
+  const handleConfirm = async () => {
+    if (!receiverName.trim()) { alert('Receiver name is required.'); return; }
+    if (!accepted) { alert('Please confirm customer acceptance before recording delivery.'); return; }
+    setSaving(true);
+    await onConfirm(order, { receiver_name: receiverName.trim(), delivered_at: deliveredAt, remarks: remarks.trim() });
+    setSaving(false);
+  };
+
+  return (
+    <div className="ll-modal-overlay" onClick={onClose}>
+      <div className="ll-modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+        <div className="ll-modal-hdr">
+          <div>
+            <div className="ctit">Delivery Confirmation — POD</div>
+            <div className="csub">Proof of Delivery · {order.order_number}</div>
+          </div>
+          <button className="dc-ai-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Order summary strip */}
+          <div style={{ background: 'var(--s3)', borderRadius: 8, padding: '10px 14px', fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap', color: 'var(--text2)', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, color: 'var(--text1)' }}>{order.customer_name}</span>
+            <span style={{ color: 'var(--text3)' }}>·</span>
+            <span>{order.product_name}</span>
+            <span style={{ color: 'var(--text3)' }}>·</span>
+            <span style={{ fontFamily: 'var(--mono)', fontWeight: 700 }}>{Number(order.quantity||0).toLocaleString('en-IN')} {order.unit}</span>
+            {order.site_location && (
+              <span style={{ color: 'var(--text3)', fontSize: 11 }}>📍 {order.site_location}</span>
+            )}
+          </div>
+
+          <div>
+            <div className="dc-lbl">Receiver Name *</div>
+            <input className="dc-inp" placeholder="Full name of person who received the goods" autoFocus
+              value={receiverName} onChange={e => setReceiverName(e.target.value)} />
+          </div>
+
+          <div>
+            <div className="dc-lbl">Delivery Date &amp; Time *</div>
+            <input className="dc-inp" type="datetime-local"
+              value={deliveredAt} onChange={e => setDeliveredAt(e.target.value)} />
+          </div>
+
+          <div>
+            <div className="dc-lbl">Delivery Remarks (optional)</div>
+            <textarea className="dc-inp" rows={2}
+              placeholder="e.g. Goods received in good condition · partial delivery of 80 sheets · balance to follow"
+              value={remarks} onChange={e => setRemarks(e.target.value)}
+              style={{ resize: 'vertical' }} />
+          </div>
+
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+            padding: '12px 14px', borderRadius: 8, border: `1px solid ${accepted ? '#86efac' : 'var(--border)'}`,
+            background: accepted ? 'rgba(22,163,74,.06)' : 'var(--s3)', transition: 'all .2s',
+          }}>
+            <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)}
+              style={{ accentColor: 'var(--brand)', width: 16, height: 16, marginTop: 1, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: accepted ? 'var(--g2)' : 'var(--text2)', lineHeight: 1.4 }}>
+              Customer has accepted delivery — goods received in satisfactory condition
+              {accepted && <span style={{ display: 'block', fontWeight: 400, color: 'var(--g2)', marginTop: 3 }}>✓ Delivery confirmed</span>}
+            </span>
+          </label>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+            <button className="dc-ai-btn" onClick={onClose}>Cancel</button>
+            <button className="dc-save-btn"
+              disabled={saving || !accepted || !receiverName.trim()}
+              style={{ opacity: (saving || !accepted || !receiverName.trim()) ? 0.55 : 1 }}
+              onClick={handleConfirm}>
+              {saving ? 'Saving…' : '✓ Confirm Delivery'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── AI trigger button ─────────────────────────────────────────────────────────
@@ -438,7 +852,7 @@ function CreateOrderWizard({ products, quotations, onClose, onCreated, openAI, i
     true,
   ];
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (submitStatus = 'CONFIRMED') => {
     setSaving(true);
     try {
       const payload = {
@@ -450,28 +864,61 @@ function CreateOrderWizard({ products, quotations, onClose, onCreated, openAI, i
         supplier_name: selSup?.name || '',
         delivery_date: f.delivery_date, site_location: f.site_location, quantity: qty,
         notes: [f.specifications && `Specs: ${f.specifications}`, `Payment: ${f.payment_terms}`, f.notes].filter(Boolean).join(' | '),
+        status: submitStatus,
       };
       const res  = await fetch('/api/louvers/orders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const json = await res.json();
-      setConfirmed(json);
-      onCreated(json);
+      if (submitStatus === 'DRAFT') {
+        setConfirmed(json);  // show success screen only for draft so user can review
+      }
+      onCreated(json, {
+        customer_name: f.customer_name,
+        customer_type: f.customer_type,
+        product_name:  selProd?.sku_name || '',
+        category:      selProd?.category || '',
+        quantity:      qty,
+        unit:          selProd?.unit    || '',
+        sell_price:    netUnit,
+        buy_price:     buyPrice,
+        delivery_date: f.delivery_date,
+        site_location: f.site_location,
+        supplier_name: selSup?.name || '',
+        notes: [f.specifications && `Specs: ${f.specifications}`, `Payment: ${f.payment_terms}`, f.notes].filter(Boolean).join(' | '),
+      });
     } catch(e) { console.error(e); }
     finally { setSaving(false); }
   };
 
   /* ── Success screen ── */
-  if (confirmed) return (
-    <div className="ll-wizard-success">
-      <div className="ll-wiz-success-icon">✓</div>
-      <div className="ll-wiz-success-title">Sales Order Created!</div>
-      <div className="ll-wiz-success-num">{confirmed.order_number}</div>
-      <div className="ll-wiz-success-sub">{selProd?.sku_name} · {qty} {selProd?.unit} · {fmt(grandTotal)} incl. GST · Valid till {confirmed.valid_till}</div>
-      <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:18}}>
-        <button className="dc-save-btn" onClick={() => { setConfirmed(null); setStep(1); setF({...BLANK_FORM}); }}>+ New Order</button>
-        <button className="dc-ai-btn" onClick={onClose}>Done</button>
+  if (confirmed) {
+    const isDraft = confirmed.status === 'DRAFT';
+    return (
+      <div className="ll-wizard-success">
+        <div className="ll-wiz-success-icon" style={isDraft ? { background: 'linear-gradient(135deg,#d97706,#f59e0b)' } : undefined}>
+          {isDraft ? '📋' : '✓'}
+        </div>
+        <div className="ll-wiz-success-title">{isDraft ? 'Draft Saved!' : 'Sales Order Created!'}</div>
+        <div className="ll-wiz-success-num">{confirmed.order_number}</div>
+        <div className="ll-wiz-success-sub">
+          {selProd?.sku_name} · {qty} {selProd?.unit} · {fmt(grandTotal)} incl. GST
+          {isDraft && (
+            <span style={{ display:'block', marginTop:6, color:'#d97706', fontWeight:700, fontSize:12 }}>
+              Draft — review and advance status to Confirmed when ready
+            </span>
+          )}
+          {confirmed.demo_mode && (
+            <span style={{ display:'block', marginTop:4, fontSize:11, color:'var(--text3)' }}>
+              Demo mode — connect MySQL to persist
+            </span>
+          )}
+        </div>
+        <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:18}}>
+          <button className="dc-save-btn" onClick={() => { setConfirmed(null); setStep(1); setF({...BLANK_FORM}); }}>+ New Order</button>
+          <button className="dc-ai-btn" onClick={onClose}>Done</button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="ll-wizard">
@@ -768,9 +1215,16 @@ function CreateOrderWizard({ products, quotations, onClose, onCreated, openAI, i
           ? <button className="ll-wiz-next-btn" onClick={()=>setStep(s=>s+1)} disabled={!stepValid[step-1]}>
               Next: {WIZ_STEPS[step]} →
             </button>
-          : <button className="dc-save-btn" onClick={handleSubmit} disabled={saving}>
-              {saving?'Creating Order…':'✓ Confirm & Create Sales Order'}
-            </button>
+          : <div style={{display:'flex',gap:8}}>
+              <button
+                style={{padding:'9px 16px',borderRadius:8,border:'1px solid #d97706',background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:12,cursor:saving?'not-allowed':'pointer',opacity:saving?0.6:1}}
+                onClick={()=>handleSubmit('DRAFT')} disabled={saving}>
+                {saving?'Saving…':'📋 Save as Draft'}
+              </button>
+              <button className="dc-save-btn" onClick={()=>handleSubmit('CONFIRMED')} disabled={saving}>
+                {saving?'Creating…':'✓ Confirm & Create Sales Order'}
+              </button>
+            </div>
         }
       </div>
     </div>
@@ -1029,10 +1483,24 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
   const [showWizard, setShowWizard] = useState(false);
   const [wizardInit, setWizardInit] = useState(null);
   const [challanOrder, setChallanOrder] = useState(null);
+  const [invoiceOrder, setInvoiceOrder] = useState(null);
+  const [podOrder, setPodOrder]         = useState(null);
+  const [newOrderId, setNewOrderId] = useState(null);
   const [page, setPage] = useState(1);
+  // Local payment status overrides (order_id → 'UNPAID'|'PARTIAL'|'PAID')
+  const [paymentStatuses, setPaymentStatuses] = useState(() => {
+    const init = {};
+    (data?.orders || []).forEach(o => { init[o.order_id] = o.payment_status || 'UNPAID'; });
+    return init;
+  });
   const PAGE_SIZE = 15;
 
-  useEffect(() => { setOrders(data?.orders || []); }, [data]);
+  useEffect(() => {
+    setOrders(data?.orders || []);
+    const ps = {};
+    (data?.orders || []).forEach(o => { ps[o.order_id] = o.payment_status || 'UNPAID'; });
+    setPaymentStatuses(ps);
+  }, [data]);
   useEffect(() => { setPage(1); }, [filter]);
 
   const handleAdvanceStatus = async (orderId, newStatus) => {
@@ -1044,6 +1512,86 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
       setOrders(prev => prev.map(o => o.order_id === orderId ? { ...o, status: newStatus } : o));
     } catch(e) { console.error(e); }
   };
+
+  const handleRaiseInvoice = async (orderId, invoiceNumber) => {
+    try {
+      await fetch(`/api/louvers/orders/${orderId}/invoice`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_number: invoiceNumber }),
+      });
+      setOrders(prev => prev.map(o => o.order_id === orderId ? { ...o, invoice_number: invoiceNumber } : o));
+    } catch(e) { console.error(e); }
+  };
+
+  const handlePODConfirm = useCallback(async (order, podData) => {
+    const podNote = `POD: Received by ${podData.receiver_name} on ${new Date(podData.delivered_at).toLocaleString('en-IN')}${podData.remarks ? ` — ${podData.remarks}` : ''}`;
+    try {
+      await fetch(`/api/louvers/orders/${order.order_id}/status`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'DELIVERED', pod_note: podNote }),
+      });
+      setOrders(prev => prev.map(o => o.order_id === order.order_id
+        ? { ...o, status: 'DELIVERED', notes: [o.notes, podNote].filter(Boolean).join(' | ') }
+        : o
+      ));
+    } catch(e) { console.error(e); }
+    setPodOrder(null);
+    setChallanOrder({ ...order, status: 'DELIVERED' });
+  }, []);
+
+  const handlePaymentUpdate = useCallback(async (orderId, paymentStatus) => {
+    setPaymentStatuses(prev => ({ ...prev, [orderId]: paymentStatus }));
+    try {
+      await fetch(`/api/louvers/orders/${orderId}/payment`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_status: paymentStatus }),
+      });
+    } catch(e) { console.error(e); }
+  }, []);
+
+  const handleOrderCreated = useCallback((json, formData) => {
+    const newOrder = {
+      order_id:      json.order_id      || `tmp-${Date.now()}`,
+      order_number:  json.order_number  || '',
+      customer_name: formData?.customer_name || '',
+      customer_type: formData?.customer_type || '',
+      product_name:  formData?.product_name  || '',
+      category:      formData?.category      || '',
+      quantity:      formData?.quantity      || 0,
+      unit:          formData?.unit          || '',
+      sell_price:    formData?.sell_price    || 0,
+      buy_price:     formData?.buy_price     || 0,
+      total_value:   json.total_value        || 0,
+      margin_pct:    json.margin_pct         || 0,
+      status:        json.status             || 'CONFIRMED',
+      delivery_date: formData?.delivery_date || '',
+      site_location: formData?.site_location || '',
+      supplier_name: formData?.supplier_name || '',
+      notes:         formData?.notes         || '',
+      quote_number:  '',
+      invoice_number:'',
+      order_date:    new Date().toISOString().split('T')[0],
+    };
+
+    // Inject at top of list immediately (dedupe by order_id in case refresh already added it)
+    setOrders(prev => [newOrder, ...prev.filter(o => String(o.order_id) !== String(newOrder.order_id))]);
+    setNewOrderId(newOrder.order_id);
+    setFilter('ALL');
+    setPage(1);
+
+    // For CONFIRMED: close wizard and scroll to the new row
+    if (json.status !== 'DRAFT') {
+      setShowWizard(false);
+      setTimeout(() => {
+        document.getElementById(`order-row-${newOrder.order_id}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 120);
+    }
+
+    // Remove highlight after 5 s, then sync with DB
+    setTimeout(() => setNewOrderId(null), 5000);
+    onRefresh();
+  }, [onRefresh]);
 
   const filteredOrders = useMemo(() =>
     filter === 'ALL' ? orders : orders.filter(o => o.status === filter),
@@ -1086,7 +1634,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
             initProduct={wizardInit}
             openAI={openAI}
             onClose={() => setShowWizard(false)}
-            onCreated={() => { onRefresh(); }}
+            onCreated={handleOrderCreated}
           />
         </div>
       )}
@@ -1191,10 +1739,19 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
             </tr></thead>
             <tbody>
               {pagedOrders.map(o => {
-                const sc   = ORDER_STATUS[o.status] || ORDER_STATUS.DRAFT;
-                const past = o.delivery_date && new Date(o.delivery_date) < new Date();
+                const sc        = ORDER_STATUS[o.status] || ORDER_STATUS.DRAFT;
+                const past      = o.delivery_date && new Date(o.delivery_date) < new Date();
+                const isNew     = o.order_id === newOrderId;
                 return (
-                  <tr key={o.order_id} style={{cursor:'pointer'}} title="Click row to ask AI"
+                  <tr key={o.order_id}
+                    id={`order-row-${o.order_id}`}
+                    style={{
+                      cursor: 'pointer',
+                      boxShadow: isNew ? 'inset 3px 0 0 #16a34a' : undefined,
+                      background: isNew ? 'rgba(22,163,74,0.07)' : undefined,
+                      transition: 'background 2s ease, box-shadow 2s ease',
+                    }}
+                    title="Click row to ask AI"
                     onClick={() => openAI(
                       `Analyse order ${o.order_number} for ${o.customer_name} (${o.customer_type}): `+
                       `${o.quantity} ${o.unit} of ${o.product_name}, value ${fmtL(o.total_value)}, `+
@@ -1202,7 +1759,27 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
                       `delivery ${o.delivery_date||'not set'}, status ${o.status}. `+
                       `What action should I take on this order? Any risks?`
                     )}>
-                    <td><span style={{fontFamily:'var(--mono)',fontSize:10,fontWeight:700}}>{o.order_number}</span></td>
+                    <td>
+                      <span style={{fontFamily:'var(--mono)',fontSize:10,fontWeight:700}}>{o.order_number}</span>
+                      {o.quote_number && (
+                        <div style={{fontSize:9,color:'var(--text3)',marginTop:1,fontFamily:'var(--mono)'}}>
+                          Quote: {o.quote_number}
+                        </div>
+                      )}
+                      {o.invoice_number && (
+                        <div style={{fontSize:9,color:'#16a34a',marginTop:2,fontFamily:'var(--mono)',fontWeight:700}}>
+                          🧾 {o.invoice_number}
+                        </div>
+                      )}
+                      {['CONFIRMED','IN_PRODUCTION'].includes(o.status) && (
+                        <div style={{
+                          fontSize:9,color:'#7c3aed',marginTop:2,fontFamily:'var(--mono)',fontWeight:700,
+                          background:'rgba(124,58,237,.08)',borderRadius:3,padding:'1px 4px',display:'inline-block'
+                        }}>
+                          📦 Reserved
+                        </div>
+                      )}
+                    </td>
                     <td style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.customer_name}</td>
                     <td><span className="bdg ba" style={{fontSize:9}}>{o.customer_type}</span></td>
                     <td style={{maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:11}}>{o.product_name}</td>
@@ -1232,16 +1809,40 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
                             onClick={()=>setChallanOrder(o)}
                             title="Print Delivery Challan">📄 Challan</button>
                         )}
-                        {/* Quick complete delivery — marks DELIVERED + opens challan */}
+                        {/* Tax Invoice — shown for confirmed and beyond */}
+                        {['CONFIRMED','IN_PRODUCTION','DISPATCHED','DELIVERED'].includes(o.status) && (
+                          <button className="dc-act-btn"
+                            style={o.invoice_number
+                              ? {background:'#f0fdf4',color:'#16a34a',border:'1px solid #86efac',fontSize:9,fontWeight:600}
+                              : {background:'#eff6ff',color:'#1e40af',border:'1px solid #bfdbfe',fontSize:9,fontWeight:600}}
+                            onClick={()=>setInvoiceOrder(o)}
+                            title={o.invoice_number ? 'Reprint Tax Invoice' : 'Raise Tax Invoice'}>
+                            {o.invoice_number ? '🖨 Reprint' : '🧾 Invoice'}
+                          </button>
+                        )}
+                        {/* Delivered — capture POD first, then advance status */}
                         {o.status === 'DISPATCHED' && (
                           <button className="dc-act-btn dc-act-green"
                             style={{fontSize:9}}
-                            onClick={async()=>{
-                              await handleAdvanceStatus(o.order_id,'DELIVERED');
-                              setChallanOrder({...o, status:'DELIVERED'});
-                            }}
-                            title="Mark Delivered &amp; Print Challan">✓ Delivered</button>
+                            onClick={() => setPodOrder(o)}
+                            title="Capture Proof of Delivery">✓ Delivered</button>
                         )}
+                        {/* Payment status — shown for confirmed and beyond */}
+                        {!['DRAFT','CANCELLED'].includes(o.status) && (() => {
+                          const ps = paymentStatuses[o.order_id] || 'UNPAID';
+                          const psColor = ps === 'PAID' ? '#16a34a' : ps === 'PARTIAL' ? '#d97706' : '#dc2626';
+                          const psBg    = ps === 'PAID' ? '#f0fdf4' : ps === 'PARTIAL' ? '#fffbeb' : '#fef2f2';
+                          const psBdr   = ps === 'PAID' ? '#86efac' : ps === 'PARTIAL' ? '#fcd34d' : '#fca5a5';
+                          return (
+                            <button
+                              className="dc-act-btn"
+                              style={{ fontSize:9, background:psBg, color:psColor, border:`1px solid ${psBdr}`, fontWeight:700 }}
+                              title="Cycle payment status: UNPAID → PARTIAL → PAID"
+                              onClick={() => handlePaymentUpdate(o.order_id, ps === 'UNPAID' ? 'PARTIAL' : ps === 'PARTIAL' ? 'PAID' : 'UNPAID')}>
+                              💳 {ps}
+                            </button>
+                          );
+                        })()}
                         <button className="dap-trigger-btn sm" style={{fontSize:9}}
                           onClick={()=>openAI(
                             `Quick AI check on order ${o.order_number}: ${o.product_name} for ${o.customer_name}, `+
@@ -1258,8 +1859,24 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
         <Pagination page={page} total={filteredOrders.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
 
+      {/* POD Capture Modal */}
+      {podOrder && (
+        <PODCaptureModal
+          order={podOrder}
+          onClose={() => setPodOrder(null)}
+          onConfirm={handlePODConfirm}
+        />
+      )}
       {/* Delivery Challan Modal */}
       {challanOrder && <DeliveryChallanModal order={challanOrder} onClose={() => setChallanOrder(null)} />}
+      {/* Tax Invoice Modal */}
+      {invoiceOrder && (
+        <SalesInvoiceModal
+          order={invoiceOrder}
+          onClose={() => setInvoiceOrder(null)}
+          onConfirm={invoiceOrder.invoice_number ? null : handleRaiseInvoice}
+        />
+      )}
     </div>
   );
 }

@@ -42,6 +42,7 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
     try { return JSON.parse(localStorage.getItem('inviq-read-alerts') || '[]'); }
     catch { return []; }
   });
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const alertRef   = useRef(null);
   const profileRef = useRef(null);
@@ -83,13 +84,43 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  // Broadcast channel for theme sync across tabs
+  const _themeCh = useRef(null);
+  useEffect(() => {
+    if (!('BroadcastChannel' in window)) return;
+    _themeCh.current = new BroadcastChannel('inveniq-theme');
+    _themeCh.current.onmessage = (ev) => {
+      if (ev.data?.type === 'theme') {
+        const next = ev.data.dark;
+        setDarkMode(next);
+        document.documentElement.classList.toggle('dark-mode', next);
+        document.documentElement.classList.toggle('light-mode', !next);
+      }
+    };
+    return () => _themeCh.current?.close();
+  }, []);
+
   const toggleDark = () => {
     const next = !darkMode;
     setDarkMode(next);
     document.documentElement.classList.toggle('dark-mode', next);
     document.documentElement.classList.toggle('light-mode', !next);
     localStorage.setItem('inviq-theme', next ? 'dark' : 'light');
+    _themeCh.current?.postMessage({ type: 'theme', dark: next });
   };
+
+  // '?' key opens shortcuts modal (when not typing in an input)
+  useEffect(() => {
+    const handler = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
+      if (e.target?.contentEditable === 'true') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '?') { e.preventDefault(); setShortcutsOpen(o => !o); }
+      if (e.key === 'Escape') setShortcutsOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   const handleAskAI = (query, view) => {
     setAlertOpen(false);
@@ -114,6 +145,13 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
   const filteredSuggestions = searchVal.trim()
     ? QUICK_SEARCH_SUGGESTIONS.filter(s => s.label.toLowerCase().includes(searchVal.toLowerCase()))
     : QUICK_SEARCH_SUGGESTIONS;
+
+  const KBD = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5,
+    padding: '2px 7px', fontSize: 11, fontFamily: 'var(--mono)', fontWeight: 700,
+    color: 'var(--b2)', whiteSpace: 'nowrap', flexShrink: 0, minWidth: 70,
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -298,6 +336,69 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
         </>
       )}
 
+      {/* Keyboard Shortcuts Help */}
+      <button
+        className="theme-toggle"
+        onClick={() => setShortcutsOpen(o => !o)}
+        title="Keyboard shortcuts (?)"
+        aria-label="Show keyboard shortcuts"
+        style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--mono)', color: shortcutsOpen ? 'var(--b2)' : undefined }}
+      >?</button>
+
+      {shortcutsOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,.55)', zIndex: 9000, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setShortcutsOpen(false)}>
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14,
+            padding: '28px 32px', minWidth: 540, maxWidth: 680, maxHeight: '80vh',
+            overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,.4)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>Keyboard Shortcuts</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>Press <kbd style={KBD}>g</kbd> then a letter to jump to any module</div>
+              </div>
+              <button onClick={() => setShortcutsOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px' }}>
+              {[
+                ['g + h', 'Business Overview'],    ['g + i', 'Stock Intelligence'],
+                ['g + s', 'Sales Performance'],     ['g + c', 'Customer Intelligence'],
+                ['g + f', 'Finance & Cash'],         ['g + d', 'Demand Forecasting'],
+                ['g + p', 'Procurement'],            ['g + u', 'PO & GRN'],
+                ['g + l', 'Sales Orders'],           ['g + q', 'Quotation Builder'],
+                ['g + t', 'Project Tracker'],        ['g + k', 'Credit Management'],
+                ['g + v', 'Counter POS'],            ['g + y', 'Schemes'],
+                ['g + b', 'Product Catalog'],        ['g + a', 'Analytics & BI'],
+                ['g + n', 'Discount Calculator'],    ['g + m', 'Claims & Rebates'],
+                ['g + w', 'Inward & Outward'],       ['g + z', 'Dead Stock'],
+                ['g + r', 'Freight Planning'],       ['g + e', 'Settings'],
+                ['g + x', 'AI Assistant'],           ['g + j', 'About InvenIQ'],
+                ['g + g', 'Warehouse'],              ['g + 1', 'Tally Export'],
+                ['g + 2', 'Sales Return'],           ['g + 3', 'Landing Cost'],
+                ['g + 4', 'Distributor Portal'],     ['g + 5', 'Damage Recording'],
+                ['g + 6', 'Purchase Requisition'],   ['g + 7', 'QC Inspection'],
+                ['g + 8', 'Invoice Matching'],       ['Ctrl + K', 'Global search'],
+                ['?', 'This shortcuts panel'],       ['Esc', 'Close / cancel'],
+              ].map(([key, label]) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+                  <kbd style={KBD}>{key}</kbd>
+                  <span style={{ fontSize: 12, color: 'var(--text2)' }}>{label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 16, padding: '10px 14px', background: 'var(--bg)', borderRadius: 8, fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+              Press <strong>g</strong> to activate navigation mode (2-second window), then press the letter. Shortcuts are disabled when typing in inputs.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* User Profile */}
       <div className="upro-wrap" ref={profileRef}>
         <button className="upro-btn" onClick={() => setProfileOpen(o => !o)} title="User Profile">
@@ -348,7 +449,7 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
             <div className="upro-divider" />
             <div className="upro-meta">
               <div className="upro-meta-row">
-                <span>Version</span><strong>InvenIQ v3.0</strong>
+                <span>Version</span><strong>InvenIQ v3.1</strong>
               </div>
               <div className="upro-meta-row">
                 <span>Build</span><strong>May 2026</strong>

@@ -13,6 +13,12 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Sales Return"])
 
+try:
+    from app.db.connection import get_pool, is_db_available
+    _DB_AVAILABLE = True
+except ImportError:
+    _DB_AVAILABLE = False
+
 # ── UOM Conversion Table ──────────────────────────────────────────────────────
 # Key: (from_uom, to_uom)  Value: how many to_uom units equal 1 from_uom unit
 UOM_CONVERSIONS: dict[tuple[str, str], float] = {
@@ -330,19 +336,25 @@ def _mock_credit_notes() -> list[dict]:
 # ── Pydantic models ────────────────────────────────────────────────────────────
 
 class SalesReturnRequest(BaseModel):
-    invoice_id:    str
-    customer_name: str
-    sku_code:      str
-    sku_name:      str
-    original_qty:  float = Field(gt=0, description="Qty on original invoice")
-    original_uom:  str   = Field(description="UOM used in original sale (e.g. box)")
-    return_qty:    float = Field(gt=0, description="Qty being returned")
-    return_uom:    str   = Field(description="UOM of the return (e.g. pcs)")
-    custom_ratio:  Optional[float] = Field(default=None, gt=0, description="Override: pieces per original unit")
-    unit_price:    float = Field(gt=0, description="Sell price per original UOM")
-    buy_price:     float = Field(default=0.0, ge=0, description="Buy price per original UOM for COGS reversal")
-    gst_rate:      float = Field(default=18.0, ge=0, le=100)
-    return_reason: str   = ""
+    invoice_id:       str
+    customer_name:    str
+    sku_code:         str
+    sku_name:         str
+    original_qty:     float = Field(gt=0, description="Qty on original invoice")
+    original_uom:     str   = Field(description="UOM used in original sale (e.g. box)")
+    return_qty:       float = Field(gt=0, description="Qty being returned")
+    return_uom:       str   = Field(description="UOM of the return (e.g. pcs)")
+    custom_ratio:     Optional[float] = Field(default=None, gt=0, description="Override: pieces per original unit")
+    unit_price:       float = Field(gt=0, description="Sell price per original UOM")
+    buy_price:        float = Field(default=0.0, ge=0, description="Buy price per original UOM for COGS reversal")
+    gst_rate:         float = Field(default=18.0, ge=0, le=100)
+    return_reason:    str   = ""
+    # Workflow linking fields
+    so_number:        Optional[str]   = None   # linked Sales Order number
+    dc_number:        Optional[str]   = None   # linked Delivery Challan number
+    return_condition: str             = "GOOD" # GOOD | PARTIALLY_DAMAGED | FULLY_DAMAGED
+    damage_qty:       Optional[float] = None   # damaged piece count (for PARTIALLY_DAMAGED)
+    damage_desc:      Optional[str]   = None   # damage description
 
 
 class ApplyCreditRequest(BaseModel):
@@ -367,7 +379,66 @@ async def list_uom_conversions():
 
 @router.get("/sales-returns/invoices")
 async def list_invoices(customer: str = Query(default="")):
-    """Return invoices eligible for sales return (last 90 days)."""
+    """Return invoices eligible for sales return.
+    DB-first: reads from sales_orders where invoice_number is set.
+    Falls back to mock data when DB is unavailable.
+    """
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute("""
+                            SELECT id, order_number, customer_name, customer_type,
+                                   product_name, category,
+                                   quantity, unit, sell_price, buy_price, total_value,
+                                   invoice_number,
+                                   DATE(COALESCE(invoiced_at, created_at)) AS invoice_date
+                            FROM sales_orders
+                            WHERE invoice_number IS NOT NULL AND invoice_number != ''
+                            ORDER BY invoiced_at DESC
+                            LIMIT 100
+                        """)
+                        rows = await cur.fetchall()
+                        if rows:
+                            cols = [d[0] for d in cur.description]
+                            db_invoices = []
+                            for r in rows:
+                                row = dict(zip(cols, r))
+                                inv_date = row.get("invoice_date")
+                                if inv_date and not isinstance(inv_date, str):
+                                    inv_date = str(inv_date)
+                                db_invoices.append({
+                                    "invoice_id":    row["invoice_number"],
+                                    "customer_name": row["customer_name"],
+                                    "invoice_date":  inv_date or datetime.date.today().isoformat(),
+                                    "total_amount":  float(row.get("total_value") or 0),
+                                    "items": [{
+                                        "line_id":         1,
+                                        "sku_code":        row["order_number"],
+                                        "sku_name":        row.get("product_name") or "",
+                                        "qty":             float(row.get("quantity") or 0),
+                                        "uom":             row.get("unit") or "pcs",
+                                        "pieces_per_unit": 1,
+                                        "unit_price":      float(row.get("sell_price") or 0),
+                                        "buy_price":       float(row.get("buy_price") or 0),
+                                        "gst_rate":        18.0,
+                                        "amount":          float(row.get("total_value") or 0),
+                                    }],
+                                })
+                            if customer:
+                                db_invoices = [i for i in db_invoices if customer.lower() in i["customer_name"].lower()]
+                            # Merge: DB invoices first, then mock (for demo products reference)
+                            mock = _mock_invoices()
+                            if customer:
+                                mock = [i for i in mock if customer.lower() in i["customer_name"].lower()]
+                            seen_ids = {i["invoice_id"] for i in db_invoices}
+                            merged = db_invoices + [m for m in mock if m["invoice_id"] not in seen_ids]
+                            return {"invoices": merged, "data_source": "mysql"}
+        except Exception as exc:
+            logger.warning("list_invoices DB fetch failed: %s", exc)
+
     invoices = _mock_invoices()
     if customer:
         invoices = [i for i in invoices if customer.lower() in i["customer_name"].lower()]
@@ -465,10 +536,57 @@ async def create_sales_return(req: SalesReturnRequest):
     today            = datetime.date.today().isoformat()
     valid_until      = (datetime.date.today() + datetime.timedelta(days=90)).isoformat()
 
+    # Build accounting entries — split for PARTIALLY_DAMAGED condition
+    condition        = req.return_condition or "GOOD"
+    is_damaged       = condition in ("PARTIALLY_DAMAGED", "FULLY_DAMAGED")
+    damaged_qty      = float(req.damage_qty or 0) if is_damaged else 0.0
+    good_qty         = max(0, req.return_qty - damaged_qty) if condition == "PARTIALLY_DAMAGED" else (0 if is_damaged else req.return_qty)
+
+    damaged_cost     = round(buy_piece_price * damaged_qty, 2)
+    good_cost        = round(cogs_reversal - damaged_cost, 2) if is_damaged else cogs_reversal
+
+    acct_entries = [
+        {
+            "dr":       "Sales Return A/c",
+            "cr":       f"Customer A/c ({req.customer_name})",
+            "amount":   credit_amount,
+            "narration": (
+                f"Sales return — {req.sku_name} — "
+                f"{req.return_qty} {req.return_uom} ref {req.invoice_id}"
+                + (f" / {req.so_number}" if req.so_number else "")
+            ),
+        },
+        {
+            "dr":       "GST Payable A/c",
+            "cr":       "GST Liability A/c",
+            "amount":   gst_amount,
+            "narration": f"GST reversal on sales return — {req.gst_rate}%",
+        },
+    ]
+    if good_cost > 0:
+        acct_entries.append({
+            "dr":       "Inventory A/c",
+            "cr":       "COGS A/c",
+            "amount":   good_cost,
+            "narration": f"Good stock reversal — {good_qty} {req.return_uom} back to inventory",
+        })
+    if damaged_cost > 0:
+        acct_entries.append({
+            "dr":       "Damage Loss A/c",
+            "cr":       "COGS A/c",
+            "amount":   damaged_cost,
+            "narration": f"Damaged items write-down — {damaged_qty} {req.return_uom} @ ₹{buy_piece_price:.2f}",
+        })
+
     return_rec = {
         "return_id":          return_id,
         "credit_note_id":     cn_id,
         "invoice_id":         req.invoice_id,
+        "so_number":          req.so_number or None,
+        "dc_number":          req.dc_number or None,
+        "return_condition":   condition,
+        "damage_qty":         damaged_qty if is_damaged else None,
+        "damage_desc":        req.damage_desc or None,
         "customer_name":      req.customer_name,
         "return_date":        today,
         "sku_code":           req.sku_code,
@@ -487,34 +605,7 @@ async def create_sales_return(req: SalesReturnRequest):
         "gst_amount":         gst_amount,
         "credit_amount":      credit_amount,
         "status":             "PROCESSED",
-        "accounting": {
-            "entries": [
-                {
-                    "dr":       "Sales Return A/c",
-                    "cr":       f"Customer A/c ({req.customer_name})",
-                    "amount":   credit_amount,
-                    "narration": (
-                        f"Sales return — {req.sku_name} — "
-                        f"{req.return_qty} {req.return_uom} from {req.invoice_id}"
-                    ),
-                },
-                {
-                    "dr":       "Inventory A/c",
-                    "cr":       "COGS A/c",
-                    "amount":   cogs_reversal,
-                    "narration": (
-                        f"Stock reversal on return — "
-                        f"{req.return_qty} {req.return_uom} @ ₹{buy_piece_price:.2f}/{req.return_uom}"
-                    ),
-                },
-                {
-                    "dr":       "GST Payable A/c",
-                    "cr":       "GST Liability A/c",
-                    "amount":   gst_amount,
-                    "narration": f"GST reversal on sales return — {req.gst_rate}%",
-                },
-            ],
-        },
+        "accounting":         {"entries": acct_entries},
     }
 
     cn_rec = {

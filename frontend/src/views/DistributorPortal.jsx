@@ -538,6 +538,15 @@ export default function DistributorPortal({ dbStatus, onGoChat }) {
       {/* Tab content */}
       {activeTab === 'my-stock'         && <MyStockTab onGoChat={onGoChat} />}
       {activeTab === 'browse-inventory' && <BrowseInventoryTab onGoChat={onGoChat} />}
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginTop: 20 }} onClick={() => onGoChat(
+          'Analyse my distributor portal stock levels — which products are running low and need immediate replenishment? ' +
+          'Which items are overstocked? What should I order this week to maintain healthy availability?'
+        )}>
+          <span>✨</span>
+          <span>Ask AI: Distributor stock analysis — replenishment priorities and slow-moving inventory</span>
+        </div>
+      )}
     </div>
   );
 }

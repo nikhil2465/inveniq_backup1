@@ -17,12 +17,17 @@ from app.core.roles import ROLE_DEMO_ACCOUNTS, ROLE_MODULES, modules_to_claim
 logger = logging.getLogger(__name__)
 
 ALGORITHM = "HS256"
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # Lazily hashed passwords — computed once on first login attempt
 _hashed_demo_password:  Optional[bytes] = None
 _hashed_owner_password: Optional[bytes] = None
 # Keyed by username — populated on first authenticate_user() call for that account
 _hashed_role_passwords: dict[str, bytes] = {}
+
+# JWT claims that are token-metadata, not user-identity — excluded when embedding
+# user claims into a refresh token so rotation can reconstruct the access token cleanly.
+_REFRESH_SKIP_CLAIMS = frozenset({"jti", "rjti", "iat", "nbf", "exp", "type", "iss", "aud"})
 
 
 def _get_secret() -> str:
@@ -235,3 +240,137 @@ async def authenticate_user(username: str, password: str) -> Optional[dict]:
             return {k: v for k, v in role_user.items() if k != "hashed_password"}
 
     return None
+
+
+# ── Refresh token lifecycle ───────────────────────────────────────────────────
+
+def create_refresh_token(access_jti: str, user_claims: dict) -> tuple[str, str]:
+    """
+    Create a signed JWT refresh token (7-day TTL).
+    Embeds user identity claims so rotation can re-issue access tokens without a DB lookup.
+    Returns (token_str, refresh_jti).
+    """
+    refresh_jti = secrets.token_hex(16)
+    now = datetime.now(timezone.utc)
+    safe_claims = {k: v for k, v in user_claims.items() if k not in _REFRESH_SKIP_CLAIMS}
+    payload = {
+        **safe_claims,
+        "jti":  access_jti,    # parent access token jti — links back to the session
+        "rjti": refresh_jti,   # this refresh token's own unique id (for DB revocation)
+        "iat":  now,
+        "nbf":  now,
+        "exp":  now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        "type": "refresh",
+    }
+    return jwt.encode(payload, _get_secret(), algorithm=ALGORITHM), refresh_jti
+
+
+async def store_refresh_token(
+    pool,
+    access_jti: str,
+    refresh_jti: str,
+    username: str,
+    expires_at: datetime,
+) -> bool:
+    """Persist refresh token metadata in the DB. Returns True on success."""
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """INSERT INTO refresh_tokens
+                         (jti, refresh_jti, username, expires_at)
+                       VALUES (%s, %s, %s, %s)""",
+                    (access_jti, refresh_jti, username, expires_at),
+                )
+            await conn.commit()
+        return True
+    except Exception as exc:
+        logger.warning("store_refresh_token failed: %s", exc)
+        return False
+
+
+async def validate_refresh_token(pool, refresh_token: str) -> dict:
+    """
+    Decode and validate a refresh token.
+    Checks: JWT signature + expiry, type == 'refresh', DB record not revoked.
+    Raises ValueError on any failure. Returns decoded payload on success.
+    """
+    try:
+        payload = jwt.decode(refresh_token, _get_secret(), algorithms=[ALGORITHM])
+    except JWTError as exc:
+        raise ValueError(f"Refresh token invalid or expired: {exc}") from exc
+
+    if payload.get("type") != "refresh":
+        raise ValueError("Token type is not 'refresh'")
+
+    refresh_jti = payload.get("rjti")
+    if not refresh_jti:
+        raise ValueError("Refresh token missing rjti claim")
+
+    if pool is not None:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "SELECT revoked FROM refresh_tokens WHERE refresh_jti = %s LIMIT 1",
+                        (refresh_jti,),
+                    )
+                    row = await cur.fetchone()
+            if row is None:
+                raise ValueError("Refresh token not found — possible replay attack")
+            if row[0]:
+                raise ValueError("Refresh token has been revoked")
+        except ValueError:
+            raise
+        except Exception as exc:
+            # DB temporarily unavailable — fall back to JWT-only validation
+            logger.warning("validate_refresh_token: DB revocation check skipped (%s)", exc)
+
+    return payload
+
+
+async def rotate_refresh_token(
+    pool,
+    old_refresh_jti: str,
+    new_access_jti: str,
+    user_claims: dict,
+) -> tuple[str, str]:
+    """
+    Atomically revoke the old refresh token and issue a new one.
+    Prevents replay attacks by making each refresh token single-use.
+    Returns (new_token_str, new_refresh_jti).
+    """
+    # Revoke old and store new in a single transaction
+    new_token_str, new_refresh_jti = create_refresh_token(new_access_jti, user_claims)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    username = user_claims.get("sub", "")
+
+    if pool is not None:
+        try:
+            async with pool.acquire() as conn:
+                # Explicit transaction: revoke old + insert new must be atomic.
+                # Pool uses autocommit=True per connection; conn.begin() starts an
+                # explicit transaction that disables autocommit for its scope so a
+                # failed INSERT doesn't leave the old token revoked with no replacement.
+                await conn.begin()
+                try:
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            "UPDATE refresh_tokens SET revoked = 1 WHERE refresh_jti = %s",
+                            (old_refresh_jti,),
+                        )
+                        await cur.execute(
+                            """INSERT INTO refresh_tokens
+                                 (jti, refresh_jti, username, expires_at)
+                               VALUES (%s, %s, %s, %s)""",
+                            (new_access_jti, new_refresh_jti, username, expires_at),
+                        )
+                    await conn.commit()
+                except Exception:
+                    await conn.rollback()
+                    raise
+        except Exception as exc:
+            logger.warning("rotate_refresh_token: DB rotation failed (%s)", exc)
+
+    return new_token_str, new_refresh_jti

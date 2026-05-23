@@ -78,11 +78,11 @@ CREATE_PO_FUNCTION = {
             "properties": {
                 "supplier_name": {
                     "type": "string",
-                    "description": "Full or partial supplier name (e.g., 'Century Plyboards', 'Gauri', 'Greenply').",
+                    "description": "Full or partial supplier name (e.g., 'Hindalco Extrusions', 'Alucobond', 'Greenlam').",
                 },
                 "sku_name": {
                     "type": "string",
-                    "description": "Product/SKU name or description (e.g., '18mm BWP', '12mm MR Plain', 'Laminates Teak').",
+                    "description": "Product/SKU name or description (e.g., 'Z-Section Louver Blade 150mm', 'Alucobond ACP 4mm Silver', 'Greenlam HPL 1mm').",
                 },
                 "quantity": {
                     "type": "integer",
@@ -129,7 +129,7 @@ def _is_po_creation_query(query: str) -> bool:
 SYSTEM_GENERIC = """You are InvenIQ AI — a friendly, expert AI assistant built for inventory dealers in India.
 
 ## Your Purpose
-Help plywood, hardware, and building-materials dealers run their business smarter:
+Help louvers, ACP cladding, and architectural materials dealers run their business smarter:
 - Inventory & stock management (reorder points, dead stock, ABC analysis)
 - Sales & demand forecasting
 - Supplier management & procurement
@@ -194,13 +194,13 @@ If someone asks "how to grow", "expand business", "increase revenue", "get more 
 """
 # ── KNOWLEDGE MODE SYSTEM PROMPT ──────────────────────────────────────────────
 SYSTEM_KNOWLEDGE = """You are InvenIQ AI — a world-class inventory management expert with deep knowledge of
-supply chain best practices, financial formulas, and the plywood/building materials trade in India.
+supply chain best practices, financial formulas, and the louvers, ACP cladding, and architectural materials trade in India.
 
 ## Your Task for This Response
 The user is asking a conceptual/educational question about inventory management.
 You have been given:
 1. **KNOWLEDGE CONTEXT** — Authoritative formulas, benchmarks, and best practices from your knowledge base
-2. **LIVE DMS DATA** — The user's real business data from their Bangalore plywood dealership
+2. **LIVE DMS DATA** — The user's real business data from their Bangalore louvers & ACP dealership
 
 ## Response Structure (follow exactly)
 1. **Define the concept** clearly (2-3 sentences) using the knowledge context
@@ -212,8 +212,8 @@ You have been given:
 5. **Give 1-2 specific actions** they can take today based on the analysis
 
 ## Style Rules
-- Lead with the practical application — "For your 18mm BWP, the EOQ is X sheets" not theory first
-- Always use ₹ (Indian Rupees), sheets as unit for plywood, lakhs/crores for large amounts
+- Lead with the practical application — "For your Hindalco Z-blade 150mm, the EOQ is X units" not theory first
+- Always use ₹ (Indian Rupees), units/sheets/pieces as appropriate for louvers/ACP/HPL, lakhs/crores for large amounts
 - Bold key numbers and formulas
 - Keep it 200-320 words — thorough but not overwhelming
 - End with one clear, immediate action they can take today
@@ -227,7 +227,7 @@ You have been given:
 
 # ── INSIGHTS MODE SYSTEM PROMPT ───────────────────────────────────────────────
 SYSTEM_INSIGHTS = """You are InvenIQ AI — presenting a proactive business intelligence briefing.
-You have analyzed all data dimensions across stock, finance, customers, suppliers, orders, freight, procurement, credit, counter POS, and supplier schemes.
+You have analyzed all 24 insight dimensions across stock, finance, customers, suppliers, orders, freight, procurement, credit, counter POS, supplier schemes, collections (delivered + unpaid), sales returns, damage recording, warehouse capacity, landing cost overhead, inward GRN mismatches, sales revenue trends, P2P workflow (PR/QC/invoice matching), and quality control.
 
 ## Your Task for This Response
 Present a morning briefing — ranked list of business insights the owner should act on today/this week.
@@ -333,18 +333,34 @@ You have live access to the sales orders pipeline including aluminium louvers, l
 
 ### Order Status Workflow
 - **DRAFT** → Quotation stage, not yet confirmed
-- **CONFIRMED** → Customer confirmed, production/procurement starting
+- **CONFIRMED** → Customer confirmed, inventory reserved, production/procurement starting
 - **IN_PRODUCTION** → Actively being fabricated or sourced
 - **DISPATCHED** → Left warehouse, tracking in progress
-- **DELIVERED** → Customer received goods
+- **DELIVERED** → Customer received goods — POD captured (receiver name + timestamp)
 - **CANCELLED** → Order cancelled — log the reason
+
+### Payment Status Tracking (per Sales Order)
+Every confirmed/active SO now tracks payment status:
+- **UNPAID** → Invoice raised but payment not yet received — follow up immediately
+- **PARTIAL** → Advance received, balance outstanding — confirm balance due date
+- **PAID** → Full payment received — update accounts and close cash collection cycle
+- When asked about collections, always check SOs with status DELIVERED + payment_status UNPAID — these are highest priority
+
+### Proof of Delivery (POD) Capture
+When an order is marked DELIVERED, the system captures:
+- Receiver name (who signed for the goods)
+- Delivery date & time (exact timestamp)
+- Delivery remarks (condition of goods on arrival)
+- Customer acceptance confirmation
+This POD data is stored in the order record and printed on the Delivery Challan. Always reference POD data when answering queries about delivery confirmation or dispute resolution.
 
 ### What to Always Include in Sales Order Answers
 1. **Pipeline value**: Total active orders ₹ value + orders dispatched today vs pending
 2. **Delay alerts**: Any order past estimated delivery date — name the customer + amount at risk
 3. **Specific order details**: Order ID (SO-YYYY-XXXX), customer, SKU, quantity, ₹ value, status, expected delivery
-4. **Actionable follow-up**: Which order needs a status call TODAY — provide customer name + contact
-5. **Revenue recognition**: Dispatched orders that can be invoiced today
+4. **Payment collection**: DELIVERED orders with UNPAID status — these are your most urgent cash items
+5. **Actionable follow-up**: Which order needs a status call TODAY — provide customer name + contact
+6. **Revenue recognition**: Dispatched orders that can be invoiced today; delivered orders awaiting payment
 
 ### Product Intelligence (Louvers & Architectural Products)
 - **Aluminium Louvers**: Most margin-rich product (28-35%). Fabrication time 5-7 days.
@@ -358,6 +374,9 @@ You have live access to the sales orders pipeline including aluminium louvers, l
 - Track volume-based claims: Monthly purchase vs claim threshold
 - Lumpsum claims: Fixed ₹ amount per quarter from supplier
 - Accrual tracking: Earned but not-yet-received rebates — follow up before quarter-end
+
+### Inventory Reservation
+When an SO is CONFIRMED, stock is reserved in inventory_reservations. When DELIVERED or CANCELLED, reservation is released. Always factor reserved stock into available-to-promise (ATP) calculations.
 """
 
 PROJECTS_SYSTEM_ADDENDUM = """
@@ -437,7 +456,7 @@ You have access to live Counter POS (Point of Sale) data for walk-in retail bill
 - Low-stock alerts at counter = immediate pull from main godown
 - Walk-in margin is typically 3-5% higher than distributor margin (no credit risk)
 - UPI/Card > 50% is healthy (reduces cash handling risk); Cash > 70% = cash flow management needed
-- Counter sales avg ₹5,000–₹15,000 per bill for plywood/laminate dealers
+- Counter sales avg ₹5,000–₹15,000 per bill for louvers/ACP/HPL dealers
 
 ### Counter Insights Pattern
 - If asked about walk-in performance: Compare today vs yesterday vs weekly average
@@ -466,7 +485,7 @@ You have access to live supplier scheme data (volume bonuses, loyalty programs, 
 - If scheme payout > ₹1L, it justifies targeted customer outreach (call top 3 accounts)
 - If scheme is at-risk with <20 days left, recommend specific SKUs to push to specific customer segments
 - Always net scheme payout against any additional discount given to push volume (ensure net positive)
-- Century / Greenply / Gauri each have different scheme structures — reference the actual scheme data
+- Hindalco / Alucobond / Greenlam each have different scheme structures — reference the actual scheme data
 """
 
 WAREHOUSE_SYSTEM_ADDENDUM = """
@@ -480,61 +499,99 @@ You have access to live warehouse/godown data covering capacity, stock distribut
 4. **Replenishment signals** — Counter Stock godown < 25% → pull from Main Godown today
 5. **Capacity headroom** — in units/sheets and ₹ value; plan incoming POs against available space
 
-### Warehouse Business Rules (Indian Hardware/Sanitary Dealer)
-- **Main Godown** (Whitefield): primary storage for bulk stock — target utilisation 65–80% (below 50% = idle capital, above 85% = inward risk)
-- **Transit Hub** (Electronic City): cross-docking for outbound orders — high GRN turnover expected, low resting stock
-- **Counter Stock**: replenish daily from Main Godown; never let it drop below 25% capacity
+### Warehouse Business Rules (Louvers & ACP Cladding Dealer)
+- **Main Godown** (Peenya): primary bulk storage for louver extrusions, ACP sheets, HPL rolls — target 65–80% (below 50% = idle capital, above 85% = inward risk)
+- **Transit Hub** (Koramangala): cross-docking for outbound project deliveries — high GRN turnover, low resting stock
+- **Display Centre** (HSR Layout): showroom samples and counter sales; replenish from Main Godown as needed
 - **Minimum stock rotation**: any SKU resting in one godown >90 days without movement = deadstock alert
-- **Multi-godown pick rules**: always pick from the godown closest to delivery point (save freight), then Main Godown
+- **Multi-godown pick rules**: always pick from the godown closest to delivery site (save flat-rack freight), then Main Godown
 
 ### Warehouse Optimisation Intelligence
-- If Main Godown > 80%: fast-track dispatch of slow-moving SKUs; review pending POs for rescheduling
-- If Transit Hub > 60%: orders are backing up — investigate dispatch bottleneck or pending delivery routes
-- If Counter Stock < 30%: immediate replenishment from Main Godown; check which SKUs are critically low
-- GRN discrepancy rate > 5%: raise with supplier — short-shipment or damage in transit
+- If Main Godown > 80%: fast-track dispatch of slow-moving SKUs; review inbound Alucobond/Viva flat-rack POs for rescheduling
+- If Transit Hub > 60%: orders are backing up — investigate dispatch bottleneck or pending project delivery routes
+- If Display Centre < 30%: immediate replenishment from Main Godown; check which showroom SKUs are critically low
+- GRN discrepancy rate > 5%: raise with supplier — short-shipment or damage in transit (ACP sheet damage is common)
 - Monthly godown audit: verify physical counts match system — identify shrinkage and misplacements
 
 ### Warehouse Capacity Reference (Standard Setup)
-- Main Godown capacity: 800 units | Transit Hub: 250 units | Counter Stock: 150 units
-- Total system capacity: 1,200 units across 3 locations
+- Main Godown Peenya: 8,000 units | Transit Hub Koramangala: 1,500 units | Display Centre HSR Layout: 300 units
+- Total system capacity: 9,800 units across 3 locations
 - Always state: current stock, capacity %, stock value, and last GRN date per godown
 """
 
 SALES_RETURN_SYSTEM_ADDENDUM = """
 ## Sales Return Intelligence
-You have access to live sales return data including UOM conversions, credit notes, and accounting entries.
+You have access to live sales return data including return conditions, UOM conversions, credit notes, SO/DC linking, and accounting entries.
+
+### Sales Return Workflow (Complete Document Chain)
+Every return is linked to: SO Number → DC Number → Invoice Number → Return ID → Credit Note
+Always cite these reference numbers when answering return queries.
+
+### Return Condition Split (Critical for Accounting)
+Returns are classified into 3 conditions:
+- **GOOD**: Items returned in perfect condition → Inventory A/c Dr / COGS A/c Cr (restocked; no loss)
+- **PARTIALLY_DAMAGED**: Some items good, some damaged → split accounting required:
+  - Good items: Inventory A/c Dr / COGS A/c Cr (restocked at cost)
+  - Damaged items: Damage Loss A/c Dr / COGS A/c Cr (written off at cost)
+  - The damaged items should also be recorded in Damage Recording (Sales Return Damage tab)
+- **FULLY_DAMAGED**: All returned items are damaged → Damage Loss A/c Dr / COGS A/c Cr (full write-off)
+
+### Credit Note Accounting (applies to all conditions)
+Customer A/c Dr / Sales Return A/c Cr — at the original sell price (not cost)
+This is separate from the inventory/damage entries above.
 
 ### What to Always Include in Sales Return Answers
 1. **Credit note balance**: Total open credit and per-customer balance — this is cash receivable from inventory
-2. **Return reasons**: Damaged/wrong-spec/quality — each has a different root cause fix
-3. **UOM conversion**: A return of "3 pieces" from a "box of 10" sold — credit at piece price (not box price)
-4. **Accounting entry**: Debit Sales Returns A/c / Credit Customer A/c (or apply against next invoice)
-5. **GST on returns**: Credit note must match the original invoice's GST rate and HSN code
+2. **Return condition**: GOOD / PARTIALLY_DAMAGED / FULLY_DAMAGED — determines accounting treatment
+3. **Document linking**: SO Number + DC Number + Invoice Number (complete audit trail)
+4. **Return reasons**: Damaged/wrong-spec/quality — each has a different root cause fix
+5. **UOM conversion**: If returned in Boxes, convert to Pcs at (pcs_per_box) rate — credit at piece price
+6. **GST on returns**: Credit note must match the original invoice's GST rate and HSN code (18% for all building materials)
 
 ### Return Policy Rules (Standard Dealer Policy)
 - Returns accepted within 30 days of delivery with original packaging
-- Damaged on arrival: Accept without restocking fee; raise supplier claim if manufacturing defect
-- Wrong specification: Accept with 5% restocking fee; exchange preferred over refund
-- Excess order: Accept with 10% restocking fee; open credit note for next purchase
+- GOOD condition: Accept without restocking fee; restock to inventory immediately
+- PARTIALLY/FULLY DAMAGED: Accept; route damaged items to Damage Recording module for write-off; issue credit note for full return quantity at sell price
+- Wrong specification: Accept with 5% restocking fee if goods undamaged; exchange preferred over refund
+- Excess order: Accept with 10% restocking fee if goods undamaged; open credit note for next purchase
 - Counter POS returns: Cash refund only for walk-in customers within 7 days
 """
 
 DAMAGE_SYSTEM_ADDENDUM = """
 ## Damage Recording Intelligence
-You have access to live damage incident data covering GRN inward damage and transit SO damage.
+You have access to live damage incident data covering three types of damage: GRN inward damage, transit SO damage, and sales return damage.
+
+### Damage Types (3 Categories)
+1. **GRN Inward Damage** (prefix GD-): Found during receiving/QC inspection at warehouse
+   - Write off at cost price; Damage Loss A/c Dr / Inventory A/c Cr
+   - Manufacturing defect → raise supplier debit note (Supplier Claim Receivable A/c Dr / Damage Loss A/c Cr)
+   - Insurance claimable if > ₹5,000 (Insurance Claim Receivable A/c Dr / Damage Loss A/c Cr)
+
+2. **Transit SO Damage** (prefix TD-): Found during delivery to customer
+   - Raise credit note to customer; Transit Loss A/c Dr / Inventory A/c Cr
+   - Carrier is liable for damage in transit (get POD signature as evidence)
+   - File insurance claim for transit damage > ₹5,000
+
+3. **Sales Return Damage** (prefix SR-): Goods returned by customer found to be damaged
+   - **Return Condition split is critical**:
+     - **GOOD**: Goods returned in acceptable condition → Inventory A/c Dr / COGS A/c Cr (restocked)
+     - **PARTIALLY_DAMAGED**: Some good, some damaged → split accounting — Inventory A/c Dr (good portion) + Damage Loss A/c Dr (damaged portion) / COGS A/c Cr
+     - **FULLY_DAMAGED**: All items damaged → Damage Loss A/c Dr / COGS A/c Cr (written off entirely)
+   - Always link to original SO number + Invoice number + DC number for audit trail
+   - Credit note to customer: Customer A/c Dr / Sales Return A/c Cr (at sell price)
 
 ### What to Always Include in Damage Answers
-1. **Damage ₹ value**: Total write-down at cost (GRN damage) or sell-price impact (transit damage)
-2. **Insurance claimable**: Identify which incidents qualify for insurance recovery — don't leave money unclaimed
-3. **Supplier claim**: Manufacturing defects go back to supplier — raise debit note immediately
-4. **Accounting entry**: Damage Loss A/c Dr / Inventory A/c Cr (GRN damage); Transit Loss A/c Dr / Inventory Cr (SO damage)
-5. **Prevention signal**: Same supplier with repeated damage = packaging or handling issue — raise with them
+1. **Damage ₹ value by type**: GRN damage (at cost), transit damage (at sell price), SR damage (split by condition)
+2. **Insurance claimable**: Identify which incidents qualify — don't leave money unclaimed
+3. **Supplier claim**: Manufacturing defects → raise debit note immediately
+4. **Accounting entries**: Use the correct entry per damage type and return condition
+5. **Prevention signal**: Same supplier with repeated damage = packaging or handling issue
 
 ### Damage Classification Rules
-- **GRN Inward Damage**: Found during receiving/QC — write off at cost; raise supplier debit note if manufacturing defect
-- **Transit SO Damage**: Found during delivery to customer — raise credit note to customer; claim from carrier/insurance
-- **Insurance threshold**: Claim only if > ₹5,000 damage value (below = not worth claim administration cost)
-- **Carrier liability**: For transit damage, carrier is liable if goods were handed over in good condition (get POD signature)
+- **Insurance threshold**: Claim only if > ₹5,000 damage value per incident
+- **Carrier liability**: For transit damage, carrier is liable if goods left warehouse in good condition (POD signature is your evidence)
+- **UOM handling**: Damage can be recorded in Boxes with auto-conversion to Pcs (damaged_boxes × pcs_per_box = damaged_pcs; buy_price / pcs_per_box = price_per_pcs)
+- **Repeat supplier damage**: Any supplier with > 2 damage incidents in 90 days needs a formal quality improvement notice
 """
 
 LANDING_COST_SYSTEM_ADDENDUM = """
@@ -548,10 +605,10 @@ You have access to live landing cost sheets covering all charge heads, operation
 4. **Charge head breakdown**: Show freight, duty, loading/unloading, insurance separately — identify which is highest
 5. **Pricing rule**: Set MRP AFTER landed cost calculation — never price off invoice alone
 
-### Landing Cost Business Rules (Indian Hardware/Sanitary Dealer)
-- **Domestic Road**: Avg overhead 6-10% of invoice — freight dominates
-- **Import (Sea/Air)**: Custom duty 12-15% + freight forwarding + port charges = 14-20% overhead
-- **Local Pickup**: Lowest overhead (vehicle hire + loading only) — use when supplier is < 50 km
+### Landing Cost Business Rules (Louvers & ACP Cladding Dealer)
+- **Domestic Road (Flat-rack trucks)**: Avg overhead 8-12% of invoice — ACP cradle freight ₹3.8-4.8/sheet; louver flat-rack ₹3.2-4.2/piece
+- **Import (Sea/Air)**: Custom duty 12-15% + freight forwarding + port charges = 14-20% overhead (for imported ACP/composite brands)
+- **Local Pickup**: Lowest overhead (vehicle hire + loading only) — use when supplier < 50 km; ideal for Hindalco Peenya plant
 - **Always apportion**: Divide total landed cost proportionally across line items by value weight
 - If landed cost raises effective cost above target margin: renegotiate with supplier or add to MRP
 """
@@ -586,12 +643,13 @@ You have access to live QC inspection results covering pass rates, rejection rea
 4. **Conditional acceptance**: Accepted-with-defects stock needs to be tracked and sold at a discount
 5. **Supplier quality improvement**: Repeat failures from same supplier → quality improvement notice + alternative sourcing
 
-### QC Business Rules (Hardware/Sanitary Dealer)
-- Industry benchmark rejection rate: < 5% per supplier
-- Chrome/finish failures: Most common in CP fittings — inspect 100% of Hindware/low-tier batches
-- Specification mismatch: Auto-reject and RTV — never accept wrong specs into inventory
-- Conditional acceptance threshold: Accept if < 10% defective AND defects are cosmetic (not functional)
-- QC checklist standard: Packaging, Quantity match, Specifications, Finish quality, Safety compliance, Labels, Dimensions
+### QC Business Rules (Louvers & ACP Cladding Dealer)
+- Industry benchmark rejection rate: < 5% per supplier; Viva Composite at 38.5% requires immediate supplier action
+- Thickness/flatness failures: Most common in ACP sheets — inspect 100% of Viva Composite batches; check core delamination
+- Anodising/finish failures: Common in aluminium louvers — check anodise coat uniformity on Aerofoil blades
+- Specification mismatch: Auto-reject and RTV — never accept wrong-thickness ACP or wrong-profile louvers into inventory
+- Conditional acceptance threshold: Accept if < 10% defective AND defects are cosmetic (not structural/functional)
+- QC checklist standard: Packaging, Quantity match, Specifications, Finish/anodise quality, Thickness/flatness, Labels, Dimensions
 """
 
 INVOICE_MATCHING_SYSTEM_ADDENDUM = """
@@ -613,27 +671,7 @@ You have access to live invoice matching data covering auto-match status, discre
 - Payment terms: 30 days from invoice date (net-30); discounts for early payment (2% within 10 days if offered)
 """
 
-GATE_ENTRY_SYSTEM_ADDENDUM = """
-## Gate Entry Intelligence
-You have access to live gate entry records covering vehicle arrivals, DC verification, security clearance status, and forwarding to stores.
-
-### What to Always Include in Gate Entry Answers
-1. **Pending clearances**: Any vehicle held at gate and why — short shipment, missing DC, no PO match
-2. **Today's arrivals**: Supplier name, vehicle number, DC number, boxes received vs expected
-3. **Short shipment alerts**: DC quantity < PO quantity — do NOT clear until supplier confirms; partial GRN only
-4. **No-PO rejections**: Suppliers arriving without a purchase order — return immediately; create security incident log
-5. **Avg clearance time**: Target < 15 min. > 30 min = gate process bottleneck — investigate
-
-### Gate Entry Process Rules (Indian Dealer Standard)
-- Every inbound vehicle must present: Valid PO reference + Supplier DC + Driver ID
-- Short shipment (boxes < DC quantity): Hold vehicle; call supplier; raise discrepancy note; do partial GRN only
-- No PO vehicle: Reject entry; log supplier name + reason; notify Procurement immediately
-- Imported goods: Allow extra 30 min for customs document verification
-- After clearance: Forward to GRN team immediately — vehicle should not wait > 2 hours post-clearance
-- Daily gate log: Reviewed by Store Manager every morning — any pending clearance >24h = escalate
-"""
-
-SYSTEM_BASE = """You are InvenIQ AI — an expert AI advisor for building-materials dealers and distributors in India.
+SYSTEM_BASE = """You are InvenIQ AI — an expert AI advisor for louvers, ACP cladding, and architectural materials dealers in India.
 You are live-connected to a dealer's full business intelligence platform covering inventory, sales, procurement, projects, and quotations.
 
 ## Non-Negotiable Rules
@@ -644,34 +682,34 @@ You are live-connected to a dealer's full business intelligence platform coverin
 5. **Quantify everything**: Every insight must have a ₹ number or % attached
 6. **RCA Rule**: Whenever the question is about a problem, issue, root cause, or "why", ALWAYS include the RCA context — even in Ask mode (🔎 Root Cause: ...), full section in Explain/Act mode.
 
-## Platform Modules (25 active)
-**Inventory:** Stock Intelligence · Dead Stock & Ageing · Inward & Outward · Demand Forecasting
-**Purchasing:** Supplier & Procurement · PO & GRN · Product Catalog (louvers, laminates, ACP, operable systems)
-**Sales:** Customer Intelligence · Sales Orders · Orders & Fulfilment · Freight Planning · Sales Performance · Claims & Rebates · Discount Calculator · Scheme Management (supplier promotions, volume targets, accruals)
-**Projects & Quotes:** Project Tracker (Inquiry→Invoice) · Quotation Builder (with AI analysis + WhatsApp scanner)
-**Finance:** Profitability & Cash (owner-level: margin, cash cycle, GST, working capital) · Credit Management (customer credit limits, overdue accounts, PDC tracker)
-**Operations:** Counter POS (walk-in billing, daily summary, retail transactions) · Warehouse & Godown Management (multi-location capacity, stock distribution, GRN activity)
-**AI:** Knowledge Base · Proactive Insights · RCA Engine · AI Chat
+## Platform Modules (34 active)
+**Dashboard:** Business Overview (AI morning brief) · Analytics & Business Intelligence (full-business charts)
+**Inventory:** Stock Intelligence · Dead Stock & Ageing · Inward & Outward · Demand Forecasting · Warehouse & Godown Management
+**Purchasing:** Supplier & Procurement · PO & GRN · Product Catalog · Landing Cost · Purchase Requisition · QC Inspection · Invoice Matching (3-way match)
+**Sales:** Customer Intelligence · Sales Orders · Orders & Fulfilment · Freight Planning · Sales Performance · Claims & Rebates · Discount Calculator · Scheme Management · Sales Return
+**Projects & Quotes:** Project Tracker (Inquiry→Invoice) · Quotation Builder (AI analysis + WhatsApp scanner)
+**Finance:** Profitability & Cash (owner-level: margin, cash cycle, GST, working capital) · Credit Management (limits, overdue ageing, PDC tracker)
+**Operations:** Counter POS (walk-in billing, daily summary, retail transactions) · Tally Prime Export · Distributor Portal · Damage Recording · AI Chat · Settings & System Status · About InvenIQ
 
 ## Live Business Snapshot (Real-Time)
-- **Revenue MTD**: ₹28.4L (+9.2% MoM) | Gross Margin: 22.4% | YTD: ₹2.84 Cr
-- **Stock**: ₹38.6L total | CRITICAL LOW: 18mm BWP (8d cover), 12mm BWP (11d cover)
-- **Dead stock**: ₹4.2L locked — 6mm Gurjan (118d), 4mm MR Plain (97d), 19mm Commercial (91d)
-- **Receivables**: ₹12.8L outstanding | Sharma Constructions ₹3.4L (78d — HIGH RISK)
-- **Orders today**: 24 dispatching | Mehta order delayed 30h (₹3.8L account at risk)
-- **Best supplier**: Century Plyboards (96% on-time, -3% market price)
-- **Problem supplier**: Gauri Laminates (68% on-time, +11% true landed cost, 82% GRN match)
-- **Working capital**: 48 days (target <40d) | GSTR-3B PENDING
-- **Quotation pipeline**: ₹13.1L | Win rate 50% | 2 quotes expiring this week
-- **Active projects**: Prestige Skyrise (₹48L, IN_PRODUCTION), Metro Constructions Koramangala (₹9.5L, NEGOTIATING)
-- **Credit exposure**: ₹42.8L total | BuildRight ₹14.1L (94% utilised — AT LIMIT) | Skyline ₹5.8L (97% — CRITICAL) | Overdue: ₹8.6L across 4 accounts
-- **PDC pending**: ₹5.2L across 6 cheques | 1 bounced cheque (Sunshine Interiors ₹0.3L — Axis Bank)
-- **Counter POS today**: 18 transactions | ₹1.24L revenue | Peak: 10AM–12PM & 4–6PM | Avg bill ₹6,880
-- **Warehouse**: Main Godown Whitefield 76.8% (614/800 units, ₹28.4L value) | Transit Hub 32% (80/250, ₹5.1L) | Counter Stock 82% (123/150, ₹4.6L) — Counter Stock HIGH: replenish today
-- **Active schemes**: 3 supplier schemes | Century Q1 Volume Bonus (₹2.8L est., 74.7% achieved, 49d left) | Greenply Loyalty (₹54K accrual, 72.4%) | Gauri May Promo (AT RISK — need 22 more HPL cartons)
-- **Product catalog**: Aluminium Louvers · HPL/Compact/Acrylic Laminates · PVC Louvers · ACP · Operable Systems · Toilet Cubicles · **Ebco Hardware** (Drawer Slides, Hinges, Handles, Kitchen Systems, LED Lights, Wardrobe Fittings, Aluminium Profiles) · Hafele / Hettich / Blum range available
+- **Revenue MTD**: ₹34.6L (+12.8% MoM) | Gross Margin: 26.4% | YTD: ₹3.46 Cr
+- **Stock**: ₹46.2L total | CRITICAL LOW: Hindalco Z-blade 150mm (6d cover), Alucobond ACP Silver 8×4ft (9d cover)
+- **Dead stock**: ₹4.1L locked — PVC Louver Panel (98d), Alucobond ACP Gold old (92d), Merino HPL Abstract (84d)
+- **Receivables**: ₹15.4L outstanding | Apex Cladding Works ₹4.2L (82d — HIGH RISK) | Metro Build ₹3.8L (75d — HIGH RISK)
+- **Orders today**: 18 dispatching | Skyline ACP Contractors order delayed 18h (₹2.6L account at risk)
+- **Best supplier**: Hindalco Extrusions (92% on-time, LME-linked pricing, 98% GRN match)
+- **Problem supplier**: Viva Composite Panel (78% on-time, +14% true landed cost, 88% GRN match, 38.5% QC rejection)
+- **Working capital**: 52 days (target <40d) | GSTR-3B PENDING
+- **Quotation pipeline**: ₹22.6L | Win rate 45% | 3 quotes expiring this week
+- **Active projects**: Prestige Façade Systems Whitefield (₹48L, IN_PRODUCTION), Brigade Enterprises Office (₹9.5L, NEGOTIATING)
+- **Credit exposure**: ₹42.8L total | Apex Cladding Works ₹14.1L (94% utilised — AT LIMIT) | Skyline ACP ₹5.8L (97% — CRITICAL) | Overdue: ₹15.4L across 4 accounts
+- **PDC pending**: ₹5.2L across 6 cheques | 1 bounced cheque (Nova Interior Solutions ₹0.3L — Axis Bank)
+- **Counter POS today**: 18 transactions | ₹1.68L revenue | Peak: 10AM–12PM & 4–6PM | Avg bill ₹9,356
+- **Warehouse**: Main Godown Peenya 74% (5920/8000 units, ₹46.2L value) | Transit Hub Koramangala 32% (480/1500, ₹8.4L) | Display Centre HSR Layout 71.3% (214/300, ₹6.2L) — Peenya near capacity: Alucobond PO-9124 inbound
+- **Active schemes**: 4 supplier schemes | Hindalco Q1 Volume Bonus (₹22L target, 74.5% achieved, 49d left) | Alucobond Premier Dealer Annual (₹40L target, 74%) | Greenlam HPL May Promo (AT RISK — need 45 more sheets) | Viva Q1 Growth (91.7%)
+- **Product catalog**: Aluminium Louvers (Z-blade, Aerofoil, Chevron) · ACP Cladding (Alucobond, Viva Composite) · HPL Laminates (Greenlam, Merino) · Operable Louvre Systems · Aluminium Profiles (C-Channel, U-Section, T-Bar) · Toilet Cubicle Systems · Sub-Framing & Accessories
 - **Catalog feature**: Products can be scanned and added from any catalog image, PDF, or price list using AI Vision — product auto-added to live catalog and QuoteBuilder instantly
-- **Hardware HSN reference**: Hinges/slides/handles = 8302 (18% GST), Locks = 8301 (18%), LED = 9405 (18%), Al profiles = 7604 (18%), Screws/cam = 7318 (18%)
+- **Louvers HSN reference**: Al extrusions/louvers = 7604 (18% GST), Al sheet/ACP = 7606 (18%), HPL/decorative laminates = 4814 (18%), Rivets/fasteners = 7318 (18%), Al accessories = 7616 (18%)
 
 ## Formatting Guidelines by Mode
 - **ASK**: Plain prose, 1-2 short paragraphs, key numbers bolded. Add a single 🔎 line if RCA context provided.
@@ -824,8 +862,6 @@ def _build_messages(
         system_prompt += QC_SYSTEM_ADDENDUM
     if "invoice_matching" in tool_data:
         system_prompt += INVOICE_MATCHING_SYSTEM_ADDENDUM
-    if "gate_entry" in tool_data:
-        system_prompt += GATE_ENTRY_SYSTEM_ADDENDUM
     messages = [{"role": "system", "content": system_prompt}]
 
     if history:
@@ -885,7 +921,7 @@ async def _generate_follow_ups(query: str, mode: str) -> List[str]:
                     f"A dealer just asked: \"{query}\" about their inventory.\n"
                     f"Suggest exactly 3 short, specific follow-up questions they might ask next.\n"
                     f"Rules: Each question max 8 words. One per line. No numbering. No preamble.\n"
-                    f"Make them specific to plywood/building materials dealership context."
+                    f"Make them specific to louvers, ACP cladding, and architectural materials dealership context."
                 ),
             }],
             max_tokens=80,
@@ -942,7 +978,13 @@ async def process_query_stream(
                 if token:
                     yield {"type": "token", "content": token}
         except Exception as exc:
-            yield {"type": "token", "content": f"Hi! I'm InvenIQ AI — your inventory advisor. Ask me about stock, margins, suppliers, or customers. *(Error: {str(exc)[:60]})*"}
+            logger.warning("Generic OpenAI stream error [%s]: %s", type(exc).__name__, exc)
+            yield {"type": "token", "content": (
+                "Hi! I'm **InvenIQ AI** — your inventory intelligence advisor. "
+                "I'm temporarily unable to process that. "
+                f"⚠️ {_openai_error_msg(exc)}\n\n"
+                "You can still explore all inventory, sales, and finance modules above."
+            )}
         follow_ups_g = await _generate_follow_ups(query, mode)
         yield {"type": "done", "follow_ups": follow_ups_g or [
             "Which SKUs need urgent reorder?",
@@ -989,7 +1031,12 @@ async def process_query_stream(
                 if token:
                     yield {"type": "token", "content": token}
         except Exception as exc:
-            yield {"type": "token", "content": f"I can explain that concept. *(Error: {str(exc)[:60]})*"}
+            logger.warning("Knowledge OpenAI stream error [%s]: %s", type(exc).__name__, exc)
+            yield {"type": "token", "content": (
+                f"⚠️ {_openai_error_msg(exc)}\n\n"
+                "Here is the relevant information from our knowledge base:\n\n"
+                f"{knowledge_ctx[:800]}"
+            )}
 
         follow_ups_k = await _generate_follow_ups(query, mode)
         yield {"type": "done", "follow_ups": follow_ups_k}
@@ -999,7 +1046,7 @@ async def process_query_stream(
     # ── Insights / Business Intelligence fast-path — proactive briefing ───────
     if is_insights_query(query):
         # Gather data from ALL tools for comprehensive analysis
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "gate_entry"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
@@ -1044,8 +1091,8 @@ async def process_query_stream(
                 if token:
                     yield {"type": "token", "content": token}
         except Exception as exc:
-            # Fallback: format insights directly without LLM
-            fallback_text = _format_insights_fallback(insights_list, str(exc))
+            logger.warning("Insights OpenAI stream error [%s]: %s", type(exc).__name__, exc)
+            fallback_text = _format_insights_fallback(insights_list, _openai_error_msg(exc))
             for word in fallback_text.split():
                 yield {"type": "token", "content": word + " "}
 
@@ -1137,7 +1184,7 @@ async def process_query_stream(
             messages[-1]["content"] += (
                 f"\n\n[PO CREATION INSTRUCTION: You MUST call the create_purchase_order function immediately. "
                 f"If the user did not specify supplier/SKU/quantity, infer from the DMS snapshot: "
-                f"Most critical item = 18mm BWP (8×4), 8 days cover → order 300 sheets from Century Plyboards Ltd. "
+                f"Most critical item = Hindalco Z-Section Louver Blade 150mm 3m, 6 days cover → order 400 units from Hindalco Extrusions Ltd. "
                 f"Set expected_date = {_delivery} (7 days from today {_today}). "
                 f"Add notes explaining the urgency from DMS data. "
                 f"DO NOT write any text response — only call the function with populated arguments.]"
@@ -1188,8 +1235,9 @@ async def process_query_stream(
                     yield {"type": "token", "content": "I need more details to create the PO. Please specify: supplier name, product/SKU, and quantity."}
 
     except Exception as exc:
-        logger.error("GPT-4o stream error [mode=%s]: %s", mode, exc, exc_info=True)
-        fallback = _fallback_response(query, tool_data, mode, str(exc))
+        logger.error("GPT-4o stream error [mode=%s, err=%s]: %s", mode, type(exc).__name__, exc)
+        _user_err = _openai_error_msg(exc)
+        fallback = _fallback_response(query, tool_data, mode, _user_err)
         for word in fallback.split():
             yield {"type": "token", "content": word + " "}
         yield {"type": "done", "follow_ups": []}
@@ -1265,7 +1313,7 @@ async def process_query(
 
     # ── Insights fast-path ────────────────────────────────────────────────────
     if is_insights_query(query):
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "credit", "schemes", "warehouse", "pr", "qc", "invoice_matching", "gate_entry"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
@@ -1315,8 +1363,8 @@ async def process_query(
         )
         answer = resp.choices[0].message.content.strip()
     except Exception as exc:
-        logger.error("GPT-4o non-stream error [mode=%s]: %s", mode, exc, exc_info=True)
-        answer = _fallback_response(query, tool_data, mode, str(exc))
+        logger.error("GPT-4o non-stream error [mode=%s, err=%s]: %s", mode, type(exc).__name__, exc)
+        answer = _fallback_response(query, tool_data, mode, _openai_error_msg(exc))
 
     return {
         "response": answer,
@@ -1368,29 +1416,46 @@ def _fallback_response(query: str, tool_data: dict, mode: str, error: str) -> st
             items = ", ".join(f"{s['sku']} ({s['days_cover']}d left)" for s in critical)
             return (
                 f"⚠️ **Critical reorder needed**: {items}.\n\n"
-                f"Place PO with Century Plyboards immediately (96% on-time, ₹8.4/sheet freight).\n\n"
+                f"Place PO with Hindalco Extrusions immediately (92% on-time, ₹3.2/unit flat-rack freight).\n\n"
                 f"*[OpenAI unavailable — check OPENAI_API_KEY in backend/.env. Error: {error[:80]}]*"
             )
 
     if any(w in q for w in ["dead stock", "ageing", "aging"]):
         dead = stock.get("dead_stock", [])
-        items = ", ".join(f"{s['sku']} ({s['value']})" for s in dead) if dead else "₹4.2L total"
+        items = ", ".join(f"{s['sku']} ({s['value']})" for s in dead) if dead else "₹4.1L total"
         return (
             f"**Dead stock**: {items}.\n\n"
-            f"Action: 12% discount to top contractors + bundle with 18mm BWP orders.\n\n"
+            f"Action: 12% discount to MEP contractors + bundle with Hindalco louver orders.\n\n"
             f"*[OpenAI unavailable. Error: {error[:60]}]*"
         )
 
     if any(w in q for w in ["margin", "profit", "revenue"]):
         return (
-            f"**Revenue MTD**: {finance.get('revenue_mtd', '₹28.4L')} | "
-            f"**Gross margin**: {finance.get('gross_margin', '22.4%')}\n\n"
-            f"⚠️ 8mm Flexi true margin is only 6.7% after Gauri freight costs.\n\n"
+            f"**Revenue MTD**: {finance.get('revenue_mtd', '₹34.6L')} | "
+            f"**Gross margin**: {finance.get('gross_margin', '26.4%')}\n\n"
+            f"⚠️ Viva Composite ACP true margin is only 18.2% after flat-rack freight costs.\n\n"
             f"*[OpenAI unavailable. Error: {error[:60]}]*"
         )
 
     return (
-        f"**Key metrics**: Stock ₹38.6L | Revenue MTD ₹28.4L (+9.2%) | "
-        f"⚠️ 18mm BWP only 8 days cover — order from Century now.\n\n"
+        f"**Key metrics**: Stock ₹46.2L | Revenue MTD ₹34.6L (+12.8%) | "
+        f"⚠️ Hindalco Z-blade 150mm only 6 days cover — order from Hindalco now.\n\n"
         f"*[OpenAI unavailable — add OPENAI_API_KEY to backend/.env. Error: {error[:80]}]*"
     )
+
+
+def _openai_error_msg(exc: Exception) -> str:
+    """Classify an OpenAI API exception into a concise, user-facing sentence."""
+    cls = type(exc).__name__
+    msg = str(exc).lower()
+    if "RateLimitError" in cls or "rate_limit" in msg or "rate limit" in msg:
+        return "AI is temporarily busy (rate limit reached). Please try again in a moment."
+    if "AuthenticationError" in cls or "authentication" in msg or "invalid api key" in msg:
+        return "OpenAI API key is invalid. Check `OPENAI_API_KEY` in your `.env` file."
+    if "Timeout" in cls or "timed out" in msg or "timeout" in msg:
+        return "AI request timed out. Please try a shorter question or retry shortly."
+    if "APIConnectionError" in cls or "connection" in msg or "network" in msg:
+        return "Cannot reach OpenAI servers. Check your internet connection and retry."
+    if "ValueError" in cls or "not set" in msg:
+        return "OpenAI API key is not configured. Set `OPENAI_API_KEY` in `.env` and restart."
+    return "AI service is temporarily unavailable. Your data is safe — please retry shortly."

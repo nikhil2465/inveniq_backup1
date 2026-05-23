@@ -15,11 +15,11 @@ const CHARGE_HEADS = [
 ];
 
 const WHO_LABELS = {
-  company: 'Company Bears',
-  customer: 'Customer Bears',
-  vendor: 'Vendor Bears',
-  third_party: '3PL Bears',
-  included_in_price: 'Incl. in Price',
+  company:          'Company Bears',
+  customer:         'Customer Bears',
+  vendor:           'Vendor Bears',
+  third_party:      '3PL Bears',
+  included_in_price:'Incl. in Price',
 };
 
 // Default applicability matrix per operation type
@@ -52,6 +52,16 @@ const MOCK_SHEETS = [
   { sheet_id: 'LC-2026-0011', ref_type: 'SO', ref_number: 'SO-2026-0138', operation_type: 'so_own', operation_label: 'Sales Order — Own Operated', date: '2026-05-10', product: { sku_name: 'Hafele Zinc D-Handle 128mm', qty: 300, unit: 'pcs', base_price: 320, base_total: 96000 }, total_charges: 7736, landed_cost: 103736, landed_cost_per_unit: 345.79, margin_impact_pct: 8.06, status: 'FINALISED' },
 ];
 
+const EXPORT_COLS = [
+  { key: 'sheet_id',            label: 'Sheet ID' },
+  { key: 'ref_type',            label: 'Type' },
+  { key: 'ref_number',          label: 'Ref#' },
+  { key: 'date',                label: 'Date' },
+  { key: 'operation_label',     label: 'Operation' },
+  { key: 'landed_cost',         label: 'Landed Cost (₹)' },
+  { key: 'landed_cost_per_unit',label: 'Per Unit (₹)' },
+];
+
 const fmt  = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 const fmtP = (n) => `${Number(n || 0).toFixed(2)}%`;
 
@@ -81,8 +91,8 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
   const [unit, setUnit]           = useState('');
   const [basePrice, setBasePrice] = useState('');
   const [charges, setCharges]     = useState(() => initCharges('po_third_party'));
-  const [submitting, setSubmitting] = useState(false);
-  const [submitMsg, setSubmitMsg]   = useState('');
+  const [submitting, setSubmitting]   = useState(false);
+  const [submitMsg, setSubmitMsg]     = useState('');
   const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
@@ -91,7 +101,6 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
     }).catch(() => {});
   }, [period]);
 
-  // When docType changes, reset op type to first available
   const handleDocType = useCallback((dt) => {
     setDocType(dt);
     const firstOp = OP_TYPES[dt][0].id;
@@ -109,17 +118,19 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
   }, []);
 
   // Live calculation
-  const baseCostNum = parseFloat(basePrice || 0) * parseFloat(qty || 0);
-  const companyTotal = CHARGE_HEADS.reduce((s, h) => {
+  const baseCostNum   = parseFloat(basePrice || 0) * parseFloat(qty || 0);
+  const companyTotal  = CHARGE_HEADS.reduce((s, h) => {
     const c = charges[h.key];
     if (c?.applicable && c?.who_bears === 'company') s += parseFloat(c.amount || 0);
     return s;
   }, 0);
-  const allChargesTotal = CHARGE_HEADS.reduce((s, h) => s + parseFloat(charges[h.key]?.amount || 0), 0);
-  const landedCost      = baseCostNum + companyTotal;
-  const qtyNum          = parseFloat(qty || 0);
-  const landedPerUnit   = qtyNum > 0 ? landedCost / qtyNum : 0;
-  const overheadPct     = baseCostNum > 0 ? (companyTotal / baseCostNum * 100) : 0;
+  const landedCost    = baseCostNum + companyTotal;
+  const qtyNum        = parseFloat(qty || 0);
+  const landedPerUnit = qtyNum > 0 ? landedCost / qtyNum : 0;
+  const overheadPct   = baseCostNum > 0 ? (companyTotal / baseCostNum * 100) : 0;
+
+  const totalLanded = sheets.reduce((s, sh) => s + (sh.landed_cost || 0), 0);
+  const canSave     = !submitting && refNumber && skuName && qty && basePrice;
 
   const handleSubmit = async () => {
     if (!refNumber || !skuName || !qty || !basePrice) { setSubmitError('Fill all required fields.'); return; }
@@ -140,7 +151,6 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
       if (!res.ok) throw new Error(data.detail || 'Failed');
       setSubmitMsg(data.message);
       setSheets(prev => [data.sheet, ...prev]);
-      // Reset
       setRefNumber(''); setSkuName(''); setSkuCode(''); setQty(''); setUnit(''); setBasePrice('');
       setCharges(initCharges(opType));
     } catch (err) {
@@ -149,29 +159,6 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
       setSubmitting(false);
     }
   };
-
-  const tabStyle = (id) => ({
-    padding: '8px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
-    border: 'none', background: 'transparent', cursor: 'pointer',
-    color: tab === id ? 'var(--brand)' : 'var(--text3)',
-    borderBottom: tab === id ? '2px solid var(--brand)' : '2px solid transparent',
-    transition: 'all .15s',
-  });
-
-  const opBtnStyle = (id) => ({
-    padding: '10px 14px', borderRadius: 8, border: `2px solid ${opType === id ? 'var(--brand)' : 'var(--border)'}`,
-    background: opType === id ? 'var(--g2)' : 'transparent', color: opType === id ? '#fff' : 'var(--text2)',
-    cursor: 'pointer', fontSize: 12, fontWeight: opType === id ? 700 : 500, transition: '.15s', textAlign: 'left',
-  });
-
-  const totalLanded = sheets.reduce((s, sh) => s + (sh.landed_cost || 0), 0);
-
-  const EXPORT_COLS = [
-    { key: 'sheet_id', label: 'Sheet ID' }, { key: 'ref_type', label: 'Type' },
-    { key: 'ref_number', label: 'Ref#' }, { key: 'date', label: 'Date' },
-    { key: 'operation_label', label: 'Operation' }, { key: 'landed_cost', label: 'Landed Cost (₹)' },
-    { key: 'landed_cost_per_unit', label: 'Per Unit (₹)' },
-  ];
 
   return (
     <div className="view">
@@ -208,8 +195,10 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
-        {['Sheets', 'New Sheet'].map(t => <button key={t} style={tabStyle(t)} onClick={() => setTab(t)}>{t}</button>)}
+      <div className="lc-tabs">
+        {['Sheets', 'New Sheet'].map(t => (
+          <button key={t} className={`lc-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+        ))}
       </div>
 
       {/* ── Sheets list ───────────────────────────────────────────────────── */}
@@ -229,39 +218,34 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
                   <tr onClick={() => setSelected(selected?.sheet_id === s.sheet_id ? null : s)}
                     style={{ cursor: 'pointer', background: selected?.sheet_id === s.sheet_id ? 'var(--s2)' : 'transparent' }}>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)' }}>{s.sheet_id}</td>
-                    <td>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                        background: s.ref_type === 'PO' ? '#eff6ff' : '#f0fdf4',
-                        color: s.ref_type === 'PO' ? '#1d4ed8' : '#15803d' }}>
-                        {s.ref_type}
-                      </span>
-                    </td>
+                    <td><span className={`lc-badge lc-badge-${s.ref_type === 'PO' ? 'po' : 'so'}`}>{s.ref_type}</span></td>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{s.ref_number}</td>
                     <td style={{ fontSize: 12, color: 'var(--text3)' }}>{s.date}</td>
                     <td style={{ fontWeight: 600, fontSize: 12 }}>{s.product?.sku_name}</td>
                     <td style={{ fontSize: 12 }}>{s.product?.qty} {s.product?.unit}</td>
                     <td style={{ fontSize: 11, color: 'var(--text3)', maxWidth: 160 }}>{s.operation_label}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{fmt(s.product?.base_total || s.base_cost)}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{fmt(s.product?.base_total ?? s.base_cost)}</td>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--amber)' }}>{fmt(s.total_charges)}</td>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 800, color: 'var(--brand)' }}>{fmt(s.landed_cost)}</td>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700 }}>{fmt(s.landed_cost_per_unit)}</td>
-                    <td style={{ fontSize: 12, color: s.margin_impact_pct > 10 ? 'var(--r2)' : 'var(--g2)', fontWeight: 700 }}>{fmtP(s.margin_impact_pct)}</td>
+                    <td className={s.margin_impact_pct > 10 ? 'lc-overhead-hi' : 'lc-overhead-ok'} style={{ fontSize: 12 }}>{fmtP(s.margin_impact_pct)}</td>
                     <td style={{ color: 'var(--brand)', fontSize: 11 }}>{selected?.sheet_id === s.sheet_id ? '▲' : '▼'}</td>
                   </tr>
                   {selected?.sheet_id === s.sheet_id && s.charges && (
                     <tr>
                       <td colSpan={13} style={{ padding: 0 }}>
-                        <div style={{ background: 'var(--s2)', padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Charge Breakdown</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                        <div className="lc-expand-panel">
+                          <div className="lc-expand-hd">Charge Breakdown</div>
+                          <div className="lc-charge-grid">
                             {CHARGE_HEADS.map(h => {
                               const c = s.charges?.[h.key];
                               if (!c?.applicable || !c?.amount) return null;
+                              const isCo = c.who_bears === 'company';
                               return (
-                                <div key={h.key} style={{ background: 'var(--surface)', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>
-                                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{h.label}</div>
-                                  <div style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 14 }}>{fmt(c.amount)}</div>
-                                  <div style={{ fontSize: 10, color: WHO_LABELS[c.who_bears] === 'Company Bears' ? 'var(--brand)' : 'var(--text3)', marginTop: 3 }}>
+                                <div key={h.key} className="lc-charge-item">
+                                  <div className="lc-charge-lbl">{h.label}</div>
+                                  <div className="lc-charge-val">{fmt(c.amount)}</div>
+                                  <div className={`lc-charge-who${isCo ? ' lc-charge-who-co' : ''}`}>
                                     {WHO_LABELS[c.who_bears] || c.who_bears}
                                   </div>
                                 </div>
@@ -269,7 +253,7 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
                             })}
                           </div>
                           {onGoChat && (
-                            <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+                            <div className="lc-expand-cta">
                               <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
                                 onClick={() => onGoChat(`Analyse landing cost sheet ${s.sheet_id} for product "${s.product?.sku_name}" (${s.operation_label}): base cost ₹${(s.product?.base_total || 0).toLocaleString('en-IN')}, total charges ₹${(s.total_charges || 0).toLocaleString('en-IN')}, landed cost ₹${(s.landed_cost || 0).toLocaleString('en-IN')}, overhead ${fmtP(s.margin_impact_pct)}. What are actionable ways to reduce the landed cost for this operation type?`)}>
                                 ✨ Ask AI — Reduce These Costs
@@ -296,18 +280,15 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
 
       {/* ── New Sheet ─────────────────────────────────────────────────────── */}
       {tab === 'New Sheet' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
+        <div className="lc-ns-grid">
           {/* Form */}
           <div>
             {/* Document type */}
             <div className="card" style={{ padding: 20, marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Document Type</div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div className="lc-ns-doc-row">
                 {['PO', 'SO'].map(dt => (
-                  <button key={dt} onClick={() => handleDocType(dt)}
-                    style={{ flex: 1, padding: '12px', borderRadius: 8, border: `2px solid ${docType === dt ? 'var(--brand)' : 'var(--border)'}`,
-                      background: docType === dt ? 'var(--brand)' : 'transparent', color: docType === dt ? '#fff' : 'var(--text2)',
-                      fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: '.15s' }}>
+                  <button key={dt} className={`lc-ns-doc-btn${docType === dt ? ' active' : ''}`} onClick={() => handleDocType(dt)}>
                     {dt === 'PO' ? '📦 Purchase Order' : '🚚 Sales Order'}
                   </button>
                 ))}
@@ -317,9 +298,9 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
             {/* Operation type */}
             <div className="card" style={{ padding: 20, marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Operation Type</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="lc-op-grid">
                 {OP_TYPES[docType].map(op => (
-                  <button key={op.id} onClick={() => handleOpType(op.id)} style={opBtnStyle(op.id)}>
+                  <button key={op.id} className={`lc-op-btn${opType === op.id ? ' active' : ''}`} onClick={() => handleOpType(op.id)}>
                     <div style={{ fontWeight: 700, marginBottom: 2 }}>{op.label}</div>
                     <div style={{ fontSize: 11, opacity: .8 }}>{op.desc}</div>
                   </button>
@@ -330,38 +311,33 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
             {/* Product + reference */}
             <div className="card" style={{ padding: 20, marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Product & Reference</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="lc-prod-grid">
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>{docType} Reference # *</label>
-                  <input value={refNumber} onChange={e => setRefNumber(e.target.value)} placeholder={docType === 'PO' ? 'PO-7750' : 'SO-2026-0145'}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>SKU Code</label>
-                  <input value={skuCode} onChange={e => setSkuCode(e.target.value)} placeholder="e.g. EBCO-SCH-35"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Product Name *</label>
-                  <input value={skuName} onChange={e => setSkuName(e.target.value)} placeholder="e.g. Ebco Soft-Close Hinge 35mm Pk-10"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+                  <label className="lc-label">{docType} Reference # *</label>
+                  <input className="lc-input" value={refNumber} onChange={e => setRefNumber(e.target.value)}
+                    placeholder={docType === 'PO' ? 'PO-7750' : 'SO-2026-0145'} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Quantity *</label>
-                  <input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="500" min="1"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+                  <label className="lc-label">SKU Code</label>
+                  <input className="lc-input" value={skuCode} onChange={e => setSkuCode(e.target.value)} placeholder="e.g. EBCO-SCH-35" />
+                </div>
+                <div className="lc-prod-full">
+                  <label className="lc-label">Product Name *</label>
+                  <input className="lc-input" value={skuName} onChange={e => setSkuName(e.target.value)}
+                    placeholder="e.g. Ebco Soft-Close Hinge 35mm Pk-10" />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Unit</label>
-                  <input value={unit} onChange={e => setUnit(e.target.value)} placeholder="packs / pcs / kg"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+                  <label className="lc-label">Quantity *</label>
+                  <input className="lc-input" type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="500" min="1" />
                 </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>
-                    Base Price per Unit ({docType === 'PO' ? 'Buy Price' : 'Sell Price'}) *
-                  </label>
-                  <input type="number" value={basePrice} onChange={e => setBasePrice(e.target.value)} placeholder="380.00" min="0.01" step="0.01"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+                <div>
+                  <label className="lc-label">Unit</label>
+                  <input className="lc-input" value={unit} onChange={e => setUnit(e.target.value)} placeholder="packs / pcs / kg" />
+                </div>
+                <div className="lc-prod-full">
+                  <label className="lc-label">Base Price per Unit ({docType === 'PO' ? 'Buy Price' : 'Sell Price'}) *</label>
+                  <input className="lc-input" type="number" value={basePrice} onChange={e => setBasePrice(e.target.value)}
+                    placeholder="380.00" min="0.01" step="0.01" />
                 </div>
               </div>
             </div>
@@ -375,109 +351,105 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
               </div>
               {CHARGE_HEADS.map(h => {
                 const c = charges[h.key] || {};
+                const rowClass = `lc-comp-row${c.applicable ? (c.who_bears === 'company' ? ' on-co' : ' on') : ' off'}`;
                 return (
-                  <div key={h.key} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 200px 180px', gap: 10, alignItems: 'center',
-                    marginBottom: 10, opacity: c.applicable ? 1 : 0.5, padding: '10px 12px',
-                    background: c.applicable && c.who_bears === 'company' ? 'var(--s2)' : 'transparent',
-                    borderRadius: 8, border: `1px solid ${c.applicable ? 'var(--border)' : 'transparent'}` }}>
-                    <input type="checkbox" checked={c.applicable || false} onChange={e => updateCharge(h.key, 'applicable', e.target.checked)}
+                  <div key={h.key} className={rowClass}>
+                    <input type="checkbox" checked={c.applicable || false}
+                      onChange={e => updateCharge(h.key, 'applicable', e.target.checked)}
                       style={{ width: 16, height: 16, cursor: 'pointer' }} />
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{h.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{h.description}</div>
+                      <div className="lc-comp-name">{h.label}</div>
+                      <div className="lc-comp-desc">{h.description}</div>
                     </div>
-                    <select value={c.who_bears || 'company'} onChange={e => updateCharge(h.key, 'who_bears', e.target.value)}
-                      disabled={!c.applicable}
-                      style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, background: 'var(--surface)', color: 'var(--text1)' }}>
+                    <select className="lc-who-select" value={c.who_bears || 'company'}
+                      onChange={e => updateCharge(h.key, 'who_bears', e.target.value)}
+                      disabled={!c.applicable}>
                       {Object.entries(WHO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
-                    <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 13, pointerEvents: 'none' }}>₹</span>
-                      <input type="number" value={c.amount} onChange={e => updateCharge(h.key, 'amount', e.target.value)}
-                        disabled={!c.applicable} placeholder="0" min="0" step="0.01"
-                        style={{ width: '100%', padding: '7px 10px 7px 24px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+                    <div className="lc-amount-wrap">
+                      <span className="lc-amount-sym">₹</span>
+                      <input className="lc-amount-input" type="number" value={c.amount}
+                        onChange={e => updateCharge(h.key, 'amount', e.target.value)}
+                        disabled={!c.applicable} placeholder="0" min="0" step="0.01" />
                     </div>
                   </div>
                 );
               })}
 
-              {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, margin: '12px 0' }}>✓ {submitMsg}</div>}
-              {submitError && <div style={{ color: 'var(--r2)', fontSize: 13, background: '#fef2f2', padding: '10px 14px', borderRadius: 8, margin: '12px 0' }}>✗ {submitError}</div>}
+              {submitMsg   && <div className="lc-msg-ok">✓ {submitMsg}</div>}
+              {submitError && <div className="lc-msg-err">✗ {submitError}</div>}
 
-              <button onClick={handleSubmit} disabled={submitting || !refNumber || !skuName || !qty || !basePrice}
-                style={{ width: '100%', marginTop: 16, padding: '11px', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  background: (!refNumber || !skuName || !qty || !basePrice || submitting) ? 'var(--s4)' : 'var(--brand)',
-                  color: (!refNumber || !skuName || !qty || !basePrice || submitting) ? 'var(--text3)' : '#fff', transition: '.15s' }}>
+              <button onClick={handleSubmit} disabled={!canSave}
+                className={`lc-save-btn${canSave ? ' ready' : ' disabled'}`}>
                 {submitting ? 'Saving…' : 'Save Landing Cost Sheet'}
               </button>
             </div>
           </div>
 
           {/* Live calculation panel */}
-          <div style={{ position: 'sticky', top: 80 }}>
+          <div className="lc-ns-sticky">
             <div className="card" style={{ padding: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Live Calculation</div>
               {baseCostNum > 0 ? (
                 <>
                   <div style={{ marginBottom: 14 }}>
-                    {[
-                      { label: 'Base Cost', value: fmt(baseCostNum), highlight: false },
-                      { label: 'Company-Borne Charges', value: fmt(companyTotal), highlight: true, color: 'var(--amber)' },
-                      { label: 'Overhead %', value: fmtP(overheadPct), highlight: false, color: overheadPct > 10 ? 'var(--r2)' : 'var(--g2)' },
-                    ].map(row => (
-                      <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                        <span style={{ color: 'var(--text3)' }}>{row.label}</span>
-                        <span style={{ fontFamily: 'var(--mono)', fontWeight: row.highlight ? 700 : 500, color: row.color || 'inherit' }}>{row.value}</span>
-                      </div>
-                    ))}
-                    <div style={{ borderTop: '2px solid var(--border)', marginTop: 10, paddingTop: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, marginBottom: 8 }}>
-                        <span>Total Landed Cost</span>
-                        <span style={{ color: 'var(--brand)', fontFamily: 'var(--mono)' }}>{fmt(landedCost)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text2)', fontWeight: 700 }}>
-                        <span>Per Unit</span>
-                        <span style={{ fontFamily: 'var(--mono)' }}>{fmt(landedPerUnit)}/{unit || 'unit'}</span>
-                      </div>
+                    <div className="lc-calc-row">
+                      <span className="lc-calc-lbl">Base Cost</span>
+                      <span style={{ fontFamily: 'var(--mono)' }}>{fmt(baseCostNum)}</span>
+                    </div>
+                    <div className="lc-calc-row">
+                      <span className="lc-calc-lbl">Company-Borne Charges</span>
+                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--amber)' }}>{fmt(companyTotal)}</span>
+                    </div>
+                    <div className="lc-calc-row">
+                      <span className="lc-calc-lbl">Overhead %</span>
+                      <span className={overheadPct > 10 ? 'lc-overhead-hi' : 'lc-overhead-ok'}>{fmtP(overheadPct)}</span>
+                    </div>
+                    <div className="lc-calc-sep" />
+                    <div className="lc-calc-total">
+                      <span>Total Landed Cost</span>
+                      <span className="lc-calc-total-val">{fmt(landedCost)}</span>
+                    </div>
+                    <div className="lc-calc-unit">
+                      <span>Per Unit</span>
+                      <span className="lc-calc-unit-val">{fmt(landedPerUnit)}/{unit || 'unit'}</span>
                     </div>
                   </div>
 
-                  {/* Individual charge breakdown */}
-                  <div style={{ background: 'var(--s2)', borderRadius: 8, padding: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.5px' }}>Charge Breakdown</div>
+                  <div className="lc-calc-breakdown">
+                    <div className="lc-calc-bk-hd">Charge Breakdown</div>
                     {CHARGE_HEADS.map(h => {
                       const c = charges[h.key];
                       const amt = parseFloat(c?.amount || 0);
                       if (!c?.applicable || amt <= 0) return null;
                       const isCo = c.who_bears === 'company';
                       return (
-                        <div key={h.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                          <span style={{ color: 'var(--text3)', fontSize: 11 }}>{h.label}</span>
-                          <span style={{ fontFamily: 'var(--mono)', fontWeight: isCo ? 700 : 400, color: isCo ? 'var(--brand)' : 'var(--text3)' }}>{fmt(amt)}</span>
+                        <div key={h.key} className="lc-calc-bk-row">
+                          <span className="lc-calc-bk-lbl">{h.label}</span>
+                          <span className={isCo ? 'lc-calc-bk-val-co' : 'lc-calc-bk-val-other'}>{fmt(amt)}</span>
                         </div>
                       );
                     })}
                   </div>
                 </>
               ) : (
-                <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 20 }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🧮</div>
-                  <div style={{ fontSize: 12 }}>Enter product details to see live landed cost calculation</div>
+                <div className="lc-empty">
+                  <div className="lc-empty-icon">🧮</div>
+                  <div className="lc-empty-txt">Enter product details to see live landed cost calculation</div>
                 </div>
               )}
             </div>
 
-            {/* Operation type summary */}
+            {/* Operation type charge defaults */}
             <div className="card" style={{ padding: 20, marginTop: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Charge Defaults</div>
+              <div className="lc-defaults-hd">Charge Defaults</div>
               {CHARGE_HEADS.map(h => {
                 const c = charges[h.key];
+                const isCo = c?.who_bears === 'company';
                 return (
-                  <div key={h.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6, opacity: c?.applicable ? 1 : 0.4 }}>
-                    <span style={{ color: 'var(--text3)' }}>{h.label}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
-                      background: c?.who_bears === 'company' ? 'var(--g2)' : 'var(--s3)',
-                      color: c?.who_bears === 'company' ? '#fff' : 'var(--text3)' }}>
+                  <div key={h.key} className="lc-defaults-row" style={{ opacity: c?.applicable ? 1 : 0.4 }}>
+                    <span className="lc-defaults-lbl">{h.label}</span>
+                    <span className={`lc-who-badge${isCo ? ' lc-who-badge-co' : ' lc-who-badge-other'}`}>
                       {WHO_LABELS[c?.who_bears] || '—'}
                     </span>
                   </div>
@@ -485,6 +457,15 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
               })}
             </div>
           </div>
+        </div>
+      )}
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginTop: 20 }} onClick={() => onGoChat(
+          'Analyse my landing cost data — which operation types and suppliers carry the highest overhead percentage? ' +
+          'What practical steps can I take to reduce freight, insurance, and handling charges per unit?'
+        )}>
+          <span>✨</span>
+          <span>Ask AI: Landing cost optimisation — identify highest overhead routes and cost-reduction opportunities</span>
         </div>
       )}
     </div>

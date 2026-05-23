@@ -63,11 +63,19 @@ const MOCK_TRANSIT = [
   { damage_id: 'TD-2026-0019', so_number: 'SO-2026-0129', customer_name: 'Sharma Constructions', damage_date: '2026-05-06', sku_name: 'Jaquar Lyric Basin Mixer Chrome', dispatched_qty: 6, damaged_qty: 1, uom: 'pcs', damage_type: 'Vehicle Accident', damage_description: 'Minor road accident — 1 unit shattered', carrier_name: 'Own Vehicle (Bolero DL-7C)', sell_price: 4850, buy_price: 3200, damage_sell_value: 4850, damage_cost_value: 3200, insurance_claimable: true, insurance_claim_id: 'INS-2026-0041', so_adjustment_type: 'Re-dispatch Replacement', so_adjustment_note: 'Replacement delivered next day', credit_note_id: null, customer_notified: true, replacement_status: 'Delivered', status: 'RESOLVED', accounting: { entries: [{ dr: 'Transit Loss A/c', cr: 'Inventory A/c (Stock)', amount: 3200, narration: '1 pc @ ₹3,200 cost — vehicle accident' }, { dr: 'Insurance Claim Receivable A/c', cr: 'Transit Loss A/c', amount: 3200, narration: 'Transit insurance claim' }] } },
 ];
 
-const GRN_DAMAGE_TYPES     = ['Physical Damage','Moisture / Water Damage','Manufacturing Defect','Short Supply / Missing Units','Packaging Damage','Handling Error'];
-const TRANSIT_DAMAGE_TYPES = ['Vehicle Accident','Improper Packaging','Overloading / Pressure Damage','Theft / Pilferage','Weather Exposure','Rough Handling by Carrier'];
-const SO_ADJ_TYPES         = ['Reduce Invoice Qty','Raise Credit Note','Re-dispatch Replacement','Cancel SO Line'];
+const GRN_DAMAGE_TYPES        = ['Physical Damage','Moisture / Water Damage','Manufacturing Defect','Short Supply / Missing Units','Packaging Damage','Handling Error'];
+const TRANSIT_DAMAGE_TYPES    = ['Vehicle Accident','Improper Packaging','Overloading / Pressure Damage','Theft / Pilferage','Weather Exposure','Rough Handling by Carrier'];
+const SR_DAMAGE_TYPES         = ['Partial Damage on Return','Fully Damaged on Return','Customer Misuse / Breakage','Packaging Damage in Return Transit','Wrong Product Returned','Missing Parts on Return'];
+const SO_ADJ_TYPES            = ['Reduce Invoice Qty','Raise Credit Note','Re-dispatch Replacement','Cancel SO Line'];
+const UOM_OPTIONS             = ['Pcs', 'Boxes', 'Sets', 'Sheets', 'Rolls', 'Kg', 'Packs', 'Bags', 'Units'];
+const RETURN_CONDITIONS       = ['GOOD', 'PARTIALLY_DAMAGED', 'FULLY_DAMAGED'];
 
-const TABS = ['GRN Damage', 'Transit Damage', 'Record Damage'];
+const MOCK_SR_DAMAGE = [
+  { damage_id: 'SR-2026-0004', so_number: 'SO-2026-0142', invoice_number: 'INV-20260510-001', dc_number: 'DC-20260510-001', customer_name: 'Prestige Developers', damage_date: '2026-05-20', sku_name: 'Hafele Zinc D-Handle 128mm', return_qty: 10, damaged_qty: 6, uom: 'Pcs', return_condition: 'PARTIALLY_DAMAGED', damage_type: 'Partial Damage on Return', damage_description: '6 handles scratched/bent — 4 in good condition, restocked', buy_price: 240, sell_price: 320, damage_value: 1440, good_value: 960, credit_note_id: 'CN-2026-0018', status: 'CLAIM_RAISED', accounting: { entries: [{ dr: 'Inventory A/c', cr: 'COGS A/c', amount: 960, narration: '4 pcs @ ₹240 cost — returned good, restocked' }, { dr: 'Damage Loss A/c', cr: 'COGS A/c', amount: 1440, narration: '6 pcs @ ₹240 cost — returned damaged, written off' }, { dr: 'Customer A/c (Prestige Developers)', cr: 'Sales Return A/c', amount: 3200, narration: 'Sales return credit CN-2026-0018 (10 pcs @ ₹320)' }] } },
+  { damage_id: 'SR-2026-0003', so_number: 'SO-2026-0131', invoice_number: 'INV-20260503-002', dc_number: null, customer_name: 'Sharma Constructions', damage_date: '2026-05-15', sku_name: 'Jaquar Lyric Basin Mixer Chrome', return_qty: 1, damaged_qty: 1, uom: 'Pcs', return_condition: 'FULLY_DAMAGED', damage_type: 'Customer Misuse / Breakage', damage_description: 'Mixer completely shattered — customer negligence, no insurance claim', buy_price: 3200, sell_price: 4850, damage_value: 3200, good_value: 0, credit_note_id: null, status: 'RESOLVED', accounting: { entries: [{ dr: 'Damage Loss A/c', cr: 'COGS A/c', amount: 3200, narration: '1 pc @ ₹3,200 cost — fully damaged, written off' }] } },
+];
+
+const TABS = ['GRN Damage', 'Transit Damage', 'Sales Return Damage', 'Record Damage'];
 
 export default function DamageRecording({ dbStatus, period, onGoChat }) {
   // ── ALL hooks declared unconditionally first ─────────────────────────────
@@ -92,7 +100,8 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
   const [grnSkuName, setGrnSkuName] = useState('');
   const [receivedQty, setReceivedQty] = useState('');
   const [damagedQtyG, setDamagedQtyG] = useState('');
-  const [uomG, setUomG]             = useState('pcs');
+  const [uomG, setUomG]             = useState('Pcs');
+  const [pcsPerBoxG, setPcsPerBoxG] = useState('');
   const [dmgTypeG, setDmgTypeG]     = useState(GRN_DAMAGE_TYPES[0]);
   const [dmgDescG, setDmgDescG]     = useState('');
   const [locationG, setLocationG]   = useState('');
@@ -107,7 +116,8 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
   const [transSkuName, setTransSkuName] = useState('');
   const [dispatchedQty, setDispatchedQty] = useState('');
   const [damagedQtyT, setDamagedQtyT] = useState('');
-  const [uomT, setUomT]             = useState('pcs');
+  const [uomT, setUomT]             = useState('Pcs');
+  const [pcsPerBoxT, setPcsPerBoxT] = useState('');
   const [dmgTypeT, setDmgTypeT]     = useState(TRANSIT_DAMAGE_TYPES[0]);
   const [dmgDescT, setDmgDescT]     = useState('');
   const [carrier, setCarrier]       = useState('');
@@ -118,6 +128,25 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
   const [adjNote, setAdjNote]       = useState('');
   const [custNotified, setCustNotified] = useState(false);
 
+  // Sales Return Damage state
+  const [srDamages, setSrDamages]           = useState(MOCK_SR_DAMAGE);
+  const [selectedSr, setSelectedSr]         = useState(null);
+  const [srSoNo, setSrSoNo]                 = useState('');
+  const [srInvNo, setSrInvNo]               = useState('');
+  const [srDcNo, setSrDcNo]                 = useState('');
+  const [srCustName, setSrCustName]         = useState('');
+  const [srSku, setSrSku]                   = useState('');
+  const [srSkuName, setSrSkuName]           = useState('');
+  const [srReturnQty, setSrReturnQty]       = useState('');
+  const [srDamagedQty, setSrDamagedQty]     = useState('');
+  const [srUom, setSrUom]                   = useState('Pcs');
+  const [srPcsPerBox, setSrPcsPerBox]       = useState('');
+  const [srCondition, setSrCondition]       = useState('PARTIALLY_DAMAGED');
+  const [srDmgType, setSrDmgType]           = useState(SR_DAMAGE_TYPES[0]);
+  const [srDmgDesc, setSrDmgDesc]           = useState('');
+  const [srBuyPrice, setSrBuyPrice]         = useState('');
+  const [srSellPrice, setSrSellPrice]       = useState('');
+
   // ── Data fetch ────────────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/damage/grn-damages').then(r => r.json()).then(d => {
@@ -126,6 +155,9 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
     fetch('/api/damage/transit-damages').then(r => r.json()).then(d => {
       if (d?.damages?.length) setTransitDmgs(d.damages);
     }).catch(() => {});
+    fetch('/api/damage/sr-damages').then(r => r.json()).then(d => {
+      if (d?.damages?.length) setSrDamages(d.damages);
+    }).catch(() => {});
   }, [period]);
 
   // ── Submit handlers ───────────────────────────────────────────────────────
@@ -133,15 +165,23 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
     if (!grnId || !supplier || !grnSkuName || !receivedQty || !damagedQtyG || !buyPriceG) {
       setSubmitErr('Fill all required fields.'); return;
     }
+    if (uomG === 'Boxes' && (!pcsPerBoxG || Number(pcsPerBoxG) <= 0)) {
+      setSubmitErr('Pcs per Box is required when UOM is Boxes.'); return;
+    }
+    const damagedBoxes = uomG === 'Boxes' ? parseFloat(damagedQtyG) : null;
+    const damagedPcs   = uomG === 'Boxes' ? parseFloat(damagedQtyG) * parseFloat(pcsPerBoxG) : parseFloat(damagedQtyG);
+    const pricePerPcs  = uomG === 'Boxes' ? parseFloat(buyPriceG) / parseFloat(pcsPerBoxG) : parseFloat(buyPriceG);
     setSubmitting(true); setSubmitMsg(''); setSubmitErr('');
     try {
       const body = {
         grn_id: grnId, po_number: poNo, supplier_name: supplier,
         sku_code: grnSku, sku_name: grnSkuName,
-        received_qty: parseFloat(receivedQty), damaged_qty: parseFloat(damagedQtyG),
-        uom: uomG, damage_type: dmgTypeG, damage_description: dmgDescG,
+        received_qty: parseFloat(receivedQty), damaged_qty: damagedPcs,
+        uom: uomG === 'Boxes' ? 'Pcs' : uomG,
+        damage_type: dmgTypeG, damage_description: dmgDescG,
         location: locationG, reported_by: reportedBy,
-        buy_price: parseFloat(buyPriceG), insurance_claimable: insuredG, photos_pending: true,
+        buy_price: pricePerPcs, insurance_claimable: insuredG, photos_pending: true,
+        ...(damagedBoxes !== null && { damaged_boxes: damagedBoxes, pcs_per_box: parseFloat(pcsPerBoxG) }),
       };
       const res  = await fetch('/api/damage/grn-damages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
@@ -150,26 +190,34 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
       setGrnDamages(prev => [data.damage, ...prev]);
       setGrnId(''); setPoNo(''); setSupplier(''); setGrnSku(''); setGrnSkuName('');
       setReceivedQty(''); setDamagedQtyG(''); setDmgDescG(''); setLocationG('');
-      setReportedBy(''); setBuyPriceG(''); setInsuredG(false);
+      setReportedBy(''); setBuyPriceG(''); setInsuredG(false); setPcsPerBoxG('');
     } catch (e) { setSubmitErr(e.message); }
     finally { setSubmitting(false); }
-  }, [grnId, poNo, supplier, grnSku, grnSkuName, receivedQty, damagedQtyG, uomG, dmgTypeG, dmgDescG, locationG, reportedBy, buyPriceG, insuredG]);
+  }, [grnId, poNo, supplier, grnSku, grnSkuName, receivedQty, damagedQtyG, uomG, pcsPerBoxG, dmgTypeG, dmgDescG, locationG, reportedBy, buyPriceG, insuredG]);
 
   const handleTransitSubmit = useCallback(async () => {
     if (!soNo || !custName || !transSkuName || !dispatchedQty || !damagedQtyT || !sellPrice || !buyPriceT) {
       setSubmitErr('Fill all required fields.'); return;
     }
+    if (uomT === 'Boxes' && (!pcsPerBoxT || Number(pcsPerBoxT) <= 0)) {
+      setSubmitErr('Pcs per Box is required when UOM is Boxes.'); return;
+    }
+    const damagedPcsT  = uomT === 'Boxes' ? parseFloat(damagedQtyT) * parseFloat(pcsPerBoxT) : parseFloat(damagedQtyT);
+    const pricePerPcsT = uomT === 'Boxes' ? parseFloat(buyPriceT) / parseFloat(pcsPerBoxT) : parseFloat(buyPriceT);
+    const sellPerPcsT  = uomT === 'Boxes' ? parseFloat(sellPrice) / parseFloat(pcsPerBoxT) : parseFloat(sellPrice);
     setSubmitting(true); setSubmitMsg(''); setSubmitErr('');
     try {
       const body = {
         so_number: soNo, customer_name: custName,
         sku_code: transSku, sku_name: transSkuName,
-        dispatched_qty: parseFloat(dispatchedQty), damaged_qty: parseFloat(damagedQtyT),
-        uom: uomT, damage_type: dmgTypeT, damage_description: dmgDescT,
+        dispatched_qty: parseFloat(dispatchedQty), damaged_qty: damagedPcsT,
+        uom: uomT === 'Boxes' ? 'Pcs' : uomT,
+        damage_type: dmgTypeT, damage_description: dmgDescT,
         carrier_name: carrier,
-        sell_price: parseFloat(sellPrice), buy_price: parseFloat(buyPriceT),
+        sell_price: sellPerPcsT, buy_price: pricePerPcsT,
         insurance_claimable: insuredT, so_adjustment_type: adjType,
         so_adjustment_note: adjNote, customer_notified: custNotified,
+        ...(uomT === 'Boxes' && { damaged_boxes: parseFloat(damagedQtyT), pcs_per_box: parseFloat(pcsPerBoxT) }),
       };
       const res  = await fetch('/api/damage/transit-damages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
@@ -179,14 +227,67 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
       setSoNo(''); setCustName(''); setTransSku(''); setTransSkuName('');
       setDispatchedQty(''); setDamagedQtyT(''); setDmgDescT(''); setCarrier('');
       setSellPrice(''); setBuyPriceT(''); setInsuredT(false); setAdjNote(''); setCustNotified(false);
+      setPcsPerBoxT('');
     } catch (e) { setSubmitErr(e.message); }
     finally { setSubmitting(false); }
-  }, [soNo, custName, transSku, transSkuName, dispatchedQty, damagedQtyT, uomT, dmgTypeT, dmgDescT, carrier, sellPrice, buyPriceT, insuredT, adjType, adjNote, custNotified]);
+  }, [soNo, custName, transSku, transSkuName, dispatchedQty, damagedQtyT, uomT, pcsPerBoxT, dmgTypeT, dmgDescT, carrier, sellPrice, buyPriceT, insuredT, adjType, adjNote, custNotified]);
+
+  const handleSrSubmit = useCallback(async () => {
+    if (!srSoNo || !srCustName || !srSkuName || !srReturnQty || !srDamagedQty || !srBuyPrice) {
+      setSubmitErr('Fill all required fields (SO#, Customer, Product, Quantities, Buy Price).'); return;
+    }
+    const totalPcs    = srUom === 'Boxes' ? parseFloat(srReturnQty) * parseFloat(srPcsPerBox || 1) : parseFloat(srReturnQty);
+    const damagedPcs  = srUom === 'Boxes' ? parseFloat(srDamagedQty) * parseFloat(srPcsPerBox || 1) : parseFloat(srDamagedQty);
+    const pricePerPcs = srUom === 'Boxes' ? parseFloat(srBuyPrice) / parseFloat(srPcsPerBox || 1) : parseFloat(srBuyPrice);
+    const sellPerPcs  = srSellPrice ? (srUom === 'Boxes' ? parseFloat(srSellPrice) / parseFloat(srPcsPerBox || 1) : parseFloat(srSellPrice)) : 0;
+    const goodPcs     = srCondition === 'FULLY_DAMAGED' ? 0 : Math.max(0, totalPcs - damagedPcs);
+    const damageValue = damagedPcs * pricePerPcs;
+    const goodValue   = goodPcs * pricePerPcs;
+    const newDmgId    = `SR-${new Date().getFullYear()}-${String(srDamages.length + 1).padStart(4,'0')}`;
+
+    const acctEntries = [];
+    if (goodValue > 0) {
+      acctEntries.push({ dr: 'Inventory A/c', cr: 'COGS A/c', amount: goodValue, narration: `${goodPcs} ${srUom === 'Boxes' ? 'pcs' : srUom} @ ${fmt(pricePerPcs)} — returned good, restocked` });
+    }
+    if (damageValue > 0) {
+      acctEntries.push({ dr: 'Damage Loss A/c', cr: 'COGS A/c', amount: damageValue, narration: `${damagedPcs} ${srUom === 'Boxes' ? 'pcs' : srUom} @ ${fmt(pricePerPcs)} — returned damaged, written off` });
+    }
+    if (sellPerPcs > 0) {
+      acctEntries.push({ dr: `Customer A/c (${srCustName})`, cr: 'Sales Return A/c', amount: totalPcs * sellPerPcs, narration: `Sales return credit — ${srSoNo}` });
+    }
+
+    const newRecord = {
+      damage_id: newDmgId, so_number: srSoNo, invoice_number: srInvNo || null,
+      dc_number: srDcNo || null, customer_name: srCustName,
+      damage_date: new Date().toISOString().split('T')[0],
+      sku_name: srSkuName, return_qty: totalPcs, damaged_qty: damagedPcs,
+      uom: srUom === 'Boxes' ? 'Pcs' : srUom,
+      return_condition: srCondition, damage_type: srDmgType,
+      damage_description: srDmgDesc, buy_price: pricePerPcs,
+      damage_value: damageValue, good_value: goodValue, status: 'PENDING',
+      accounting: { entries: acctEntries },
+    };
+
+    setSubmitting(true); setSubmitMsg(''); setSubmitErr('');
+    try {
+      await fetch('/api/damage/sr-damages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newRecord, sku_code: srSku }),
+      });
+    } catch(_e) { /* API may not exist yet — fallback to local state */ }
+    setSrDamages(prev => [newRecord, ...prev]);
+    setSubmitMsg(`Sales Return Damage ${newDmgId} recorded. ${goodPcs > 0 ? `${goodPcs} pcs restocked to inventory.` : ''} ${damagedPcs > 0 ? `${damagedPcs} pcs written off (Damage Loss A/c).` : ''}`);
+    setSrSoNo(''); setSrInvNo(''); setSrDcNo(''); setSrCustName(''); setSrSku(''); setSrSkuName('');
+    setSrReturnQty(''); setSrDamagedQty(''); setSrCondition('PARTIALLY_DAMAGED');
+    setSrDmgDesc(''); setSrBuyPrice(''); setSrSellPrice(''); setSrPcsPerBox('');
+    setSubmitting(false);
+  }, [srSoNo, srInvNo, srDcNo, srCustName, srSku, srSkuName, srReturnQty, srDamagedQty, srUom, srPcsPerBox, srCondition, srDmgType, srDmgDesc, srBuyPrice, srSellPrice, srDamages.length]);
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
   const totalGrnValue     = grnDamages.reduce((s, d) => s + (d.damage_value || 0), 0);
   const totalTransitValue = transitDmgs.reduce((s, d) => s + (d.damage_sell_value || 0), 0);
-  const openClaims        = [...grnDamages, ...transitDmgs].filter(d => d.status === 'CLAIM_RAISED' || d.status === 'PENDING').length;
+  const totalSrValue      = srDamages.reduce((s, d) => s + (d.damage_value || 0), 0);
+  const openClaims        = [...grnDamages, ...transitDmgs, ...srDamages].filter(d => d.status === 'CLAIM_RAISED' || d.status === 'PENDING').length;
   const insuredTotal      = [...grnDamages, ...transitDmgs].filter(d => d.insurance_claimable).reduce((s, d) => s + (d.insurance_amount || 0), 0);
 
   const GRN_EXPORT = [
@@ -249,11 +350,22 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
               Export CSV
             </button>
           )}
+          {tab === 'Sales Return Damage' && (
+            <button className="btn-secondary" onClick={() => exportToCsv(srDamages, [
+              { key: 'damage_id', label: 'Damage ID' }, { key: 'so_number', label: 'SO No' },
+              { key: 'invoice_number', label: 'Invoice' }, { key: 'customer_name', label: 'Customer' },
+              { key: 'damage_date', label: 'Date' }, { key: 'sku_name', label: 'Product' },
+              { key: 'damaged_qty', label: 'Damaged Qty' }, { key: 'return_condition', label: 'Condition' },
+              { key: 'damage_value', label: 'Loss Value (₹)' }, { key: 'status', label: 'Status' },
+            ], 'sales-return-damages')}>
+              Export CSV
+            </button>
+          )}
         </div>
       </div>
 
       {/* KPI strip */}
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: 20 }}>
         <div className="kpi-card sr">
           <div className="kl">GRN Damage Value</div>
           <div className="kv">{fmt(totalGrnValue)}</div>
@@ -263,6 +375,11 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
           <div className="kl">Transit Damage</div>
           <div className="kv">{fmt(totalTransitValue)}</div>
           <div className="ks">{transitDmgs.length} incidents (sell value)</div>
+        </div>
+        <div className="kpi-card sp">
+          <div className="kl">Sales Return Damage</div>
+          <div className="kv">{fmt(totalSrValue)}</div>
+          <div className="ks">{srDamages.length} return incidents</div>
         </div>
         <div className="kpi-card sb">
           <div className="kl">Insurance Recoverable</div>
@@ -531,20 +648,43 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: uomG === 'Boxes' ? 0 : 16 }}>
                   <div>
                     <label style={lbl}>Received Qty *</label>
                     <input style={inp} type="number" min="1" value={receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="100" />
                   </div>
                   <div>
-                    <label style={lbl}>Damaged Qty *</label>
+                    <label style={lbl}>Damaged Qty * ({uomG})</label>
                     <input style={inp} type="number" min="1" value={damagedQtyG} onChange={e => setDamagedQtyG(e.target.value)} placeholder="5" />
                   </div>
                   <div>
                     <label style={lbl}>UOM</label>
-                    <input style={inp} value={uomG} onChange={e => setUomG(e.target.value)} placeholder="pcs / sets" />
+                    <select style={{ ...inp }} value={uomG} onChange={e => { setUomG(e.target.value); setPcsPerBoxG(''); }}>
+                      {UOM_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
                   </div>
                 </div>
+
+                {uomG === 'Boxes' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, marginTop: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px' }}>
+                    <div>
+                      <label style={{ ...lbl, color: '#1d4ed8' }}>Pcs per Box *</label>
+                      <input style={inp} type="number" min="1" value={pcsPerBoxG} onChange={e => setPcsPerBoxG(e.target.value)} placeholder="e.g. 10" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 2 }}>
+                      <div style={{ fontSize: 11, color: '#1e40af', fontFamily: 'var(--mono)', fontWeight: 700 }}>
+                        {damagedQtyG && pcsPerBoxG && Number(pcsPerBoxG) > 0
+                          ? `${damagedQtyG} boxes × ${pcsPerBoxG} pcs = ${Number(damagedQtyG) * Number(pcsPerBoxG)} pcs damaged`
+                          : 'Enter boxes and pcs/box to calculate total pcs'}
+                      </div>
+                      {buyPriceG && pcsPerBoxG && Number(pcsPerBoxG) > 0 && (
+                        <div style={{ fontSize: 11, color: '#1e40af', fontFamily: 'var(--mono)', marginTop: 3 }}>
+                          Price per pcs: ₹{(Number(buyPriceG) / Number(pcsPerBoxG)).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={lbl}>Damage Type *</label>
@@ -646,20 +786,38 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: uomT === 'Boxes' ? 0 : 16 }}>
                   <div>
                     <label style={lbl}>Dispatched Qty *</label>
                     <input style={inp} type="number" min="1" value={dispatchedQty} onChange={e => setDispatchedQty(e.target.value)} placeholder="100" />
                   </div>
                   <div>
-                    <label style={lbl}>Damaged Qty *</label>
+                    <label style={lbl}>Damaged Qty * ({uomT})</label>
                     <input style={inp} type="number" min="1" value={damagedQtyT} onChange={e => setDamagedQtyT(e.target.value)} placeholder="8" />
                   </div>
                   <div>
                     <label style={lbl}>UOM</label>
-                    <input style={inp} value={uomT} onChange={e => setUomT(e.target.value)} placeholder="pcs" />
+                    <select style={{ ...inp }} value={uomT} onChange={e => { setUomT(e.target.value); setPcsPerBoxT(''); }}>
+                      {UOM_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
                   </div>
                 </div>
+
+                {uomT === 'Boxes' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, marginTop: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px' }}>
+                    <div>
+                      <label style={{ ...lbl, color: '#1d4ed8' }}>Pcs per Box *</label>
+                      <input style={inp} type="number" min="1" value={pcsPerBoxT} onChange={e => setPcsPerBoxT(e.target.value)} placeholder="e.g. 10" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 2 }}>
+                      <div style={{ fontSize: 11, color: '#1e40af', fontFamily: 'var(--mono)', fontWeight: 700 }}>
+                        {damagedQtyT && pcsPerBoxT && Number(pcsPerBoxT) > 0
+                          ? `${damagedQtyT} boxes × ${pcsPerBoxT} pcs = ${Number(damagedQtyT) * Number(pcsPerBoxT)} pcs damaged`
+                          : 'Enter boxes and pcs/box to calculate total pcs'}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={lbl}>Transit Damage Type *</label>
@@ -713,12 +871,26 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                 </div>
 
                 {/* Live preview of financial impact */}
-                {damagedQtyT && sellPrice && buyPriceT && parseFloat(damagedQtyT) > 0 && (
+                {damagedQtyT && sellPrice && buyPriceT && parseFloat(damagedQtyT) > 0 && (uomT !== 'Boxes' || (pcsPerBoxT && Number(pcsPerBoxT) > 0)) && (
                   <div style={{ background: '#fef2f2', borderRadius: 8, padding: '12px 16px', marginBottom: 16, border: '1px solid #fecaca' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--r2)', marginBottom: 8, textTransform: 'uppercase' }}>Financial Impact Preview</div>
+                    {uomT === 'Boxes' && (
+                      <div style={{ fontSize: 11, color: '#92400e', marginBottom: 6, fontFamily: 'var(--mono)' }}>
+                        {damagedQtyT} boxes × {pcsPerBoxT} pcs/box = {Number(damagedQtyT) * Number(pcsPerBoxT)} pcs damaged
+                      </div>
+                    )}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
-                      <div>SO impact (sell): <strong style={{ fontFamily: 'var(--mono)', color: 'var(--r2)' }}>{fmt(parseFloat(damagedQtyT) * parseFloat(sellPrice))}</strong></div>
-                      <div>Inventory write-off: <strong style={{ fontFamily: 'var(--mono)', color: 'var(--r2)' }}>{fmt(parseFloat(damagedQtyT) * parseFloat(buyPriceT))}</strong></div>
+                      {uomT === 'Boxes' ? (
+                        <>
+                          <div>SO impact (sell): <strong style={{ fontFamily: 'var(--mono)', color: 'var(--r2)' }}>{fmt((Number(damagedQtyT) * Number(pcsPerBoxT)) * (parseFloat(sellPrice) / Number(pcsPerBoxT)))}</strong></div>
+                          <div>Inventory write-off: <strong style={{ fontFamily: 'var(--mono)', color: 'var(--r2)' }}>{fmt((Number(damagedQtyT) * Number(pcsPerBoxT)) * (parseFloat(buyPriceT) / Number(pcsPerBoxT)))}</strong></div>
+                        </>
+                      ) : (
+                        <>
+                          <div>SO impact (sell): <strong style={{ fontFamily: 'var(--mono)', color: 'var(--r2)' }}>{fmt(parseFloat(damagedQtyT) * parseFloat(sellPrice))}</strong></div>
+                          <div>Inventory write-off: <strong style={{ fontFamily: 'var(--mono)', color: 'var(--r2)' }}>{fmt(parseFloat(damagedQtyT) * parseFloat(buyPriceT))}</strong></div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -761,6 +933,286 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {/* ── Sales Return Damage tab ─────────────────────────────────────────── */}
+      {tab === 'Sales Return Damage' && (
+        <div>
+          {/* SR Damage list */}
+          <div className="card" style={{ padding: 0, marginBottom: 20 }}>
+            <table className="data-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Damage ID</th><th>SO / Invoice</th><th>Customer</th><th>Date</th>
+                  <th>Product</th><th>Return Qty</th><th>Damaged</th>
+                  <th>Condition</th><th>Loss Value</th><th>Status</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {srDamages.map(d => {
+                  const condColor = d.return_condition === 'FULLY_DAMAGED' ? '#dc2626' : d.return_condition === 'PARTIALLY_DAMAGED' ? '#d97706' : '#16a34a';
+                  const condBg    = d.return_condition === 'FULLY_DAMAGED' ? '#fef2f2' : d.return_condition === 'PARTIALLY_DAMAGED' ? '#fffbeb' : '#f0fdf4';
+                  return (
+                    <React.Fragment key={d.damage_id}>
+                      <tr onClick={() => setSelectedSr(selectedSr?.damage_id === d.damage_id ? null : d)}
+                        style={{ cursor: 'pointer', background: selectedSr?.damage_id === d.damage_id ? 'var(--s2)' : 'transparent' }}>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--r2)', fontWeight: 700 }}>{d.damage_id}</td>
+                        <td style={{ fontSize: 11 }}>
+                          <div style={{ fontFamily: 'var(--mono)', color: 'var(--brand)', fontWeight: 700 }}>{d.so_number}</div>
+                          {d.invoice_number && <div style={{ color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{d.invoice_number}</div>}
+                          {d.dc_number && <div style={{ color: 'var(--text3)', fontSize: 10 }}>DC: {d.dc_number}</div>}
+                        </td>
+                        <td style={{ fontSize: 12, fontWeight: 600 }}>{d.customer_name}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text3)' }}>{d.damage_date}</td>
+                        <td style={{ fontSize: 12 }}>{d.sku_name}</td>
+                        <td style={{ fontSize: 12, fontFamily: 'var(--mono)', fontWeight: 700 }}>{d.return_qty} {d.uom}</td>
+                        <td style={{ fontSize: 12 }}>
+                          <span style={{ fontWeight: 700, color: condColor }}>{d.damaged_qty}</span>
+                          <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{d.uom}</span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: condBg, color: condColor, whiteSpace: 'nowrap' }}>
+                            {d.return_condition?.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--r2)' }}>{fmt(d.damage_value)}</td>
+                        <td><StatusBadge status={d.status} /></td>
+                        <td style={{ color: 'var(--brand)', fontSize: 11 }}>{selectedSr?.damage_id === d.damage_id ? '▲' : '▼'}</td>
+                      </tr>
+                      {selectedSr?.damage_id === d.damage_id && (
+                        <tr>
+                          <td colSpan={11} style={{ padding: 0 }}>
+                            <div style={{ background: 'var(--s2)', padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                                <div>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>RETURN DAMAGE DETAILS</div>
+                                  <div style={{ background: 'var(--surface)', borderRadius: 8, padding: 14, border: '1px solid var(--border)' }}>
+                                    <div style={{ marginBottom: 6 }}>
+                                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>Damage Type: </span>
+                                      <span style={{ fontSize: 12, fontWeight: 600 }}>{d.damage_type}</span>
+                                    </div>
+                                    <div style={{ marginBottom: 6 }}>
+                                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>Description: </span>
+                                      <span style={{ fontSize: 12 }}>{d.damage_description}</span>
+                                    </div>
+                                    {d.good_value > 0 && (
+                                      <div style={{ marginBottom: 6 }}>
+                                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>Good Items Value: </span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--g2)' }}>{fmt(d.good_value)} (restocked)</span>
+                                      </div>
+                                    )}
+                                    {d.credit_note_id && (
+                                      <div>
+                                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>Credit Note: </span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand)', fontFamily: 'var(--mono)' }}>{d.credit_note_id}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {onGoChat && (
+                                    <button className="btn-secondary" style={{ width: '100%', marginTop: 10, fontSize: 11 }}
+                                      onClick={() => onGoChat(`Analyse sales return damage ${d.damage_id} for ${d.customer_name}: returned ${d.return_qty} ${d.uom} of ${d.sku_name} — ${d.damaged_qty} ${d.uom} damaged (${d.return_condition?.replace(/_/g,' ')}). Loss value: ${fmt(d.damage_value)}. What are the next steps and how can I prevent this type of return damage?`)}>
+                                      ✨ AI — Analyse this return
+                                    </button>
+                                  )}
+                                </div>
+                                <div>
+                                  <AccountingEntries entries={d.accounting?.entries} />
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Record SR Damage form */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 18, color: 'var(--text1)' }}>Record Sales Return Damage</div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={lbl}>Sales Order No. *</label>
+                  <input style={inp} value={srSoNo} onChange={e => setSrSoNo(e.target.value)} placeholder="SO-2026-0142" />
+                </div>
+                <div>
+                  <label style={lbl}>Invoice No.</label>
+                  <input style={inp} value={srInvNo} onChange={e => setSrInvNo(e.target.value)} placeholder="INV-20260510-001" />
+                </div>
+                <div>
+                  <label style={lbl}>DC / Challan No.</label>
+                  <input style={inp} value={srDcNo} onChange={e => setSrDcNo(e.target.value)} placeholder="DC-20260510-001" />
+                </div>
+                <div>
+                  <label style={lbl}>Customer Name *</label>
+                  <input style={inp} value={srCustName} onChange={e => setSrCustName(e.target.value)} placeholder="Prestige Developers" />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={lbl}>SKU / Product Code</label>
+                  <input style={inp} value={srSku} onChange={e => setSrSku(e.target.value)} placeholder="HAF-DH-128" />
+                </div>
+                <div>
+                  <label style={lbl}>Product Name *</label>
+                  <input style={inp} value={srSkuName} onChange={e => setSrSkuName(e.target.value)} placeholder="Hafele Zinc D-Handle 128mm" />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={lbl}>Total Return Qty *</label>
+                  <input style={inp} type="number" min="0" step="0.01" value={srReturnQty} onChange={e => setSrReturnQty(e.target.value)} placeholder="10" />
+                </div>
+                <div>
+                  <label style={lbl}>Damaged Qty *</label>
+                  <input style={inp} type="number" min="0" step="0.01" value={srDamagedQty} onChange={e => setSrDamagedQty(e.target.value)} placeholder="6" />
+                </div>
+                <div>
+                  <label style={lbl}>UOM</label>
+                  <select style={inp} value={srUom} onChange={e => setSrUom(e.target.value)}>
+                    {UOM_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {srUom === 'Boxes' && (
+                <div style={{ background: '#eff6ff', borderRadius: 8, padding: '10px 14px', marginBottom: 16, border: '1px solid #bfdbfe' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 8 }}>Box → Pcs Conversion</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={lbl}>Pcs per Box *</label>
+                      <input style={inp} type="number" min="1" value={srPcsPerBox} onChange={e => setSrPcsPerBox(e.target.value)} placeholder="10" />
+                    </div>
+                    {srPcsPerBox && srReturnQty && (
+                      <>
+                        <div style={{ fontSize: 12, color: 'var(--text3)', paddingTop: 24 }}>
+                          Return: <strong>{Number(srReturnQty) * Number(srPcsPerBox)} pcs</strong>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--r2)', paddingTop: 24 }}>
+                          Damaged: <strong>{Number(srDamagedQty || 0) * Number(srPcsPerBox)} pcs</strong>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Return Condition */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={lbl}>Return Condition *</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {RETURN_CONDITIONS.map(c => {
+                    const active = srCondition === c;
+                    const col = c === 'GOOD' ? '#16a34a' : c === 'PARTIALLY_DAMAGED' ? '#d97706' : '#dc2626';
+                    return (
+                      <button key={c} onClick={() => setSrCondition(c)}
+                        style={{ flex: 1, padding: '8px 4px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                          border: `2px solid ${active ? col : 'var(--border)'}`,
+                          background: active ? col : 'var(--surface)', color: active ? '#fff' : 'var(--text2)',
+                          cursor: 'pointer', transition: 'all .15s' }}>
+                        {c === 'GOOD' ? '✓ Good' : c === 'PARTIALLY_DAMAGED' ? '⚠ Partial Damage' : '✗ Fully Damaged'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={lbl}>Damage Type *</label>
+                <select style={inp} value={srDmgType} onChange={e => setSrDmgType(e.target.value)}>
+                  {SR_DAMAGE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={lbl}>Damage Description</label>
+                <textarea style={{ ...inp, resize: 'vertical' }} rows={2} value={srDmgDesc} onChange={e => setSrDmgDesc(e.target.value)} placeholder="Describe the damage observed on returned goods…" />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={lbl}>Buy / Cost Price (₹ per {srUom}) *</label>
+                  <input style={inp} type="number" min="0" step="0.01" value={srBuyPrice} onChange={e => setSrBuyPrice(e.target.value)} placeholder="240" />
+                </div>
+                <div>
+                  <label style={lbl}>Sell Price (₹ per {srUom})</label>
+                  <input style={inp} type="number" min="0" step="0.01" value={srSellPrice} onChange={e => setSrSellPrice(e.target.value)} placeholder="320" />
+                </div>
+              </div>
+
+              {/* Live preview */}
+              {srReturnQty && srDamagedQty && srBuyPrice && parseFloat(srReturnQty) > 0 && parseFloat(srBuyPrice) > 0 && (
+                <div style={{ background: '#fef2f2', borderRadius: 8, padding: '12px 16px', marginBottom: 16, border: '1px solid #fecaca' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--r2)', marginBottom: 8, textTransform: 'uppercase' }}>Accounting Preview</div>
+                  {(() => {
+                    const totalPcs   = srUom === 'Boxes' ? parseFloat(srReturnQty) * parseFloat(srPcsPerBox || 1) : parseFloat(srReturnQty);
+                    const dmgPcs     = srCondition === 'FULLY_DAMAGED' ? totalPcs : Math.min(parseFloat(srDamagedQty || 0) * (srUom === 'Boxes' ? parseFloat(srPcsPerBox || 1) : 1), totalPcs);
+                    const goodPcs    = Math.max(0, totalPcs - dmgPcs);
+                    const pricePerPcs = srUom === 'Boxes' ? parseFloat(srBuyPrice) / parseFloat(srPcsPerBox || 1) : parseFloat(srBuyPrice);
+                    return (
+                      <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {goodPcs > 0 && <div style={{ color: 'var(--g2)' }}>Inventory A/c Dr: <strong style={{ fontFamily: 'var(--mono)' }}>{fmt(goodPcs * pricePerPcs)}</strong> ({goodPcs} pcs restocked)</div>}
+                        {dmgPcs > 0 && <div style={{ color: 'var(--r2)' }}>Damage Loss A/c Dr: <strong style={{ fontFamily: 'var(--mono)' }}>{fmt(dmgPcs * pricePerPcs)}</strong> ({dmgPcs} pcs written off)</div>}
+                        {srSellPrice && parseFloat(srSellPrice) > 0 && <div style={{ color: 'var(--text2)' }}>Credit to Customer: <strong style={{ fontFamily: 'var(--mono)' }}>{fmt(totalPcs * (srUom === 'Boxes' ? parseFloat(srSellPrice) / parseFloat(srPcsPerBox || 1) : parseFloat(srSellPrice)))}</strong></div>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {submitMsg && tab === 'Sales Return Damage' && <div style={{ color: 'var(--g2)', fontSize: 13, background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
+              {submitErr && tab === 'Sales Return Damage' && <div style={{ color: 'var(--r2)', fontSize: 13, background: '#fef2f2', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitErr}</div>}
+
+              <button onClick={handleSrSubmit} disabled={submitting}
+                style={{ width: '100%', padding: 11, borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  background: submitting ? 'var(--s4)' : 'var(--r2)', color: '#fff', transition: '.15s' }}>
+                {submitting ? 'Recording…' : '↩ Record Sales Return Damage & Accounting Entries'}
+              </button>
+            </div>
+
+            {/* SR Damage info panel */}
+            <div className="card" style={{ padding: 24, background: 'var(--s2)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: 'var(--text1)' }}>Sales Return Damage Workflow</div>
+              {[
+                { step: '1', title: 'Customer Returns Goods', desc: 'Linked to original SO, DC, and Invoice numbers.' },
+                { step: '2', title: 'Inspect Return', desc: 'Mark condition: Good / Partial Damage / Fully Damaged.' },
+                { step: '3', title: 'Restock Good Items', desc: 'Good condition items go back to inventory — Inventory A/c Dr.' },
+                { step: '4', title: 'Write-off Damaged', desc: 'Damaged items: Damage Loss A/c Dr / COGS A/c Cr.' },
+                { step: '5', title: 'Credit Note', desc: 'Customer A/c Dr / Sales Return A/c Cr — credit note issued.' },
+              ].map(s => (
+                <div key={s.step} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--r2)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{s.step}</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text1)' }}>{s.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+              {onGoChat && (
+                <button className="btn-secondary" style={{ width: '100%', marginTop: 8, fontSize: 12 }}
+                  onClick={() => onGoChat('What is the best process for handling sales return damage? How do I split good vs damaged items in accounting? What documents are required for a credit note?')}>
+                  ✨ Ask AI — Return Damage Process Guide
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginTop: 20 }} onClick={() => onGoChat(
+          'Analyse my damage recording data — what are the top damage sources by value and frequency? ' +
+          'What preventive actions should I take to reduce GRN damage and transit losses in hardware and sanitary fittings?'
+        )}>
+          <span>✨</span>
+          <span>Ask AI: Damage analysis — identify top loss sources and preventive actions to reduce claim values</span>
         </div>
       )}
     </div>

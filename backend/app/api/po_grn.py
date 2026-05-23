@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["PO & GRN"])
 
 try:
+    import aiomysql
     from app.db.connection import get_pool
     from app.db.po_grn_queries import (
         get_po_grn_dashboard,
@@ -27,10 +28,23 @@ try:
         approve_po as _db_approve_po,
         reject_po as _db_reject_po,
         release_po_to_supplier as _db_release_po,
+        get_open_pos_with_freight as _db_get_open_pos_with_freight,
+        get_purchase_returns as _db_get_purchase_returns,
+        create_purchase_return as _db_create_purchase_return,
+        approve_purchase_return as _db_approve_purchase_return,
+        get_purchase_invoices as _db_get_purchase_invoices,
+        approve_purchase_invoice as _db_approve_purchase_invoice,
+        pay_purchase_invoice as _db_pay_purchase_invoice,
+        create_purchase_invoice as _db_create_purchase_invoice,
+        close_po as _db_close_po,
+        cancel_remaining_qty as _db_cancel_remaining_qty,
+        get_po_quantity_summary as _db_get_po_qty_summary,
+        mark_po_complete as _db_mark_po_complete,
     )
     _DB_AVAILABLE = True
 except ImportError:
     _DB_AVAILABLE = False
+    aiomysql = None
 
 _approval_schema_ready = False
 
@@ -77,6 +91,9 @@ class CreatePORequest(BaseModel):
     expected_date: Optional[str] = None
     notes: Optional[str] = None
     operation_type: Optional[str] = "Regular Purchase"
+    freight_type: Optional[str] = "Supplier Own Operated"
+    matching_type: Optional[str] = "3-Way"
+    pr_number: Optional[str] = None
     # Optional fields passed by the scanner — used when auto-creating new product records
     category: Optional[str] = None
     unit: Optional[str] = None
@@ -117,6 +134,9 @@ async def create_po(req: CreatePORequest):
         ).isoformat(),
         "notes":          req.notes or "Created via InvenIQ AI Assistant",
         "operation_type": req.operation_type or "Regular Purchase",
+        "freight_type":   req.freight_type or "Supplier Own Operated",
+        "matching_type":  req.matching_type or "3-Way",
+        "pr_number":      req.pr_number or None,
         "demo_mode":      True,
     }
 
@@ -246,6 +266,169 @@ async def release_po(po_number: str):
         "message":    "PO released to supplier.",
         "demo_mode":  True,
     }
+
+
+# ── POST /api/po/{po_number}/close  ──────────────────────────────────────────
+
+class POCloseRequest(BaseModel):
+    closed_by: str
+    reason: Optional[str] = None
+
+
+@router.post("/po/{po_number}/close")
+async def close_po(po_number: str, req: POCloseRequest):
+    """Manually close a PO. Allowed from: FULLY_RECEIVED, RECEIVED, RETURNED, PARTIAL, COMPLETE, OPEN."""
+    await _maybe_ensure_schema()
+    if not req.closed_by or not req.closed_by.strip():
+        raise HTTPException(status_code=422, detail="closed_by is required")
+
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_close_po(pool, po_number, req.closed_by.strip(), req.reason or "")
+                if not result.get("success"):
+                    raise HTTPException(status_code=400, detail=result.get("error", "Close failed"))
+                return result
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("close_po DB error: %s", exc)
+
+    return {
+        "success":    True, "po_number": po_number,
+        "new_status": "CLOSED", "closed_by": req.closed_by,
+        "message":    f"[DEMO] PO {po_number} closed.", "demo_mode": True,
+    }
+
+
+# ── GET /api/po/{po_number}/qty-summary  ─────────────────────────────────────
+
+@router.get("/po/{po_number}/qty-summary")
+async def get_po_qty_summary(po_number: str):
+    """Return all 7 quantity types for a PO: ordered, received, accepted, rejected, returned, pending, qc_pending."""
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_get_po_qty_summary(pool, po_number)
+                if result.get("success"):
+                    return result
+        except Exception as exc:
+            logger.warning("get_po_qty_summary DB error: %s", exc)
+
+    return {
+        "success": True, "po_number": po_number, "data_source": "demo",
+        "qty_ordered": 100, "qty_received": 60, "accepted_qty": 55, "rejected_qty": 5,
+        "qty_returned": 0, "qc_pending_qty": 60, "pending_qty": 40, "fill_pct": 60.0,
+    }
+
+
+# ── POST /api/po/{po_number}/cancel-remaining  ────────────────────────────────
+
+class CancelRemainingRequest(BaseModel):
+    action: str           # 'CANCEL' | 'DEBIT_NOTE'
+    cancelled_by: str
+    reason: Optional[str] = None
+
+
+@router.post("/po/{po_number}/cancel-remaining")
+async def cancel_remaining(po_number: str, req: CancelRemainingRequest):
+    """Cancel or raise debit note for remaining (pending) quantity on a partial PO."""
+    await _maybe_ensure_schema()
+    if not req.cancelled_by or not req.cancelled_by.strip():
+        raise HTTPException(status_code=422, detail="cancelled_by is required")
+    if req.action.upper() not in ("CANCEL", "DEBIT_NOTE"):
+        raise HTTPException(status_code=422, detail="action must be 'CANCEL' or 'DEBIT_NOTE'")
+
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_cancel_remaining_qty(
+                    pool, po_number, req.action.upper(), req.cancelled_by.strip(), req.reason or ""
+                )
+                if not result.get("success"):
+                    raise HTTPException(status_code=400, detail=result.get("error", "Operation failed"))
+                return result
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("cancel_remaining DB error: %s", exc)
+
+    return {
+        "success": True, "po_number": po_number, "action": req.action.upper(),
+        "message": f"[DEMO] Remaining qty marked as {req.action.upper()}.", "demo_mode": True,
+    }
+
+
+# ── POST /api/po/{po_number}/complete  ───────────────────────────────────────
+
+@router.post("/po/{po_number}/complete")
+async def mark_complete(po_number: str):
+    """Mark a FULLY_RECEIVED PO as COMPLETE after all GRNs have QC completed."""
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_mark_po_complete(pool, po_number)
+                if not result.get("success"):
+                    raise HTTPException(status_code=400, detail=result.get("error", "Cannot mark COMPLETE"))
+                return result
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("mark_complete DB error: %s", exc)
+
+    return {
+        "success": True, "po_number": po_number, "new_status": "COMPLETE",
+        "message": f"[DEMO] PO {po_number} marked COMPLETE.", "demo_mode": True,
+    }
+
+
+@router.get("/po/{po_number}/grns")
+async def get_po_grns(po_number: str):
+    """List all GRNs associated with a purchase order (for multi-GRN invoicing)."""
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor(aiomysql.DictCursor) as cur:
+                        await cur.execute("""
+                            SELECT
+                                g.grn_number,
+                                g.received_date,
+                                COALESCE(g.grn_value, g.invoice_value, 0) AS grn_value,
+                                COALESCE(g.invoice_value, 0)              AS invoice_value,
+                                g.match_status,
+                                COALESCE(g.qc_completed, 0)               AS qc_completed,
+                                COALESCE(SUM(gli.qty_received), 0)        AS qty_received,
+                                COALESCE(
+                                    GROUP_CONCAT(DISTINCT gli.sku_name ORDER BY gli.id SEPARATOR ' / '),
+                                    ''
+                                ) AS sku_names
+                            FROM grn g
+                            JOIN purchase_orders po
+                                ON g.po_id = po.po_id AND po.po_number = %s
+                            LEFT JOIN grn_line_items gli
+                                ON g.grn_number = gli.grn_number
+                            GROUP BY g.grn_number, g.received_date, g.grn_value,
+                                     g.invoice_value, g.match_status, g.qc_completed
+                            ORDER BY g.received_date DESC
+                        """, (po_number,))
+                        rows = await cur.fetchall()
+                        return {
+                            "data_source": "mysql",
+                            "po_number":   po_number,
+                            "grns":        [dict(r) for r in rows],
+                        }
+        except Exception as exc:
+            logger.warning("get_po_grns DB error: %s", exc)
+    return {"data_source": "demo", "po_number": po_number, "grns": []}
 
 
 def _mock_pending_approvals() -> list:
@@ -490,23 +673,26 @@ def _mock_quotations():
 
 @router.get("/po-grn/open-pos")
 async def get_open_pos():
-    """Return list of open/partially-received POs for GRN recording selection."""
+    """Return list of open/partially-received POs for GRN recording selection, including freight_type."""
+    await _maybe_ensure_schema()
     if _DB_AVAILABLE:
         try:
             pool = await get_pool()
             if pool:
-                data = await get_po_grn_dashboard(pool)
-                open_pos = [
-                    po for po in data.get("open_pos", [])
-                    if po.get("fill_pct", 100) < 100 and po.get("status") not in ("RECEIVED",)
-                ]
+                open_pos = await _db_get_open_pos_with_freight(pool)
                 return {"open_pos": open_pos, "data_source": "mysql"}
         except Exception as exc:
             logger.warning("open-pos DB failed: %s", exc)
 
     mock = _mock_po_grn_data()
     open_pos = [
-        po for po in mock["open_pos"]
+        {
+            **po,
+            "freight_type":  "Supplier Own Operated",
+            "matching_type": "3-Way",
+            "qty_pending":   max(0, po.get("qty_ordered", 0) - po.get("qty_received", 0)),
+        }
+        for po in mock["open_pos"]
         if po.get("fill_pct", 100) < 100 and po.get("status") not in ("RECEIVED",)
     ]
     return {"open_pos": open_pos, "data_source": "mock"}
@@ -551,9 +737,16 @@ async def create_grn(req: CreateGRNRequest):
             pool = await get_pool()
             if pool:
                 result = await _db_create_grn(pool, req.model_dump())
-                if result.get("success"):
+                if not result.get("success"):
+                    # Business validation errors → 422 (never fall through to demo)
+                    err_code = result.get("code", "")
+                    if err_code in ("OVER_RECEIVE", "FULLY_RECEIVED", "PO_CLOSED"):
+                        raise HTTPException(status_code=422, detail=result["error"])
+                    # Other DB-layer failures → fall through to demo
+                    logger.info("GRN DB failed, using demo: %s", result.get("error"))
+                else:
                     qty_received = req.qty_received or 0
-                    # Attempt general inventory update after successful GRN
+                    # Optional: update legacy inventory table for backward compatibility
                     try:
                         if qty_received > 0 and req.product_name:
                             async with pool.acquire() as conn:
@@ -563,10 +756,8 @@ async def create_grn(req: CreateGRNRequest):
                                         "WHERE sku_name LIKE %s LIMIT 1",
                                         (qty_received, f"%{req.product_name[:30]}%"),
                                     )
-                            result["inventory_updated"] = True
                     except Exception as inv_exc:
-                        logger.debug("Inventory update skipped: %s", inv_exc)
-                        result["inventory_updated"] = False
+                        logger.debug("Legacy inventory update skipped: %s", inv_exc)
                     # Update warehouse-specific stock if a godown was selected
                     if req.godown_id and req.product_name and qty_received > 0:
                         try:
@@ -589,6 +780,8 @@ async def create_grn(req: CreateGRNRequest):
                     if result.get("match_status") == "MISMATCH":
                         _fire_mismatch_alert(result, req)
                     return result
+        except HTTPException:
+            raise
         except Exception as exc:
             logger.warning("DB GRN creation failed, using demo: %s", exc)
 
@@ -630,15 +823,148 @@ async def create_grn(req: CreateGRNRequest):
         "loading_unloading":     _loading,
         "local_transport":       _transport,
         "other_charges":         _other,
-        "total_landed_cost":     _total_lc,
-        "landing_cost_per_unit": _lc_unit,
-        "demo_mode":             True,
+        "total_landed_cost":       _total_lc,
+        "landing_cost_per_unit":   _lc_unit,
+        "purchase_invoice_number": f"PI-{datetime.date.today().strftime('%Y%m%d')}-DEMO" if qty_received > 0 else None,
+        "demo_mode":               True,
     }
 
     if match_status == "MISMATCH":
         _fire_mismatch_alert(response, req)
 
     return response
+
+
+# ── GET /api/purchase-returns  ───────────────────────────────────────────────
+
+@router.get("/purchase-returns")
+async def get_purchase_returns():
+    """Return all purchase returns with their document (debit/credit note) details."""
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                items = await _db_get_purchase_returns(pool)
+                return {"purchase_returns": items, "total": len(items), "data_source": "mysql"}
+        except Exception as exc:
+            logger.warning("purchase-returns DB fetch failed: %s", exc)
+
+    return {"purchase_returns": _mock_purchase_returns(), "total": 2, "data_source": "mock"}
+
+
+# ── POST /api/purchase-returns  ──────────────────────────────────────────────
+
+class PurchaseReturnRequest(BaseModel):
+    po_number: str
+    po_id: Optional[int] = None
+    supplier_name: str
+    supplier_id: Optional[int] = None
+    product_name: str
+    return_type: str = "PARTIAL"       # 'FULL' or 'PARTIAL'
+    qty_returned: float
+    unit: Optional[str] = "Units"
+    unit_price: float
+    reason: str
+    document_type: str = "DEBIT_NOTE"  # 'DEBIT_NOTE' or 'CREDIT_NOTE'
+    return_date: Optional[str] = None
+    authorized_by: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.post("/purchase-returns")
+async def create_purchase_return(req: PurchaseReturnRequest):
+    """Record a purchase return and generate a debit note or credit note against the supplier."""
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_create_purchase_return(pool, req.model_dump())
+                if result.get("success"):
+                    return result
+                logger.warning("Purchase return DB error: %s", result.get("error"))
+        except Exception as exc:
+            logger.warning("Purchase return DB failed, using demo: %s", exc)
+
+    # Demo fallback
+    today_str = datetime.date.today().strftime('%Y%m%d')
+    prefix = "DN" if req.document_type == "DEBIT_NOTE" else "CN"
+    return {
+        "success":         True,
+        "return_number":   f"PR-{today_str}-DEMO",
+        "document_number": f"{prefix}-{today_str}-DEMO",
+        "document_type":   req.document_type,
+        "return_value":    round(req.qty_returned * req.unit_price, 2),
+        "status":          "PENDING",
+        "demo_mode":       True,
+    }
+
+
+# ── PATCH /api/purchase-returns/{return_id}/approve  ─────────────────────────
+
+class PurchaseReturnApproveRequest(BaseModel):
+    approver_name: str
+
+
+@router.patch("/purchase-returns/{return_id}/approve")
+async def approve_purchase_return(return_id: int, req: PurchaseReturnApproveRequest):
+    """Approve a PENDING purchase return. Debit note becomes active post-approval."""
+    if not req.approver_name.strip():
+        raise HTTPException(status_code=422, detail="approver_name is required")
+
+    await _maybe_ensure_schema()
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                result = await _db_approve_purchase_return(pool, return_id, req.approver_name.strip())
+                if result.get("success"):
+                    return result
+                raise HTTPException(status_code=400, detail=result.get("error", "Approval failed"))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("Purchase return approve DB failed: %s", exc)
+
+    # Demo fallback
+    return {
+        "success":       True,
+        "return_id":     return_id,
+        "new_status":    "APPROVED",
+        "authorized_by": req.approver_name,
+        "message":       f"Purchase return #{return_id} approved. Debit note is now active.",
+        "demo_mode":     True,
+    }
+
+
+def _mock_purchase_returns() -> list:
+    today = datetime.date.today()
+    def d(delta): return (today - datetime.timedelta(days=delta)).isoformat()
+    return [
+        {
+            "return_id": 1, "return_number": "PR-20260515-001",
+            "po_number": "PO-7734", "supplier": "Greenply Industries",
+            "product": "12mm MR Plain", "return_type": "PARTIAL",
+            "qty_returned": 40.0, "unit": "Sheets", "unit_price": 295.0,
+            "return_value": 11800.0, "reason": "Grade mismatch — MR received, BWP ordered",
+            "document_type": "DEBIT_NOTE", "document_number": "DN-20260515-001",
+            "return_date": d(6), "status": "APPROVED",
+            "authorized_by": "Rajesh Kumar", "notes": "Supplier to replace or credit",
+            "created_at": f"{d(6)} 10:30:00",
+        },
+        {
+            "return_id": 2, "return_number": "PR-20260518-002",
+            "po_number": "PO-7731", "supplier": "Gauri Laminates",
+            "product": "8mm Flexi Sheet", "return_type": "FULL",
+            "qty_returned": 76.0, "unit": "Sheets", "unit_price": 245.0,
+            "return_value": 18620.0, "reason": "Damaged in transit — water stains on all sheets",
+            "document_type": "CREDIT_NOTE", "document_number": "CN-20260518-002",
+            "return_date": d(3), "status": "PENDING",
+            "authorized_by": "Store Manager", "notes": "Insurance claim in progress",
+            "created_at": f"{d(3)} 14:15:00",
+        },
+    ]
 
 
 def _fire_mismatch_alert(grn_response: dict, req) -> None:
@@ -740,50 +1066,66 @@ def _mock_po_grn_data() -> dict:
             {
                 "po_number": "PO-7734", "supplier": "Greenply Industries",
                 "sku": "12mm MR Plain", "qty_ordered": 300, "qty_received": 180,
+                "qty_pending": 120,
                 "fill_pct": 60, "value": "₹2.16L", "eta": "Overdue +2d",
-                "status": "OVERDUE", "overdue_days": 2,
+                "status": "OVERDUE", "overdue_days": 2, "unit_price": 720, "unit": "Sheets",
+                "grn_number": "GRN-20260520-001",
             },
             {
                 "po_number": "PO-7733", "supplier": "Century Plyboards",
                 "sku": "18mm BWP", "qty_ordered": 200, "qty_received": 200,
+                "qty_pending": 0,
                 "fill_pct": 100, "value": "₹2.84L", "eta": "Received",
-                "status": "RECEIVED", "overdue_days": 0,
+                "status": "RECEIVED", "overdue_days": 0, "unit_price": 1420, "unit": "Sheets",
+                "grn_number": "GRN-20260518-003",
             },
             {
                 "po_number": "PO-7732", "supplier": "Century Plyboards",
                 "sku": "12mm BWP", "qty_ordered": 150, "qty_received": 130,
+                "qty_pending": 20,
                 "fill_pct": 87, "value": "₹1.73L", "eta": "ETA 2d",
-                "status": "PARTIAL", "overdue_days": 0,
+                "status": "PARTIAL", "overdue_days": 0, "unit_price": 1153, "unit": "Sheets",
+                "grn_number": "GRN-20260519-002",
             },
             {
                 "po_number": "PO-7731", "supplier": "Gauri Laminates",
                 "sku": "8mm Flexi", "qty_ordered": 200, "qty_received": 76,
+                "qty_pending": 124,
                 "fill_pct": 38, "value": "₹0.49L", "eta": "Overdue +4d",
-                "status": "OVERDUE", "overdue_days": 4,
+                "status": "OVERDUE", "overdue_days": 4, "unit_price": 245, "unit": "Sheets",
+                "grn_number": "GRN-20260517-001",
             },
             {
                 "po_number": "PO-7730", "supplier": "Supreme Laminates",
                 "sku": "Laminates Teak", "qty_ordered": 100, "qty_received": 100,
+                "qty_pending": 0,
                 "fill_pct": 100, "value": "₹0.34L", "eta": "Received",
-                "status": "RECEIVED", "overdue_days": 0,
+                "status": "RECEIVED", "overdue_days": 0, "unit_price": 340, "unit": "Sheets",
+                "grn_number": "GRN-20260516-004",
             },
             {
                 "po_number": "PO-7729", "supplier": "Merino Industries",
                 "sku": "HPL 1mm Matte", "qty_ordered": 50, "qty_received": 0,
+                "qty_pending": 50,
                 "fill_pct": 0, "value": "₹1.78L", "eta": "ETA 3d",
-                "status": "OPEN", "overdue_days": 0,
+                "status": "OPEN", "overdue_days": 0, "unit_price": 3560, "unit": "Sheets",
+                "grn_number": None,
             },
             {
                 "po_number": "PO-7726", "supplier": "Greenlam Industries",
                 "sku": "Compact Laminate 6mm", "qty_ordered": 25, "qty_received": 10,
+                "qty_pending": 15,
                 "fill_pct": 40, "value": "₹1.62L", "eta": "ETA 1d",
-                "status": "PARTIAL", "overdue_days": 0,
+                "status": "PARTIAL", "overdue_days": 0, "unit_price": 6480, "unit": "Sheets",
+                "grn_number": "GRN-20260521-001",
             },
             {
                 "po_number": "PO-7724", "supplier": "Action Tesa",
                 "sku": "Acrylic Laminate 1mm", "qty_ordered": 30, "qty_received": 12,
+                "qty_pending": 18,
                 "fill_pct": 40, "value": "₹0.84L", "eta": "ETA 4d",
-                "status": "PARTIAL", "overdue_days": 0,
+                "status": "PARTIAL", "overdue_days": 0, "unit_price": 2800, "unit": "Sheets",
+                "grn_number": "GRN-20260520-002",
             },
         ],
         "grn_discrepancies": [
@@ -1005,3 +1347,217 @@ async def scan_po_document(
     except Exception as exc:
         logger.warning("PO scan failed: %s", exc)
         return {"success": False, "error": str(exc), "items": []}
+
+
+# ── Purchase Invoice Lifecycle endpoints ──────────────────────────────────────
+
+class CreateInvoiceRequest(BaseModel):
+    po_number:     str
+    supplier_name: str
+    product_name:  str
+    qty_received:  float
+    unit:          Optional[str]   = "Units"
+    unit_cost:     Optional[float] = None
+    invoice_value: Optional[float] = None
+    pi_date:       Optional[str]   = None
+    grn_number:    Optional[str]   = None
+    notes:         Optional[str]   = None
+
+
+@router.post("/po-grn/purchase-invoices")
+async def create_purchase_invoice_endpoint(req: CreateInvoiceRequest):
+    """Manually create a purchase invoice in DRAFT status from an open PO."""
+    await _maybe_ensure_schema()
+    if not req.po_number or not req.po_number.strip():
+        raise HTTPException(status_code=422, detail="po_number is required")
+    if not req.supplier_name or not req.supplier_name.strip():
+        raise HTTPException(status_code=422, detail="supplier_name is required")
+
+    async def _try_db():
+        if not _DB_AVAILABLE:
+            return None
+        pool = await get_pool()
+        if not pool:
+            return None
+        return await _db_create_purchase_invoice(pool, req.model_dump())
+
+    try:
+        result = await _try_db()
+        if result is not None:
+            if not result.get("success"):
+                raise HTTPException(status_code=400, detail=result.get("error", "Invoice creation failed"))
+            return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("create_purchase_invoice DB error: %s", exc)
+
+    # Demo fallback
+    pi_number = f"PI-{datetime.date.today().strftime('%Y%m%d')}-DEMO"
+    qty = req.qty_received or 0
+    inv_value = req.invoice_value or round(qty * (req.unit_cost or 0), 2)
+    return {
+        "success":       True,
+        "pi_number":     pi_number,
+        "invoice_value": inv_value,
+        "status":        "DRAFT",
+        "message":       f"[DEMO] Purchase invoice {pi_number} created in DRAFT mode.",
+        "demo_mode":     True,
+    }
+
+
+def _mock_purchase_invoices() -> list:
+    today = datetime.date.today()
+    def d(delta): return (today - datetime.timedelta(days=delta)).isoformat()
+    return [
+        {
+            "pi_id": 1, "pi_number": f"PI-{today.strftime('%Y%m%d')}-001",
+            "grn_number": "GRN-4428", "po_number": "PO-7740",
+            "supplier_name": "Ebco India Pvt. Ltd.", "product_name": "Soft-Close Hinge 35mm Pk-10",
+            "qty_received": 100.0, "unit": "packs", "unit_cost": 485.0, "invoice_value": 48500.0,
+            "pi_date": d(0), "status": "DRAFT", "notes": "Auto-generated for GRN: GRN-4428",
+            "approved_by": None, "approved_at": None,
+            "paid_by": None, "payment_mode": None, "payment_ref": None, "paid_at": None,
+            "created_at": f"{d(0)} 11:00:00", "match_status": "MATCH",
+            "received_by": "Ravi M.", "freight_charges": 0.0, "total_landed_cost": 48500.0,
+        },
+        {
+            "pi_id": 2, "pi_number": f"PI-{today.strftime('%Y%m%d')}-002",
+            "grn_number": "GRN-4427", "po_number": "PO-7738",
+            "supplier_name": "Hettich India", "product_name": "InnoTech Drawer 400mm",
+            "qty_received": 50.0, "unit": "sets", "unit_cost": 1280.0, "invoice_value": 64000.0,
+            "pi_date": d(0), "status": "APPROVED", "notes": "Auto-generated for GRN: GRN-4427",
+            "approved_by": "Finance Head", "approved_at": f"{d(0)} 14:00:00",
+            "paid_by": None, "payment_mode": None, "payment_ref": None, "paid_at": None,
+            "created_at": f"{d(0)} 10:00:00", "match_status": "MATCH",
+            "received_by": "Santhosh K.", "freight_charges": 1200.0, "total_landed_cost": 65200.0,
+        },
+        {
+            "pi_id": 3, "pi_number": f"PI-{(today - datetime.timedelta(days=1)).strftime('%Y%m%d')}-001",
+            "grn_number": "GRN-4426", "po_number": "PO-7735",
+            "supplier_name": "Hafele India", "product_name": "Zinc D-Handle 128mm",
+            "qty_received": 200.0, "unit": "pcs", "unit_cost": 320.0, "invoice_value": 64000.0,
+            "pi_date": d(1), "status": "PAID", "notes": "Auto-generated for GRN: GRN-4426",
+            "approved_by": "Finance Head", "approved_at": f"{d(1)} 11:00:00",
+            "paid_by": "Accounts", "payment_mode": "Bank Transfer", "payment_ref": "NEFT-7742281",
+            "paid_at": f"{d(1)} 16:30:00",
+            "created_at": f"{d(1)} 09:30:00", "match_status": "MISMATCH",
+            "received_by": "Kumar S.", "freight_charges": 500.0, "total_landed_cost": 64500.0,
+        },
+    ]
+
+
+class InvoiceApproveRequest(BaseModel):
+    approved_by: str
+
+
+class InvoicePayRequest(BaseModel):
+    paid_by: str
+    payment_mode: Optional[str] = "Bank Transfer"
+    payment_ref: Optional[str] = ""
+
+
+@router.get("/po-grn/purchase-invoices")
+async def get_purchase_invoices(
+    status: Optional[str] = None,
+    po_number: Optional[str] = None,
+    grn_number: Optional[str] = None,
+):
+    """List all purchase invoices with optional status/PO/GRN filters."""
+    await _maybe_ensure_schema()
+    async def _try_db():
+        if not _DB_AVAILABLE:
+            return None
+        pool = await get_pool()
+        if not pool:
+            return None
+        return await _db_get_purchase_invoices(pool, status=status, po_number=po_number, grn_number=grn_number)
+
+    try:
+        invoices = await _try_db()
+        if invoices is not None:
+            return {"success": True, "invoices": invoices, "data_source": "mysql"}
+    except Exception as exc:
+        logger.warning("get_purchase_invoices DB error: %s", exc)
+
+    # Mock fallback
+    mock = _mock_purchase_invoices()
+    if status:
+        mock = [i for i in mock if i["status"] == status]
+    if po_number:
+        mock = [i for i in mock if i["po_number"] == po_number]
+    if grn_number:
+        mock = [i for i in mock if i["grn_number"] == grn_number]
+    return {"success": True, "invoices": mock, "data_source": "demo"}
+
+
+@router.patch("/po-grn/purchase-invoices/{pi_number}/approve")
+async def approve_purchase_invoice(pi_number: str, req: InvoiceApproveRequest):
+    """Approve a DRAFT purchase invoice — transitions to APPROVED and validates GRN match."""
+    await _maybe_ensure_schema()
+    if not req.approved_by or not req.approved_by.strip():
+        raise HTTPException(status_code=422, detail="approved_by is required")
+
+    async def _try_db():
+        if not _DB_AVAILABLE:
+            return None
+        pool = await get_pool()
+        if not pool:
+            return None
+        return await _db_approve_purchase_invoice(pool, pi_number, req.approved_by.strip())
+
+    try:
+        result = await _try_db()
+        if result is not None:
+            if not result.get("success"):
+                raise HTTPException(status_code=400, detail=result.get("error", "Approval failed"))
+            return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("approve_purchase_invoice DB error: %s", exc)
+
+    # Demo mode
+    return {
+        "success": True, "pi_number": pi_number, "new_status": "APPROVED",
+        "approved_by": req.approved_by.strip(), "match_status": "MATCH",
+        "message": f"[DEMO] Invoice {pi_number} approved and ready for payment.",
+    }
+
+
+@router.patch("/po-grn/purchase-invoices/{pi_number}/pay")
+async def pay_purchase_invoice(pi_number: str, req: InvoicePayRequest):
+    """Mark an APPROVED invoice as PAID — invoice is locked and immutable after this."""
+    await _maybe_ensure_schema()
+    if not req.paid_by or not req.paid_by.strip():
+        raise HTTPException(status_code=422, detail="paid_by is required")
+
+    async def _try_db():
+        if not _DB_AVAILABLE:
+            return None
+        pool = await get_pool()
+        if not pool:
+            return None
+        return await _db_pay_purchase_invoice(
+            pool, pi_number, req.paid_by.strip(),
+            req.payment_mode or "Bank Transfer",
+            req.payment_ref or "",
+        )
+
+    try:
+        result = await _try_db()
+        if result is not None:
+            if not result.get("success"):
+                raise HTTPException(status_code=400, detail=result.get("error", "Payment failed"))
+            return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("pay_purchase_invoice DB error: %s", exc)
+
+    # Demo mode
+    return {
+        "success": True, "pi_number": pi_number, "new_status": "PAID",
+        "paid_by": req.paid_by.strip(), "payment_mode": req.payment_mode,
+        "message": f"[DEMO] Invoice {pi_number} marked as PAID. Invoice is now locked.",
+    }

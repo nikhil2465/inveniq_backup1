@@ -57,8 +57,6 @@ const DamageRecording      = lazy(() => import('./views/DamageRecording'));
 const PurchaseRequisition  = lazy(() => import('./views/PurchaseRequisition'));
 const QCInspection         = lazy(() => import('./views/QCInspection'));
 const InvoiceMatching      = lazy(() => import('./views/InvoiceMatching'));
-const GateEntry            = lazy(() => import('./views/GateEntry'));
-
 const VIEW_TITLES = {
   credit:      'Credit Management — Limits · Overdue · PDC Tracking',
   pos:         'Counter POS — Walk-In Sales & Fast Billing',
@@ -94,7 +92,6 @@ const VIEW_TITLES = {
   pr:           'Purchase Requisition — Material Requests · Approval Workflow · PO Conversion',
   qc:           'QC Inspection — Post-GRN Quality Control · Accept to Inventory · RTV',
   invoicematch: 'Invoice Matching — 3-Way Match: PO · GRN · Invoice · AP Approval',
-  gateentry:    'Gate Entry — Vehicle Arrival · DC Verification · Security Checkpoint',
 };
 
 export default function App() {
@@ -212,7 +209,7 @@ export default function App() {
       b: 'catalog',   k: 'credit',    v: 'pos',         y: 'schemes',
       j: 'about',     g: 'warehouse', '1': 'tally',
       '2': 'salesreturn', '3': 'landingcost', '4': 'distributor', '5': 'damage',
-      '6': 'pr', '7': 'qc', '8': 'invoicematch', '9': 'gateentry',
+      '6': 'pr', '7': 'qc', '8': 'invoicematch',
     };
     let active = false;
     let goTimer = null;
@@ -248,8 +245,8 @@ export default function App() {
     return () => { document.removeEventListener('keydown', handler); clearTimeout(goTimer); };
   }, [authState.allowedModules]);
 
-  const handleLoginSuccess = useCallback((token, user) => {
-    setAuth(token, user);
+  const handleLoginSuccess = useCallback((token, user, refreshToken = null) => {
+    setAuth(token, user, refreshToken);
     // Parse allowed_modules from the user object (mirrors what the JWT contains)
     const raw = user.allowed_modules;
     const allowedModules = (!raw || raw === 'all')
@@ -345,7 +342,8 @@ export default function App() {
           animation: 'goModeIn .15s ease',
         }}>
           <span style={{ background: '#16a34a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#fff' }}>g</span>
-          Type a key · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally · 2=sales-ret · 3=landing · 4=dist · 5=damage · 6=pr · 7=qc · 8=invoice · 9=gate
+          Type a key · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally · 2=sales-ret · 3=landing · 4=dist · 5=damage · 6=pr · 7=qc · 8=invoice
+          <span style={{ marginLeft: 8, opacity: .6, fontSize: 11 }}>· Press <strong>?</strong> for full shortcuts</span>
         </div>
       )}
       <main className={`main${aiOpen && !aiMin ? ' sp-open' : ''}${aiOpen && aiMin ? ' sp-min' : ''}`}>
@@ -378,20 +376,19 @@ export default function App() {
             {activeView === 'projects'    && <ProjectTracker      onGoChat={goChat} dbStatus={dbStatus} period={period} onNavigate={setActiveView} />}
             {activeView === 'quotes'      && <QuoteBuilder        onGoChat={goChat} dbStatus={dbStatus} period={period} onNavigate={setActiveView} />}
             {activeView === 'credit'      && <CreditManagement  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'pos'         && <CounterPOS        onGoChat={goChat} dbStatus={dbStatus} />}
+            {activeView === 'pos'         && <CounterPOS        onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'schemes'     && <SchemeManagement  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'warehouse'   && <Warehouse         onGoChat={goChat} dbStatus={dbStatus} />}
+            {activeView === 'warehouse'   && <Warehouse         onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'about'        && <About onGoChat={goChat} />}
-            {activeView === 'settings'    && <Settings onNavigate={setActiveView} dbStatus={dbStatus} currentUser={authState.user} allowedModules={authState.allowedModules} />}
+            {activeView === 'settings'    && <Settings onGoChat={goChat} onNavigate={setActiveView} dbStatus={dbStatus} currentUser={authState.user} allowedModules={authState.allowedModules} />}
             {activeView === 'tally'       && <TallyExport onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'salesreturn' && <SalesReturn onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'salesreturn' && <SalesReturn onGoChat={goChat} dbStatus={dbStatus} period={period} onNavigate={setActiveView} />}
             {activeView === 'landingcost' && <LandingCost onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'distributor' && <DistributorPortal onGoChat={goChat} dbStatus={dbStatus} />}
+            {activeView === 'distributor' && <DistributorPortal onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'damage'        && <DamageRecording      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'pr'            && <PurchaseRequisition  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'qc'            && <QCInspection         onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'invoicematch'  && <InvoiceMatching      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'gateentry'     && <GateEntry            onGoChat={goChat} dbStatus={dbStatus} period={period} />}
           </ErrorBoundary>
         </Suspense>
       </main>

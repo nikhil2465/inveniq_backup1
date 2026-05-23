@@ -59,13 +59,14 @@ const MOCK_INVOICES = [
 ];
 const STANDARD_UOMS = ['pcs','pieces','units','nos','box','boxes','case','cases','sheet','sheets','bag','bags','kg','kgs','ltr','mtrs','sqft','sqm','reel','roll','dozen','set','sets','pair','pairs','pack','packs'];
 
-export default function SalesReturn({ dbStatus, period, onGoChat }) {
+export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) {
   const [tab, setTab]             = useState('Returns');
   const [returns, setReturns]     = useState(MOCK_RETURNS);
   const [cns, setCns]             = useState(MOCK_CNS);
   const [invoices, setInvoices]   = useState(MOCK_INVOICES);
   const [src, setSrc]             = useState('demo');
   const [selected, setSelected]   = useState(null);
+  const [showDamageNudge, setShowDamageNudge] = useState(false);
 
   // ── New Return form state ────────────────────────────────────────────────
   const [invId, setInvId]               = useState('');
@@ -79,6 +80,12 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
   const [submitting, setSubmitting]     = useState(false);
   const [submitMsg, setSubmitMsg]       = useState('');
   const [submitError, setSubmitError]   = useState('');
+  // Workflow linking + condition
+  const [soNumber, setSoNumber]           = useState('');
+  const [dcNumber, setDcNumber]           = useState('');
+  const [returnCondition, setReturnCondition] = useState('GOOD');
+  const [damageQty, setDamageQty]         = useState('');
+  const [damageDesc, setDamageDesc]       = useState('');
 
   // Load data
   useEffect(() => {
@@ -155,18 +162,23 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
     setSubmitting(true); setSubmitMsg(''); setSubmitError('');
     try {
       const body = {
-        invoice_id:    selInvoice.invoice_id,
-        customer_name: selInvoice.customer_name,
-        sku_code:      selLine.sku_code,
-        sku_name:      selLine.sku_name,
-        original_qty:  selLine.qty,
-        original_uom:  selLine.uom,
-        return_qty:    parseFloat(returnQty),
-        return_uom:    returnUom,
-        unit_price:    selLine.unit_price,
-        buy_price:     selLine.buy_price || 0,
-        gst_rate:      selLine.gst_rate || 18,
-        return_reason: reason,
+        invoice_id:       selInvoice.invoice_id,
+        customer_name:    selInvoice.customer_name,
+        sku_code:         selLine.sku_code,
+        sku_name:         selLine.sku_name,
+        original_qty:     selLine.qty,
+        original_uom:     selLine.uom,
+        return_qty:       parseFloat(returnQty),
+        return_uom:       returnUom,
+        unit_price:       selLine.unit_price,
+        buy_price:        selLine.buy_price || 0,
+        gst_rate:         selLine.gst_rate || 18,
+        return_reason:    reason,
+        so_number:        soNumber.trim() || null,
+        dc_number:        dcNumber.trim() || null,
+        return_condition: returnCondition,
+        damage_qty:       returnCondition !== 'GOOD' && damageQty ? parseFloat(damageQty) : null,
+        damage_desc:      returnCondition !== 'GOOD' && damageDesc ? damageDesc.trim() : null,
         ...(customRatio ? { custom_ratio: parseFloat(customRatio) } : {}),
       };
       const res  = await fetch('/api/sales-returns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -175,9 +187,14 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
       setSubmitMsg(data.message);
       setReturns(prev => [data.return, ...prev]);
       setCns(prev => [data.credit_note, ...prev]);
+      // Show damage nudge when condition is damaged OR reason mentions damage
+      if (returnCondition !== 'GOOD' || /damag|transit|broken|defect|quality|carrier/i.test(reason)) {
+        setShowDamageNudge(true);
+      }
       // Reset form
       setInvId(''); setSelInvoice(null); setSelLine(null);
       setReturnQty(''); setReturnUom(''); setCustomRatio(''); setReason(''); setPreview(null);
+      setSoNumber(''); setDcNumber(''); setReturnCondition('GOOD'); setDamageQty(''); setDamageDesc('');
     } catch (err) {
       setSubmitError(err.message);
     } finally {
@@ -258,31 +275,63 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
           <table className="data-table" style={{ width: '100%' }}>
             <thead>
               <tr>
-                <th>Return ID</th><th>Invoice</th><th>Customer</th><th>Date</th>
-                <th>Product</th><th>Returned</th><th>Converted</th>
+                <th>Return ID</th><th>Invoice / SO</th><th>Customer</th><th>Date</th>
+                <th>Product</th><th>Returned</th><th>Condition</th>
                 <th>Credit Amt</th><th>Status</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {returns.map(r => (
+              {returns.map(r => {
+                const condColor = r.return_condition === 'GOOD' ? { bg: '#f0fdf4', color: '#15803d', label: '✓ Good' }
+                  : r.return_condition === 'PARTIALLY_DAMAGED' ? { bg: '#fffbeb', color: '#92400e', label: '⚠ Partial' }
+                  : r.return_condition === 'FULLY_DAMAGED' ? { bg: '#fef2f2', color: '#dc2626', label: '✗ Damaged' }
+                  : { bg: 'var(--s3)', color: 'var(--text3)', label: '—' };
+                return (
                 <React.Fragment key={r.return_id}>
                   <tr onClick={() => setSelected(selected?.return_id === r.return_id ? null : r)}
                     style={{ cursor: 'pointer', background: selected?.return_id === r.return_id ? 'var(--s2)' : 'transparent' }}>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)' }}>{r.return_id}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.invoice_id}</td>
+                    <td>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.invoice_id}</div>
+                      {r.so_number && <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#7c3aed' }}>{r.so_number}</div>}
+                      {r.dc_number && <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{r.dc_number}</div>}
+                    </td>
                     <td style={{ fontWeight: 600, fontSize: 13 }}>{r.customer_name}</td>
                     <td style={{ fontSize: 12, color: 'var(--text3)' }}>{r.return_date}</td>
-                    <td style={{ fontSize: 12 }}>{r.sku_name}</td>
-                    <td style={{ fontSize: 12 }}>
-                      {r.return_qty} <span style={{ color: 'var(--brand)', fontWeight: 700 }}>{r.return_uom}</span>
-                      <span style={{ color: 'var(--text3)', fontSize: 10, marginLeft: 4 }}>from {r.original_qty} {r.original_uom}</span>
+                    <td style={{ fontSize: 12 }}>{r.sku_name}
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                        {r.return_qty} {r.return_uom} from {r.original_qty} {r.original_uom}
+                      </div>
                     </td>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text3)' }}>
                       {fmtN(r.converted_base_qty)} {r.original_uom}
                     </td>
+                    <td>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: condColor.bg, color: condColor.color }}>
+                        {condColor.label}
+                      </span>
+                    </td>
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--r2)' }}>{fmt(r.credit_amount)}</td>
                     <td><StatusBadge status={r.status} /></td>
-                    <td style={{ color: 'var(--brand)', fontSize: 11 }}>{selected?.return_id === r.return_id ? '▲' : '▼'}</td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        {onGoChat && (
+                          <button
+                            onClick={() => onGoChat(`Analyse sales return ${r.return_id} for ${r.customer_name}: returned ${r.return_qty} ${r.return_uom} of ${r.sku_name} from invoice ${r.invoice_id}${r.so_number ? ' / SO ' + r.so_number : ''}. Reason: ${r.return_reason || 'not specified'}. Condition: ${r.return_condition || 'GOOD'}. Credit note: ${r.credit_note_id} for ₹${r.credit_amount}. What actions should I take?`)}
+                            style={{ fontSize: 9, padding: '2px 6px', background: 'none', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--brand)', fontWeight: 700 }}>
+                            ✨ AI
+                          </button>
+                        )}
+                        {r.return_condition !== 'GOOD' && onNavigate && (
+                          <button
+                            onClick={() => onNavigate('damage')}
+                            style={{ fontSize: 9, padding: '2px 6px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', color: '#dc2626', fontWeight: 700 }}>
+                            Record Dmg
+                          </button>
+                        )}
+                        <span style={{ color: 'var(--brand)', fontSize: 11 }}>{selected?.return_id === r.return_id ? '▲' : '▼'}</span>
+                      </div>
+                    </td>
                   </tr>
                   {selected?.return_id === r.return_id && (
                     <tr>
@@ -314,6 +363,20 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
                                 <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text3)' }}>
                                   Reason: <em>{r.return_reason || '—'}</em>
                                 </div>
+                                {(r.so_number || r.dc_number) && (
+                                  <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 11, flexWrap: 'wrap' }}>
+                                    {r.so_number && <span><strong style={{ color: '#7c3aed' }}>SO:</strong> {r.so_number}</span>}
+                                    {r.dc_number && <span><strong>DC:</strong> {r.dc_number}</span>}
+                                  </div>
+                                )}
+                                {r.return_condition && r.return_condition !== 'GOOD' && (
+                                  <div style={{ marginTop: 8, background: '#fef2f2', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                                    <strong style={{ color: '#dc2626' }}>Condition:</strong>{' '}
+                                    {r.return_condition.replace(/_/g, ' ')}
+                                    {r.damage_qty && <> · <strong>{r.damage_qty} damaged</strong></>}
+                                    {r.damage_desc && <> · {r.damage_desc}</>}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             {/* Accounting entries */}
@@ -355,7 +418,8 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
+              );
+              })}
               {returns.length === 0 && (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>No returns found</td></tr>
               )}
@@ -465,10 +529,92 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
             {/* Return reason */}
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Return Reason</label>
             <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="e.g. Damaged pieces, wrong spec, quality issue"
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', resize: 'vertical', marginBottom: 20, boxSizing: 'border-box' }} />
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', resize: 'vertical', marginBottom: 14, boxSizing: 'border-box' }} />
+
+            {/* SO + DC linking */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Sales Order # (optional)</label>
+                <input value={soNumber} onChange={e => setSoNumber(e.target.value)} placeholder="SO-2026-XXXX"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Delivery Challan # (optional)</label>
+                <input value={dcNumber} onChange={e => setDcNumber(e.target.value)} placeholder="DC-XXXX-XXXX"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            {/* Return condition split */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 8 }}>Return Condition *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[
+                  { val: 'GOOD',              label: '✓ Good',           sub: 'Back to inventory', bg: '#f0fdf4', border: '#86efac', color: '#15803d' },
+                  { val: 'PARTIALLY_DAMAGED', label: '⚠ Partial Damage', sub: 'Some pcs damaged',  bg: '#fffbeb', border: '#fcd34d', color: '#92400e' },
+                  { val: 'FULLY_DAMAGED',     label: '✗ Fully Damaged',  sub: 'Damage bucket',     bg: '#fef2f2', border: '#fca5a5', color: '#dc2626' },
+                ].map(opt => (
+                  <button key={opt.val} type="button"
+                    onClick={() => setReturnCondition(opt.val)}
+                    style={{ padding: '8px 6px', borderRadius: 7, border: `2px solid ${returnCondition === opt.val ? opt.border : 'var(--border)'}`,
+                      background: returnCondition === opt.val ? opt.bg : 'var(--surface)', cursor: 'pointer', textAlign: 'center',
+                      color: returnCondition === opt.val ? opt.color : 'var(--text3)', fontWeight: returnCondition === opt.val ? 700 : 500 }}>
+                    <div style={{ fontSize: 12 }}>{opt.label}</div>
+                    <div style={{ fontSize: 10, marginTop: 2, opacity: .8 }}>{opt.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Damage details — shown for PARTIALLY_DAMAGED or FULLY_DAMAGED */}
+            {returnCondition !== 'GOOD' && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', marginBottom: 10 }}>Damage Details</div>
+                {returnCondition === 'PARTIALLY_DAMAGED' && (
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Damaged Qty (of returned qty)</label>
+                    <input type="number" value={damageQty} onChange={e => setDamageQty(e.target.value)} min="0.001" step="0.001"
+                      placeholder={returnQty ? `max ${returnQty} ${returnUom}` : 'how many damaged?'}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', boxSizing: 'border-box' }} />
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Damage Description</label>
+                  <textarea value={damageDesc} onChange={e => setDamageDesc(e.target.value)} rows={2}
+                    placeholder="Describe the damage — cracks, scratches, missing parts, packaging torn..."
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text1)', resize: 'vertical', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+            )}
 
             {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
             {submitError && <div style={{ color: 'var(--r2)', fontSize: 13, background: '#fef2f2', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitError}</div>}
+
+            {showDamageNudge && (
+              <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 20 }}>⚠️</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e' }}>Damage detected in return reason</div>
+                  <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>
+                    Record this as a Transit Damage entry to initiate insurance claim and update accounting.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {onNavigate && (
+                    <button
+                      style={{ background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 14px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                      onClick={() => { setShowDamageNudge(false); onNavigate('damage'); }}>
+                      Record Damage →
+                    </button>
+                  )}
+                  <button
+                    style={{ background: 'transparent', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, padding: '7px 10px', fontSize: 11, cursor: 'pointer' }}
+                    onClick={() => setShowDamageNudge(false)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
 
             <button onClick={handleSubmit} disabled={submitting || !selLine || !returnQty || !returnUom || preview?.error}
               style={{ width: '100%', padding: '11px', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',
@@ -551,6 +697,15 @@ export default function SalesReturn({ dbStatus, period, onGoChat }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginTop: 20 }} onClick={() => onGoChat(
+          'Analyse my sales returns data — what are the most frequent return reasons and which products or customers have the highest return rates? ' +
+          'What actions can I take to reduce credit note volume and improve delivery quality?'
+        )}>
+          <span>✨</span>
+          <span>Ask AI: Sales return analysis — top return causes, customer patterns, and credit note reduction strategy</span>
         </div>
       )}
     </div>

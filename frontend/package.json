@@ -1,6 +1,6 @@
 {
   "name": "inveniq-frontend",
-  "version": "1.0.0",
+  "version": "3.1.0",
   "private": true,
   "dependencies": {
     "ajv": "^8.18.0",
@@ -19,6 +19,12 @@
     "build": "react-scripts build"
   },
   "proxy": "http://localhost:8000",
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
   "browserslist": {
     "production": [
       ">0.2%",

@@ -19,17 +19,246 @@ const STATIC_FDATA = [
 ];
 
 const COLORS = { '18mm BWP': '#0f766e', '12mm MR': '#2563eb', '12mm BWP': '#0f766e', 'Laminates': '#9333ea', '18mm MR': '#d97706', '8mm Flexi': '#ea580c', 'Commercial': '#9ca3af' };
-const SIG_SC  = sig => {
+const SIG_SC = sig => {
   const s = String(sig).toUpperCase();
   if (s.includes('SURGE'))    return 'br';
   if (s.includes('GROWING'))  return 'bg';
   if (s.includes('DECLINING') || s.includes('FALLING') || s.includes('DEAD')) return 'ba';
   return 'bb';
 };
+const canPreorder = sig => {
+  const s = String(sig).toUpperCase();
+  return s.includes('SURGE') || s.includes('GROWING');
+};
+
+// ── Quick Pre-order Modal ────────────────────────────────────────────────────
+
+const SUPPLIER_FALLBACK = [
+  'Century Plyboards', 'Greenply Industries', 'Kitply Industries',
+  'Greenlam Industries', 'Merino Industries', 'Action Tesa', 'Hettich India',
+  'Ebco India Pvt. Ltd.',
+];
+
+function QuickPreorderModal({ item, onClose }) {
+  const [suppliers, setSuppliers] = useState(SUPPLIER_FALLBACK);
+  const [form, setForm] = useState({
+    supplier_name: '',
+    sku_name: item.sku,
+    quantity: item.f30 || item.curr || 100,
+    unit: 'Sheets',
+    unit_price: '',
+    expected_date: (() => {
+      const d = new Date(); d.setDate(d.getDate() + 7);
+      return d.toISOString().split('T')[0];
+    })(),
+    notes: `Pre-order raised from demand forecast — ${item.signal}`,
+    operation_type: 'Regular Purchase',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [existingPO, setExistingPO] = useState(null);
+  const [checkingPO, setCheckingPO] = useState(true);
+
+  useEffect(() => {
+    // Load suppliers
+    fetch('/api/procurement/suppliers')
+      .then(r => r.json())
+      .then(data => {
+        const names = (data?.suppliers || []).map(s => s.name).filter(Boolean);
+        if (names.length) setSuppliers(names);
+      })
+      .catch(() => {});
+
+    // Check for existing open PO for this SKU
+    fetch('/api/po-grn/open-pos')
+      .then(r => r.json())
+      .then(data => {
+        const skuLower = (item.sku || '').toLowerCase();
+        const match = (data?.open_pos || []).find(po =>
+          (po.sku || '').toLowerCase().includes(skuLower) ||
+          skuLower.includes((po.sku || '').toLowerCase().split(/[\s,]+/)[0])
+        );
+        setExistingPO(match || null);
+      })
+      .catch(() => {})
+      .finally(() => setCheckingPO(false));
+  }, [item.sku]);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    if (!form.supplier_name.trim()) { setError('Please select a supplier.'); return; }
+    if (!form.quantity || Number(form.quantity) <= 0) { setError('Quantity must be greater than 0.'); return; }
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/po', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplier_name: form.supplier_name.trim(),
+          sku_name: form.sku_name.trim(),
+          quantity: Number(form.quantity),
+          unit: form.unit,
+          unit_price: form.unit_price ? Number(form.unit_price) : null,
+          expected_date: form.expected_date || null,
+          notes: form.notes,
+          operation_type: form.operation_type,
+        }),
+      });
+      const data = await res.json();
+      if (data.success || data.po_number) {
+        setResult(data);
+      } else {
+        setError(data.detail || data.error || 'Failed to create PO.');
+      }
+    } catch {
+      setError('Network error — could not create PO.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span>Pre-order from Demand Forecast</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {result ? (
+          <div style={{ padding: '24px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--green)', marginBottom: 4 }}>
+              Purchase Order Created
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 12 }}>
+              <strong>{result.po_number}</strong> — DRAFT, pending approval
+            </div>
+            <div style={{ background: 'var(--b3)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--text2)', marginBottom: 16, textAlign: 'left' }}>
+              <div><b>SKU:</b> {result.sku_name || result.sku}</div>
+              <div><b>Supplier:</b> {result.supplier}</div>
+              <div><b>Qty:</b> {result.quantity} {form.unit}</div>
+              {result.total_value > 0 && <div><b>Value:</b> ₹{Number(result.total_value).toLocaleString('en-IN')}</div>}
+              <div style={{ marginTop: 6, color: 'var(--amber)', fontSize: 11 }}>
+                This PO is in DRAFT status and requires Sales &amp; Finance approval before being issued to the supplier.
+              </div>
+            </div>
+            <button className="btn-primary" onClick={onClose}>Close</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
+                <strong>AI Signal:</strong> {item.signal} — {item.action}
+              </div>
+
+              {checkingPO ? (
+                <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '4px 0' }}>
+                  Checking for existing open POs…
+                </div>
+              ) : existingPO ? (
+                <div style={{ background: '#fff7ed', border: '1px solid #fb923c', borderRadius: 7, padding: '10px 13px', fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: '#c2410c', marginBottom: 4 }}>
+                    ⚠ Existing Open PO Found — {existingPO.po_number}
+                  </div>
+                  <div style={{ color: '#92400e', lineHeight: 1.6 }}>
+                    <span><strong>Supplier:</strong> {existingPO.supplier}</span>
+                    {' · '}
+                    <span><strong>Status:</strong> {existingPO.status}</span>
+                    {' · '}
+                    <span><strong>Fill:</strong> {existingPO.fill_pct}%</span>
+                    {' · '}
+                    <span><strong>ETA:</strong> {existingPO.eta}</span>
+                  </div>
+                  <div style={{ marginTop: 5, fontSize: 11, color: '#9a3412' }}>
+                    A PO for this SKU is already in progress. Consider whether a new PO is necessary or if the existing one covers your demand.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#166534' }}>
+                  ✓ No existing open PO for this SKU — safe to proceed.
+                </div>
+              )}
+
+              <div className="fg">
+                <label className="fl">SKU / Item Name</label>
+                <input className="fi" value={form.sku_name} onChange={e => set('sku_name', e.target.value)} required />
+              </div>
+
+              <div className="fg">
+                <label className="fl">Preferred Supplier *</label>
+                <input
+                  className="fi"
+                  list="preorder-supplier-list"
+                  value={form.supplier_name}
+                  onChange={e => set('supplier_name', e.target.value)}
+                  placeholder="Type or select supplier..."
+                  required
+                />
+                <datalist id="preorder-supplier-list">
+                  {suppliers.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="fg">
+                  <label className="fl">Quantity *</label>
+                  <input className="fi" type="number" min="1" value={form.quantity}
+                    onChange={e => set('quantity', e.target.value)} required />
+                </div>
+                <div className="fg">
+                  <label className="fl">Unit</label>
+                  <select className="fi" value={form.unit} onChange={e => set('unit', e.target.value)}>
+                    {['Sheets', 'Pcs', 'RM', 'Kg', 'Boxes', 'Sets'].map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="fg">
+                  <label className="fl">Est. Unit Price (₹)</label>
+                  <input className="fi" type="number" min="0" step="0.01" value={form.unit_price}
+                    onChange={e => set('unit_price', e.target.value)} placeholder="Optional" />
+                </div>
+                <div className="fg">
+                  <label className="fl">Expected Delivery</label>
+                  <input className="fi" type="date" value={form.expected_date}
+                    onChange={e => set('expected_date', e.target.value)} />
+                </div>
+              </div>
+
+              <div className="fg">
+                <label className="fl">Notes</label>
+                <input className="fi" value={form.notes} onChange={e => set('notes', e.target.value)} />
+              </div>
+
+              {error && <div style={{ color: '#dc2626', fontSize: 12, padding: '6px 10px', background: '#fef2f2', borderRadius: 6 }}>{error}</div>}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn-secondary" onClick={onClose} disabled={submitting}>Cancel</button>
+              <button type="submit" className="btn-primary" disabled={submitting}>
+                {submitting ? 'Creating PO…' : 'Create Draft PO'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function Demand({ onGoChat, period = 'MTD' }) {
   const [d, setD]  = useState(null);
   const [loading, setLoading] = useState(true);
+  const [preorderItem, setPreorderItem] = useState(null);
   const sRef = useRef(null);
 
   const fetchData = useCallback(() => {
@@ -97,7 +326,10 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
         </div>
         <table className="tbl">
           <thead>
-            <tr><th>SKU</th><th>Current Month</th><th>30-Day Forecast</th><th>60-Day</th><th>90-Day</th><th>AI Signal</th><th>Recommended Action</th></tr>
+            <tr>
+              <th>SKU</th><th>Current Month</th><th>30-Day Forecast</th>
+              <th>60-Day</th><th>90-Day</th><th>AI Signal</th><th>Recommended Action</th><th>Pre-order</th>
+            </tr>
           </thead>
           <tbody>
             {fdata.map(row => {
@@ -118,6 +350,19 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
                   <td style={{ textAlign: 'center', fontFamily: 'var(--mono)', fontSize: '11px', fontWeight: 700, color: row.f90 > row.curr ? '#0f766e' : '#dc2626' }}>{row.f90}</td>
                   <td style={{ textAlign: 'center' }}><span className={`bdg ${sc}`}>{row.signal}</span></td>
                   <td style={{ fontSize: '11px', color: 'var(--text2)' }}>{row.action ?? row.ac}</td>
+                  <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                    {canPreorder(row.signal) ? (
+                      <button
+                        className="btn-primary"
+                        style={{ fontSize: 11, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                        onClick={() => setPreorderItem(row)}
+                      >
+                        Pre-order
+                      </button>
+                    ) : (
+                      <span style={{ color: 'var(--text3)', fontSize: 11 }}>—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -161,6 +406,10 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
           <span>✨</span>
           <span>Ask AI: Build 60-day pre-order plan based on demand forecast and seasonal data →</span>
         </div>
+      )}
+
+      {preorderItem && (
+        <QuickPreorderModal item={preorderItem} onClose={() => setPreorderItem(null)} />
       )}
     </div>
   );

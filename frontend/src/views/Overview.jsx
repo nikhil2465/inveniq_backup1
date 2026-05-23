@@ -360,6 +360,14 @@ export default function Overview({ onGoChat, onNavigate, dbStatus, period = 'MTD
         </div>
       </div>
 
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginTop: 20 }} onClick={() => onGoChat(
+          'Give me a complete executive business briefing — revenue health, top risks, best opportunities, and the 3 most important actions I should take today.'
+        )}>
+          <span>✨</span>
+          <span>Ask AI: Full business briefing — top risks, opportunities, and today's 3 priority actions</span>
+        </div>
+      )}
     </div>
   );
 }

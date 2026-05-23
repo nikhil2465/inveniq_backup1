@@ -216,6 +216,14 @@ function WarehouseDetail({ wh }) {
 }
 
 // ── Main View ─────────────────────────────────────────────────────────────────
+const blankDistForm = () => ({
+  sku_name: '', sku_code: '', category: '',
+  qty: '', unit: 'Pieces',
+  buy_price: '', sell_price: '',
+  dispatched_by: '', order_ref: '',
+  dispatch_date: new Date().toISOString().split('T')[0],
+});
+
 export default function Warehouse({ onGoChat, dbStatus }) {
   const [warehouses,    setWarehouses]    = useState([]);
   const [grnLog,        setGrnLog]        = useState([]);
@@ -229,6 +237,13 @@ export default function Warehouse({ onGoChat, dbStatus }) {
   const [page,          setPage]          = useState(1);
   const [expandedDist,  setExpandedDist]  = useState(null); // distributor_id
   const PAGE_SIZE = 20;
+  const [catalogProducts,     setCatalogProducts]     = useState([]);
+  const [distDispatchForm,    setDistDispatchForm]    = useState(blankDistForm());
+  const [distDispatchSubmit,  setDistDispatchSubmit]  = useState(false);
+  const [distDispatchSuccess, setDistDispatchSuccess] = useState(null);
+  const [distDispatchError,   setDistDispatchError]   = useState('');
+  const setDDF = k => v => setDistDispatchForm(f => ({ ...f, [k]: v }));
+  const [productSearch,       setProductSearch]       = useState('');
 
   // ── Data fetching ─────────────────────────────────────────────────────────
   const silentFetch = useCallback(() => {
@@ -264,6 +279,21 @@ export default function Warehouse({ onGoChat, dbStatus }) {
 
   useAutoRefresh(silentFetch, 5 * 60_000);
 
+  // Load product catalog for SKU picker (once)
+  useEffect(() => {
+    fetch('/api/catalog')
+      .then(r => r.json())
+      .then(data => setCatalogProducts(data.products || []))
+      .catch(() => {});
+  }, []);
+
+  // Reset dispatch form whenever user expands a different distributor
+  useEffect(() => {
+    setDistDispatchForm(blankDistForm());
+    setDistDispatchSuccess(null);
+    setDistDispatchError('');
+  }, [expandedDist]);
+
   // ── Computed KPIs ─────────────────────────────────────────────────────────
   const totalCapacity = warehouses.reduce((s, w) => s + (w.capacity_sheets || 0), 0);
   const totalStock    = warehouses.reduce((s, w) => s + (w.current_stock_sheets || 0), 0);
@@ -291,6 +321,50 @@ export default function Warehouse({ onGoChat, dbStatus }) {
   // ── Discrepancy summary ────────────────────────────────────────────────────
   const mismatchCount    = grnLog.filter(g => g.match_status === 'MISMATCH').length;
   const totalDiscrepancy = grnLog.reduce((s, g) => s + (g.discrepancy_amt || 0), 0);
+
+  const handleDistDispatch = async (dist) => {
+    const f = distDispatchForm;
+    if (!f.sku_name.trim())                        return setDistDispatchError('SKU / Product name is required.');
+    if (!f.qty || Number(f.qty) <= 0)              return setDistDispatchError('Quantity must be greater than zero.');
+    if (!f.buy_price || Number(f.buy_price) <= 0)  return setDistDispatchError('Buy price is required.');
+    if (!f.dispatched_by.trim())                   return setDistDispatchError('Dispatched by is required.');
+    setDistDispatchSubmit(true);
+    setDistDispatchError('');
+    setDistDispatchSuccess(null);
+    try {
+      const res = await fetch('/api/stock-dispatch/distributor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          distributor_id:   dist.distributor_id,
+          distributor_name: dist.distributor_name,
+          sku_code:         f.sku_code || f.sku_name.toUpperCase().replace(/\s+/g, '-').slice(0, 20),
+          sku_name:         f.sku_name,
+          category:         f.category || '—',
+          qty:              Number(f.qty),
+          unit:             f.unit,
+          buy_price:        Number(f.buy_price),
+          sell_price:       f.sell_price ? Number(f.sell_price) : null,
+          dispatched_by:    f.dispatched_by,
+          order_ref:        f.order_ref || null,
+          notes:            null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Dispatch failed.');
+      if (data.success) {
+        setDistDispatchSuccess(data);
+        setDistDispatchForm(blankDistForm());
+        silentFetch();
+      } else {
+        setDistDispatchError(data.detail || 'Dispatch failed.');
+      }
+    } catch (e) {
+      setDistDispatchError(e.message || 'Network error.');
+    } finally {
+      setDistDispatchSubmit(false);
+    }
+  };
 
   if (loading) return <PageLoader />;
 
@@ -379,9 +453,10 @@ export default function Warehouse({ onGoChat, dbStatus }) {
       {/* ── Tabs ── */}
       <div className="stabs" style={{ marginBottom: 16 }}>
         {[
-          ['overview',      '🏭 Warehouse Overview'],
-          ['distributors',  `🚚 Distributor Inventory (${distributors.length})`],
-          ['grn-log',       `📋 GRN Activity Log (${grnLog.length})`],
+          ['overview',         '🏭 Warehouse Overview'],
+          ['distributors',     `🚚 Distributor Inventory (${distributors.length})`],
+          ['grn-log',          `📋 GRN Activity Log (${grnLog.length})`],
+          ['stock-by-product', '📦 Stock by Product'],
         ].map(([id, label]) => (
           <button key={id} className={`stab${activeTab === id ? ' active' : ''}`} onClick={() => setActiveTab(id)}>
             {label}
@@ -613,7 +688,7 @@ export default function Warehouse({ onGoChat, dbStatus }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(dist.stock || []).map((item, si) => (
+                  {(dist.stock || []).filter(item => (item.qty || 0) > 0).map((item, si) => (
                     <tr key={si}>
                       <td>
                         <div style={{ fontWeight: 700 }}>{item.sku_name}</div>
@@ -639,6 +714,126 @@ export default function Warehouse({ onGoChat, dbStatus }) {
                   </tr>
                 </tfoot>
               </table>
+
+              {/* ── Quick Dispatch from Catalog ── */}
+              <div style={{ marginTop: 16, padding: '16px 18px', background: 'var(--s2)', borderRadius: 10, border: '1px solid var(--b4)' }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>📤</span> Dispatch Stock from Catalog
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      SKU / Product <span style={{ color: 'var(--r2)' }}>*</span>
+                    </label>
+                    <input
+                      list={`dist-sku-catalog-${dist.distributor_id}`}
+                      value={distDispatchForm.sku_name}
+                      onChange={e => {
+                        const name = e.target.value;
+                        const prod = catalogProducts.find(p => p.name === name);
+                        if (prod) {
+                          setDistDispatchForm(f => ({
+                            ...f,
+                            sku_name:   prod.name,
+                            sku_code:   prod.sku_code  || '',
+                            category:   prod.category  || '',
+                            buy_price:  prod.buy_price  != null ? String(prod.buy_price)  : '',
+                            sell_price: prod.sell_price != null ? String(prod.sell_price) : '',
+                            unit: prod.unit === 'sheet' ? 'Sheets' : prod.unit === 'piece' ? 'Pieces' : prod.unit || f.unit,
+                          }));
+                        } else {
+                          setDDF('sku_name')(name);
+                        }
+                      }}
+                      placeholder="Type or select from Product Catalog…"
+                      style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }}
+                    />
+                    <datalist id={`dist-sku-catalog-${dist.distributor_id}`}>
+                      {catalogProducts.map(p => (
+                        <option key={p.sku_code || p.product_id} value={p.name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      Qty <span style={{ color: 'var(--r2)' }}>*</span>
+                    </label>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <input type="number" min="1" value={distDispatchForm.qty} onChange={e => setDDF('qty')(e.target.value)}
+                        placeholder="0"
+                        style={{ flex: 1, padding: '7px 8px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--mono)', boxSizing: 'border-box' }} />
+                      <select value={distDispatchForm.unit} onChange={e => setDDF('unit')(e.target.value)}
+                        style={{ padding: '7px 6px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 11, color: 'var(--text)', background: 'var(--surface)', cursor: 'pointer' }}>
+                        {['Pieces', 'Sheets', 'Packs', 'Sets', 'Rolls', 'Kg', 'Running Meters'].map(u => <option key={u}>{u}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      Buy Price ₹ <span style={{ color: 'var(--r2)' }}>*</span>
+                    </label>
+                    <input type="number" min="0" value={distDispatchForm.buy_price} onChange={e => setDDF('buy_price')(e.target.value)}
+                      placeholder="0.00"
+                      style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--mono)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      Sell Price ₹
+                    </label>
+                    <input type="number" min="0" value={distDispatchForm.sell_price} onChange={e => setDDF('sell_price')(e.target.value)}
+                      placeholder="0.00"
+                      style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--mono)', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      Dispatched By <span style={{ color: 'var(--r2)' }}>*</span>
+                    </label>
+                    <input value={distDispatchForm.dispatched_by} onChange={e => setDDF('dispatched_by')(e.target.value)}
+                      placeholder="Staff name"
+                      style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      Order Ref
+                    </label>
+                    <input value={distDispatchForm.order_ref} onChange={e => setDDF('order_ref')(e.target.value)}
+                      placeholder="SO-XXXX or PO-XXXX"
+                      style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      Dispatch Date
+                    </label>
+                    <input type="date" value={distDispatchForm.dispatch_date} onChange={e => setDDF('dispatch_date')(e.target.value)}
+                      style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, color: 'var(--text)', background: 'var(--surface)', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                {distDispatchError && (
+                  <div style={{ color: 'var(--r2)', fontSize: 12, marginBottom: 8, padding: '6px 10px', background: '#fef2f2', borderRadius: 6 }}>
+                    ⚠ {distDispatchError}
+                  </div>
+                )}
+                {distDispatchSuccess && (
+                  <div style={{ color: 'var(--green)', fontSize: 12, marginBottom: 8, padding: '6px 10px', background: '#f0fdf4', borderRadius: 6 }}>
+                    ✅ {distDispatchSuccess.qty} units of {distDispatchSuccess.sku_name} dispatched to <strong>{distDispatchSuccess.distributor_name}</strong>
+                  </div>
+                )}
+                <button
+                  onClick={() => handleDistDispatch(dist)}
+                  disabled={distDispatchSubmit}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: distDispatchSubmit ? 'var(--s4)' : 'var(--brand)',
+                    color: distDispatchSubmit ? 'var(--text3)' : '#fff',
+                    fontSize: 12.5, fontWeight: 700, cursor: distDispatchSubmit ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {distDispatchSubmit ? 'Recording…' : '📤 Record Dispatch'}
+                </button>
+              </div>
+
               {onGoChat && (
                 <button
                   className="btn-secondary"
@@ -761,6 +956,123 @@ export default function Warehouse({ onGoChat, dbStatus }) {
           <Pagination page={page} total={filteredGRN.length} pageSize={PAGE_SIZE} onChange={setPage} />
         </>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: Stock by Product
+      ════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'stock-by-product' && (() => {
+        // Build cross-location product index from already-loaded state
+        const index = {};
+        for (const wh of warehouses) {
+          const loc = wh.godown_name || wh.name || `WH-${wh.godown_id}`;
+          for (const p of (wh.products || [])) {
+            const key = p.sku_name;
+            if (!index[key]) index[key] = { sku_name: p.sku_name, sku_code: p.sku_code || '', category: p.category || '—', locations: [] };
+            index[key].locations.push({ name: loc, type: 'Warehouse', qty: Number(p.quantity || 0), unit: 'sheets', value: p.stock_value || 0 });
+          }
+        }
+        for (const d of distributors) {
+          const loc = d.distributor_name;
+          for (const s of (d.stock || [])) {
+            const key = s.sku_name;
+            if (!index[key]) index[key] = { sku_name: s.sku_name, sku_code: s.sku_code || '', category: s.category || '—', locations: [] };
+            index[key].locations.push({ name: loc, type: 'Distributor', qty: Number(s.qty || 0), unit: s.unit || 'Pieces', value: s.stock_value || 0 });
+          }
+        }
+        const allRows = Object.values(index).sort((a, b) => a.sku_name.localeCompare(b.sku_name));
+        const filtered = productSearch
+          ? allRows.filter(r =>
+              r.sku_name.toLowerCase().includes(productSearch.toLowerCase()) ||
+              r.category.toLowerCase().includes(productSearch.toLowerCase()) ||
+              r.sku_code.toLowerCase().includes(productSearch.toLowerCase())
+            )
+          : allRows;
+
+        return (
+          <div className="card">
+            <div className="ch" style={{ marginBottom: 12 }}>
+              <div>
+                <div className="ctit">📦 Stock by Product — Cross-Location View</div>
+                <div className="csub">Total quantity per product across all warehouses and distributors</div>
+              </div>
+              <span className="bdg bs">{filtered.length} products</span>
+            </div>
+            {/* Search */}
+            <div style={{ marginBottom: 14 }}>
+              <input
+                type="text"
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                placeholder="Search by product name, SKU code, or category…"
+                style={{
+                  width: '100%', padding: '9px 13px', border: '1px solid var(--border)',
+                  borderRadius: 8, fontSize: 13, color: 'var(--text)', background: 'var(--surface)',
+                  fontFamily: 'var(--font)', boxSizing: 'border-box', outline: 'none',
+                }}
+              />
+            </div>
+            {allRows.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text3)', fontSize: 13 }}>
+                No product stock data found. Stock appears here once warehouses or distributors have inventory assigned.
+              </div>
+            ) : filtered.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--text3)', fontSize: 13 }}>
+                No products match "{productSearch}".
+              </div>
+            ) : (
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Product / SKU</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Type</th>
+                    <th style={{ textAlign: 'right' }}>Qty</th>
+                    <th>Unit</th>
+                    <th style={{ textAlign: 'right' }}>Stock Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.flatMap(row =>
+                    row.locations.length === 0 ? [] : row.locations.map((loc, li) => (
+                      <tr key={`${row.sku_name}-${li}`}>
+                        {li === 0 ? (
+                          <td rowSpan={row.locations.length} style={{ verticalAlign: 'top', borderRight: '1px solid var(--border)' }}>
+                            <div style={{ fontWeight: 700, fontSize: 12.5 }}>{row.sku_name}</div>
+                            {row.sku_code && <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{row.sku_code}</div>}
+                          </td>
+                        ) : null}
+                        {li === 0 ? (
+                          <td rowSpan={row.locations.length} style={{ verticalAlign: 'top', fontSize: 11.5, color: 'var(--text2)', borderRight: '1px solid var(--border)' }}>
+                            {row.category}
+                          </td>
+                        ) : null}
+                        <td style={{ fontSize: 12 }}>{loc.name}</td>
+                        <td>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                            background: loc.type === 'Warehouse' ? '#dbeafe' : '#f3e8ff',
+                            color: loc.type === 'Warehouse' ? '#1e40af' : '#6d28d9',
+                          }}>
+                            {loc.type === 'Warehouse' ? '🏭 WH' : '🚚 Dist'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'var(--mono)', color: loc.qty === 0 ? 'var(--r2)' : 'var(--text)' }}>
+                          {loc.qty.toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ fontSize: 11, color: 'var(--text3)' }}>{loc.unit}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12 }}>
+                          {loc.value ? fmtL(loc.value) : '—'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── AI CTA ── */}
       {onGoChat && (

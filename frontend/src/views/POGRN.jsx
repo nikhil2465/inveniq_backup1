@@ -88,16 +88,35 @@ const OPERATION_TYPES = [
   'Regular Purchase', 'Emergency Purchase', 'Import Purchase',
   'Project Purchase', 'Sample Purchase', 'Capital Purchase', 'Inter-branch Transfer',
 ];
+const FREIGHT_TYPES = [
+  'Supplier Own Operated',
+  'Company Own Operated',
+  'Third Party Logistics',
+];
+const RETURN_REASONS = [
+  'Grade / Quality Mismatch', 'Damaged in Transit', 'Short Delivery',
+  'Wrong Specification / Size', 'Excess Quantity Returned', 'Price Dispute',
+  'Cancelled Order', 'Defective Material', 'Other',
+];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
 const today = () => new Date().toISOString().split('T')[0];
 const plusDays = (n) => new Date(Date.now() + n * 86400000).toISOString().split('T')[0];
 
+const MATCHING_TYPES = [
+  '1-Way (Invoice Only)',
+  '2-Way (PO + Invoice)',
+  '3-Way (PO + GRN + Invoice)',
+  '4-Way (PO + GRN + Invoice + QC)',
+];
+
 const blankPO = () => ({
   supplier_name: '', supplier_contact: '', payment_terms: '',
   delivery_location: '', expected_date: plusDays(7), notes: '',
   operation_type: 'Regular Purchase',
+  freight_type: 'Supplier Own Operated',
+  matching_type: '3-Way (PO + GRN + Invoice)',
   // Louvers
   lv_category: '', lv_blade_width: '', lv_pitch: '', lv_finish: '',
   lv_system: '', lv_grade: '', lv_color: '',
@@ -107,6 +126,12 @@ const blankPO = () => ({
   // Common
   quantity: '', unit: '', unit_price: '',
 });
+
+const QC_DEFECT_TYPES = [
+  'None', 'Surface Scratch', 'Delamination', 'Moisture Damage',
+  'Wrong Grade / Spec', 'Colour Mismatch', 'Dimensional Error',
+  'Broken / Cracked', 'Short Length / Width', 'Other',
+];
 
 const blankGRN = () => ({
   po_number: '', supplier_name: '', invoice_number: '',
@@ -118,6 +143,13 @@ const blankGRN = () => ({
   notes: '',
   // Landing cost charges
   lc_freight: '', lc_insurance: '', lc_loading: '', lc_transport: '', lc_other: '',
+  // Gate entry fields (integrated from Gate Entry module)
+  driver_name: '', dc_verified: 'Yes', seal_intact: 'Yes',
+  entry_time: new Date().toISOString().slice(0, 16),
+  // QC inline fields
+  qc_inspector: '', qc_sample_size: '', qc_accepted_qty: '', qc_rejected_qty: '', qc_defect_type: 'None',
+  // Dual UOM (box-wise receiving)
+  box_count: '', pieces_per_box: '',
 });
 
 // ── STYLES ────────────────────────────────────────────────────────────────────
@@ -245,6 +277,13 @@ function SuccessCard({ result, type, onClose, onAskAI }) {
             </span>
           } />
           {!isMatch && <Row label="Discrepancy" val={`₹${Number(result.discrepancy_amt || 0).toLocaleString('en-IN')}`} />}
+          {result.purchase_invoice_number && (
+            <Row label="Purchase Invoice" val={
+              <span style={{ color: 'var(--b2)', fontWeight: 700, fontFamily: 'var(--mono)' }}>
+                {result.purchase_invoice_number}
+              </span>
+            } />
+          )}
           {result.total_landed_cost > 0 && <>
             <Row label="Total Landed Cost" val={
               <span style={{ color: 'var(--b2)', fontWeight: 700 }}>
@@ -319,6 +358,8 @@ function CreatePOModal({ industry, onClose, onSuccess, prefill }) {
           unit_price: form.unit_price ? Number(form.unit_price) : null,
           expected_date: form.expected_date || undefined,
           operation_type: form.operation_type || 'Regular Purchase',
+          freight_type: form.freight_type || 'Supplier Own Operated',
+          matching_type: form.matching_type || '3-Way (PO + GRN + Invoice)',
           notes: notes.trim(),
         }),
       });
@@ -369,8 +410,12 @@ function CreatePOModal({ industry, onClose, onSuccess, prefill }) {
             <Inp label="Delivery Location" value={form.delivery_location} onChange={set('delivery_location')} placeholder="e.g. Whitefield, Bengaluru" />
             <Inp label="Expected Delivery Date" value={form.expected_date} onChange={set('expected_date')} type="date" required />
           </div>
-          <div style={{ marginBottom: 14 }}>
+          <div style={ROW2}>
             <Sel label="Operation Type *" value={form.operation_type} onChange={set('operation_type')} options={OPERATION_TYPES} required />
+            <Sel label="Freight Type *" value={form.freight_type} onChange={set('freight_type')} options={FREIGHT_TYPES} required />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <Sel label="Invoice Matching Type" value={form.matching_type} onChange={set('matching_type')} options={MATCHING_TYPES} />
           </div>
 
           {/* Industry-specific product fields */}
@@ -453,11 +498,13 @@ function CreatePOModal({ industry, onClose, onSuccess, prefill }) {
 
 // ── CREATE GRN MODAL ──────────────────────────────────────────────────────────
 
-function CreateGRNModal({ industry, onClose, onSuccess }) {
+function CreateGRNModal({ industry, onClose, onSuccess, prefillPo }) {
   const [form, setForm]               = useState(blankGRN());
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState('');
   const [showLandingCost, setShowLandingCost] = useState(false);
+  const [selectedPoFreight, setSelectedPoFreight] = useState('');
+  const [selectedPoMatchingType, setSelectedPoMatchingType] = useState('');
   // Open POs (unreceived)
   const [openPos, setOpenPos]         = useState([]);
   const [posLoading, setPosLoading]   = useState(true);
@@ -488,20 +535,65 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
   }, []);
 
   // Auto-fill form when a PO is selected from the dropdown
-  const handlePoSelect = (poId) => {
+  const handlePoSelect = useCallback((poId) => {
     setSelectedPoId(poId);
-    if (!poId) return;
+    if (!poId) { setSelectedPoFreight(''); setSelectedPoMatchingType(''); return; }
     const po = openPos.find(p => String(p.po_id ?? p.id ?? p.po_number) === poId);
     if (!po) return;
+    const freight = po.freight_type || '';
+    setSelectedPoFreight(freight);
+    setSelectedPoMatchingType(po.matching_type || '');
+    if (freight === 'Company Own Operated') setShowLandingCost(true);
+    const supplierName = po.supplier_name || po.supplier || '';
+    const productName  = po.sku_name || po.product_name || po.sku || '';
+    // qty_ordered = full PO qty; qty_received default = remaining balance (qty_pending)
+    const qtyOrd     = String(po.qty_ordered ?? po.quantity ?? '');
+    const qtyPending = String(po.qty_pending ?? po.qty_ordered ?? po.quantity ?? '');
+    const unit       = po.unit || '';
     setForm(f => ({
       ...f,
       po_number:     po.po_number || f.po_number,
-      supplier_name: po.supplier_name || po.supplier || f.supplier_name,
-      product_name:  po.sku_name || po.product_name || po.sku || f.product_name,
-      qty_ordered:   po.qty_pending ?? po.qty_ordered ?? po.quantity ?? f.qty_ordered,
-      unit:          po.unit || f.unit,
+      supplier_name: supplierName || f.supplier_name,
+      product_name:  productName  || f.product_name,
+      qty_ordered:   qtyOrd     || f.qty_ordered,
+      qty_received:  qtyPending || f.qty_received,
+      unit:          unit       || f.unit,
     }));
-  };
+  }, [openPos]);
+
+  // When opened from a specific PO row (prefillPo prop), auto-select that PO
+  // once the open-POs list has loaded. Falls back to direct form population if
+  // the PO isn't in the list (e.g. already partially received but still open).
+  useEffect(() => {
+    if (!prefillPo || posLoading) return;
+    const match = openPos.find(p =>
+      p.po_number === prefillPo.po_number ||
+      (prefillPo.po_id && String(p.po_id) === String(prefillPo.po_id))
+    );
+    if (match) {
+      const id = String(match.po_id ?? match.id ?? match.po_number);
+      handlePoSelect(id);
+    } else {
+      // PO not in open list (may be in approved/partial state not included) — populate directly
+      const supplierName = prefillPo.supplier_name || prefillPo.supplier || '';
+      const productName  = prefillPo.sku_name || prefillPo.product_name || prefillPo.sku || '';
+      const qtyOrd     = String(prefillPo.qty_ordered ?? prefillPo.quantity ?? '');
+      const qtyPending = String(prefillPo.qty_pending ?? prefillPo.qty_ordered ?? prefillPo.quantity ?? '');
+      const unit       = prefillPo.unit || '';
+      setForm(f => ({
+        ...f,
+        po_number:     prefillPo.po_number || f.po_number,
+        supplier_name: supplierName || f.supplier_name,
+        product_name:  productName  || f.product_name,
+        qty_ordered:   qtyOrd     || f.qty_ordered,
+        qty_received:  qtyPending || f.qty_received,
+        unit:          unit       || f.unit,
+      }));
+      setSelectedPoFreight(prefillPo.freight_type || '');
+      setSelectedPoMatchingType(prefillPo.matching_type || '');
+      if (prefillPo.freight_type === 'Company Own Operated') setShowLandingCost(true);
+    }
+  }, [prefillPo, posLoading, openPos, handlePoSelect]);
 
   // Scan invoice via GPT-4o Vision
   const handleScanFile = async (e) => {
@@ -553,9 +645,13 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
     e.target.value = '';
   };
 
+  const qcMandatory = selectedPoMatchingType.includes('3-Way') || selectedPoMatchingType.includes('4-Way');
+
   const handleSubmit = async () => {
     if (!form.supplier_name.trim()) return setError('Supplier name is required.');
     if (!form.invoice_number.trim()) return setError('Invoice number is required.');
+    if (qcMandatory && !form.qc_inspector.trim()) return setError(`QC Inspector name is required — ${selectedPoMatchingType} matching mandates a quality inspection before GRN can be recorded.`);
+    if (qcMandatory && (!form.qc_accepted_qty || Number(form.qc_accepted_qty) <= 0)) return setError(`Accepted quantity from QC inspection is required for ${selectedPoMatchingType} matching. Please complete the QC Inspection Details section.`);
 
     setSubmitting(true);
     setError('');
@@ -590,7 +686,17 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
           notes: [
             form.condition !== 'Good — Accepted' ? `Condition: ${form.condition}` : '',
             `Quality: ${form.quality_status}`,
+            form.qc_inspector ? `QC Inspector: ${form.qc_inspector}` : '',
+            form.qc_sample_size ? `QC Sample: ${form.qc_sample_size}` : '',
+            form.qc_accepted_qty ? `Accepted: ${form.qc_accepted_qty}` : '',
+            form.qc_rejected_qty && Number(form.qc_rejected_qty) > 0 ? `Rejected: ${form.qc_rejected_qty}` : '',
+            form.qc_defect_type && form.qc_defect_type !== 'None' ? `Defect: ${form.qc_defect_type}` : '',
+            form.box_count && form.pieces_per_box ? `Boxes: ${form.box_count} × ${form.pieces_per_box} pcs = ${Number(form.box_count) * Number(form.pieces_per_box)} pcs` : '',
             form.vehicle_number ? `Vehicle: ${form.vehicle_number}` : '',
+            form.driver_name ? `Driver: ${form.driver_name}` : '',
+            `DC Verified: ${form.dc_verified}`,
+            `Seal Intact: ${form.seal_intact}`,
+            form.entry_time ? `Entry Time: ${form.entry_time}` : '',
             form.received_by ? `Received by: ${form.received_by}` : '',
             form.notes,
           ].filter(Boolean).join(' | '),
@@ -680,20 +786,54 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
                   <option value="">— Manual entry (no PO) —</option>
                   {openPos.map(po => {
                     const id = String(po.po_id ?? po.id ?? po.po_number);
-                    const qtyLabel = po.qty_pending != null ? `${po.qty_pending} ${po.unit || 'units'} pending` : po.quantity != null ? `${po.quantity} ${po.unit || 'units'}` : '';
+                    const supplierLabel = po.supplier_name || po.supplier || '?';
+                    const skuLabel      = po.sku_name || po.product_name || po.sku || 'No SKU';
+                    const qty = po.qty_pending ?? po.qty_ordered ?? po.quantity;
+                    const qtyLabel = qty != null ? `${qty} ${po.unit || 'units'}` : '';
                     const valLabel = po.total_value ? ` · ₹${Number(po.total_value).toLocaleString('en-IN')}` : '';
                     return (
                       <option key={id} value={id}>
-                        {po.po_number} — {po.supplier_name} | {po.sku_name || po.product_name || 'No SKU'}{qtyLabel ? ` | ${qtyLabel}` : ''}{valLabel}
+                        {po.po_number} — {supplierLabel} | {skuLabel}{qtyLabel ? ` | ${qtyLabel}` : ''}{valLabel}
                       </option>
                     );
                   })}
                 </select>
-                {selectedPoId && (
-                  <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 5 }}>
-                    ✓ PO fields auto-filled — verify quantities below and enter invoice details.
-                  </div>
-                )}
+                {selectedPoId && (() => {
+                  const selPo = openPos.find(p => String(p.po_id ?? p.id ?? p.po_number) === selectedPoId);
+                  if (!selPo) return <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 5 }}>✓ PO selected — fill details below.</div>;
+                  const qtyOrdered = selPo.qty_ordered ?? selPo.quantity;
+                  const qtyPending = selPo.qty_pending;
+                  const isPartial  = qtyPending != null && qtyOrdered != null && qtyPending < qtyOrdered;
+                  const matchType  = selPo.matching_type || '';
+                  const qcRequired = matchType.includes('3-Way') || matchType.includes('4-Way');
+                  return (
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginTop: 6, color: '#1e293b' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Linked PO Reference (Read-only)</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
+                        <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e40af' }}>{selPo.po_number}</strong></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>SUPPLIER</div><strong>{selPo.supplier_name || selPo.supplier || '—'}</strong></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>FREIGHT TYPE</div><strong>{selPo.freight_type || 'Supplier Own Operated'}</strong></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11 }}>{selPo.sku_name || selPo.product_name || selPo.sku || '—'}</strong></div>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>QTY ORDERED</div>
+                          <strong style={{ fontFamily: 'var(--mono)' }}>{qtyOrdered != null ? qtyOrdered : '—'}</strong>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>
+                            {isPartial ? 'BALANCE QTY' : 'QTY RECEIVED'}
+                          </div>
+                          <strong style={{ fontFamily: 'var(--mono)', color: isPartial ? '#d97706' : '#059669' }}>
+                            {isPartial ? qtyPending : (selPo.qty_received ?? 0)} {selPo.unit || ''}
+                          </strong>
+                        </div>
+                        <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>UOM</div><strong style={{ fontFamily: 'var(--mono)', color: '#059669' }}>{selPo.unit || '—'}</strong></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PO VALUE</div><strong style={{ fontFamily: 'var(--mono)', color: '#7c3aed' }}>{selPo.total_value ? `₹${Number(selPo.total_value).toLocaleString('en-IN')}` : selPo.value || '—'}</strong></div>
+                        {matchType && <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>MATCH TYPE</div><strong style={{ fontSize: 11, color: qcRequired ? '#15803d' : 'var(--text)' }}>{matchType}{qcRequired ? ' ✓ QC Required' : ''}</strong></div>}
+                        {selPo.pr_number && <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>FROM PR</div><strong style={{ fontFamily: 'var(--mono)', color: '#7c3aed', fontSize: 11 }}>{selPo.pr_number}</strong></div>}
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
@@ -755,6 +895,24 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
             <Inp label="Qty Received" value={form.qty_received} onChange={set('qty_received')} type="number" placeholder="200" />
             <Sel label="Unit" value={form.unit} onChange={set('unit')} options={cat.units} />
           </div>
+          {/* Dual UOM — show box + pieces breakdown when receiving box-wise */}
+          {form.unit && (form.unit.toLowerCase().includes('box') || form.unit.toLowerCase().includes('carton')) && (
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>📦 Box-wise Receiving (Dual UOM)</div>
+              <div style={ROW2}>
+                <Inp label="No. of Boxes Received" value={form.box_count} onChange={set('box_count')} type="number" placeholder="e.g. 10" />
+                <Inp label="Pieces per Box" value={form.pieces_per_box} onChange={set('pieces_per_box')} type="number" placeholder="e.g. 20" />
+              </div>
+              {form.box_count && form.pieces_per_box && (
+                <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', borderRadius: 6, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#1e40af' }}>Total Pieces (computed)</span>
+                  <span style={{ fontWeight: 700, fontFamily: 'var(--mono)', color: '#1e40af', fontSize: 14 }}>
+                    {Number(form.box_count) * Number(form.pieces_per_box)} pcs
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
           {isShortDelivery && (
             <div style={{ background: 'var(--a3)', border: '1px solid var(--a4)', borderRadius: 8, padding: '9px 13px', fontSize: 12, color: 'var(--a2)', marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
               ⚠ Short delivery detected: {Number(form.qty_ordered) - Number(form.qty_received)} {form.unit || 'units'} short. AI will flag this for credit note.
@@ -763,6 +921,27 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
           <div style={ROW2}>
             <Sel label="Condition of Goods" value={form.condition} onChange={set('condition')} options={CONDITION_OPTIONS} />
             <Sel label="Quality Check Result" value={form.quality_status} onChange={set('quality_status')} options={QUALITY_OPTIONS} />
+          </div>
+
+          {/* QC Inspection Section — mandatory for 3-Way / 4-Way match POs */}
+          <div style={{ background: qcMandatory ? '#f0fdf4' : 'var(--s3)', border: `1px solid ${qcMandatory ? '#86efac' : 'var(--border)'}`, borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: qcMandatory ? '#15803d' : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>
+              🔍 QC Inspection Details {qcMandatory ? `— Required * (${selectedPoMatchingType})` : '— Optional'}
+            </div>
+            <div style={{ fontSize: 10, color: qcMandatory ? '#166534' : 'var(--text3)', marginBottom: 10 }}>
+              {qcMandatory
+                ? `Quality inspection is mandatory for ${selectedPoMatchingType} matching before this GRN can be submitted. Results are reflected in the QC module.`
+                : 'QC details are optional for this matching type. Fill in if an inspection was performed.'}
+            </div>
+            <div style={ROW3}>
+              <Inp label={qcMandatory ? 'QC Inspector Name *' : 'QC Inspector Name'} value={form.qc_inspector} onChange={set('qc_inspector')} placeholder="Inspector name" required={qcMandatory} />
+              <Inp label="Sample Size Checked" value={form.qc_sample_size} onChange={set('qc_sample_size')} type="number" placeholder="e.g. 20" />
+              <Sel label="Defect Type" value={form.qc_defect_type} onChange={set('qc_defect_type')} options={QC_DEFECT_TYPES} />
+            </div>
+            <div style={ROW2}>
+              <Inp label={qcMandatory ? 'Accepted Qty *' : 'Accepted Qty'} value={form.qc_accepted_qty} onChange={set('qc_accepted_qty')} type="number" placeholder="e.g. 18" required={qcMandatory} />
+              <Inp label="Rejected Qty" value={form.qc_rejected_qty} onChange={set('qc_rejected_qty')} type="number" placeholder="e.g. 2" />
+            </div>
           </div>
 
           {/* Valuation */}
@@ -799,6 +978,11 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
           </div>
           {showLandingCost && (
             <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+              {selectedPoFreight === 'Company Own Operated' && (
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 7, padding: '8px 12px', marginBottom: 12, fontSize: 11.5, color: '#1e40af', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  🚛 <strong>Company Own Operated</strong> — This PO uses your own fleet. Please enter all freight and handling charges to compute the accurate landed cost.
+                </div>
+              )}
               <div style={ROW3}>
                 <Inp label="Freight / Shipping (₹)" value={form.lc_freight} onChange={set('lc_freight')} type="number" placeholder="0" />
                 <Inp label="Insurance (₹)" value={form.lc_insurance} onChange={set('lc_insurance')} type="number" placeholder="0" />
@@ -835,11 +1019,17 @@ function CreateGRNModal({ industry, onClose, onSuccess }) {
             </div>
           )}
 
-          {/* Logistics */}
-          <div style={SECTION_TITLE}>🚚 Logistics &amp; Receipt</div>
+          {/* Gate Entry & Logistics */}
+          <div style={SECTION_TITLE}>🚪 Gate Entry &amp; Logistics</div>
           <div style={ROW3}>
             <Inp label="Vehicle / Truck Number" value={form.vehicle_number} onChange={set('vehicle_number')} placeholder="KA-01-AB-1234" />
+            <Inp label="Driver Name" value={form.driver_name} onChange={set('driver_name')} placeholder="Driver's name" />
             <Inp label="Received By (Name)" value={form.received_by} onChange={set('received_by')} placeholder="Store Manager" />
+          </div>
+          <div style={ROW3}>
+            <Sel label="DC / Challan Verified" value={form.dc_verified} onChange={set('dc_verified')} options={['Yes', 'No', 'Pending']} />
+            <Sel label="Seal / Package Intact" value={form.seal_intact} onChange={set('seal_intact')} options={['Yes', 'No — Damaged', 'Partial']} />
+            <Inp label="Vehicle Entry Time" value={form.entry_time} onChange={set('entry_time')} type="datetime-local" />
           </div>
           <div style={FIELD}>
             <label style={LABEL}>Discrepancy / Inspection Notes</label>
@@ -1536,7 +1726,7 @@ function POApproveModal({ po, action, level, onClose, onDone }) {
   const isRelease = action === 'release';
   const isReject  = action === 'reject';
 
-  const levelLabel = level === 'sales' ? 'Sales' : 'Finance';
+  const levelLabel = level === 'sales' ? 'Accounts Payable' : 'Finance';
   const accentColor = isReject ? '#dc2626' : isRelease ? '#16a34a' : '#2563eb';
 
   const handle = async () => {
@@ -1710,8 +1900,8 @@ function POApprovalPanel({ pendingApprovals, loading, onRefresh, goChat }) {
               {/* Approval levels */}
               <div className="poa-approval-levels">
                 {[
-                  { key: 'sales',   label: 'Sales Team',   data: salesApproval },
-                  { key: 'finance', label: 'Finance Team', data: financeApproval },
+                  { key: 'sales',   label: 'Accounts Payable', data: salesApproval },
+                  { key: 'finance', label: 'Finance Team',      data: financeApproval },
                 ].map(({ key, label, data }) => {
                   const style = APPROVAL_STATUS_STYLES[data.status] || APPROVAL_STATUS_STYLES.pending;
                   return (
@@ -1749,14 +1939,19 @@ function POApprovalPanel({ pendingApprovals, loading, onRefresh, goChat }) {
                   {salesApproval.status === 'pending' && (
                     <button onClick={() => setModal({ po, action: 'approve', level: 'sales' })}
                       style={{ padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                      ✓ Sales Approve
+                      ✓ A/P Approve
                     </button>
                   )}
-                  {financeApproval.status === 'pending' && (
+                  {financeApproval.status === 'pending' && salesApproval.status === 'approved' && (
                     <button onClick={() => setModal({ po, action: 'approve', level: 'finance' })}
                       style={{ padding: '6px 12px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       ✓ Finance Approve
                     </button>
+                  )}
+                  {financeApproval.status === 'pending' && salesApproval.status !== 'approved' && (
+                    <span style={{ fontSize: 10, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 5, padding: '4px 8px', fontFamily: 'var(--mono)' }}>
+                      🔒 Finance locked — awaiting A/P approval
+                    </span>
                   )}
                   {fullyApproved && (
                     <button onClick={() => setModal({ po, action: 'release', level: null })}
@@ -1783,9 +1978,512 @@ function POApprovalPanel({ pendingApprovals, loading, onRefresh, goChat }) {
   );
 }
 
+// ── PURCHASE RETURN MODAL ─────────────────────────────────────────────────────
+
+function PurchaseReturnModal({ po, onClose, onSuccess }) {
+  // Derive unit price from PO data — not user-editable per business rule
+  const derivedUnitPrice = (() => {
+    if (po?.unit_price && Number(po.unit_price) > 0) return Number(po.unit_price);
+    // Parse formatted value string like "₹2.16L"
+    const raw = String(po?.value || po?.total_value || '');
+    const cleaned = raw.replace(/[₹,\s]/g, '');
+    const isLakh = cleaned.includes('L');
+    const n = parseFloat(cleaned.replace('L', ''));
+    const total = isNaN(n) ? 0 : isLakh ? n * 100000 : n;
+    const qty = Number(po?.qty_ordered || 0);
+    return qty > 0 ? Math.round(total / qty) : 0;
+  })();
+
+  const [form, setForm] = useState({
+    return_type:   'PARTIAL',
+    product_name:  po?.sku || po?.sku_name || po?.product_name || '',
+    qty_returned:  '',
+    unit:          po?.unit || 'Pieces',
+    reason:        '',
+    return_date:   new Date().toISOString().split('T')[0],
+    authorized_by: '',
+    notes:         '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState('');
+  const set = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
+
+  const returnValue = (Number(form.qty_returned) || 0) * derivedUnitPrice;
+
+  const handleSubmit = async () => {
+    if (!form.qty_returned || Number(form.qty_returned) <= 0) return setError('Quantity returned must be greater than 0.');
+    if (!form.reason) return setError('Reason is required.');
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch('/api/purchase-returns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          po_number:     po?.po_number || '',
+          po_id:         po?.po_id || null,
+          supplier_name: po?.supplier_name || po?.supplier || '',
+          product_name:  form.product_name,
+          return_type:   form.return_type,
+          qty_returned:  Number(form.qty_returned),
+          unit:          form.unit,
+          unit_price:    derivedUnitPrice,
+          reason:        form.reason,
+          document_type: 'DEBIT_NOTE',
+          return_date:   form.return_date,
+          authorized_by: form.authorized_by,
+          notes:         form.notes,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) { onSuccess(data); }
+      else { setError(data.detail || data.error || 'Failed to record return.'); }
+    } catch { setError('Network error — could not reach server.'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...MODAL_BOX, maxWidth: 640 }}>
+        <div style={{ ...MODAL_HDR, borderLeft: '4px solid #7c3aed' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>↩ Raise Purchase Return</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>
+              Full or partial return against supplier · Requires approval before debit note is activated
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+        <div style={MODAL_BODY}>
+          {/* Approval workflow info */}
+          <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>&#8505;</span>
+            <div>
+              <strong>Approval Workflow:</strong> This return will be submitted as <strong>PENDING</strong>.
+              The same team that approves POs will review and approve the return.
+              The debit note will become active only after approval.
+            </div>
+          </div>
+          {/* PO Reference — read-only */}
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, color: '#1e293b' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Purchase Order Reference</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e40af' }}>{po?.po_number || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>SUPPLIER</div><strong>{po?.supplier_name || po?.supplier || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>DOCUMENT TYPE</div>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', display: 'inline-block' }}>DEBIT NOTE</span>
+              </div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>QTY ORDERED</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e293b' }}>{po?.qty_ordered ?? po?.quantity ?? '—'} {po?.unit || ''}</strong></div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11, color: '#1e293b' }}>{po?.sku || po?.sku_name || po?.product_name || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>UNIT PRICE (DERIVED)</div><strong style={{ fontFamily: 'var(--mono)', color: '#7c3aed' }}>{derivedUnitPrice > 0 ? `₹${derivedUnitPrice.toLocaleString('en-IN')}` : '—'}</strong></div>
+            </div>
+          </div>
+
+          <div style={SECTION_TITLE}>↩ Return Details</div>
+          <div style={{ marginBottom: 14 }}>
+            <Sel label="Return Type *" value={form.return_type} onChange={set('return_type')}
+              options={['FULL', 'PARTIAL']} required />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <Inp label="Product / SKU Being Returned" value={form.product_name} onChange={set('product_name')} placeholder="e.g. Ebco Soft-Close Hinge 35mm" />
+          </div>
+          <div style={ROW3}>
+            <Inp label="Qty Returned *" value={form.qty_returned} onChange={set('qty_returned')} type="number" placeholder="e.g. 40" required />
+            <Sel label="Unit" value={form.unit} onChange={set('unit')}
+              options={['Pieces', 'Packs', 'Sets', 'Sheets', 'Meters', 'Boxes', 'KG']} />
+            <div style={FIELD}>
+              <label style={LABEL}>Unit Price ₹ (from PO)</label>
+              <div style={{ ...INPUT, background: 'var(--s3)', color: derivedUnitPrice > 0 ? '#7c3aed' : 'var(--text3)', fontFamily: 'var(--mono)', fontWeight: 700, cursor: 'default', lineHeight: '1.6' }}>
+                {derivedUnitPrice > 0 ? `₹${derivedUnitPrice.toLocaleString('en-IN')}` : 'Not available'}
+              </div>
+            </div>
+          </div>
+          {returnValue > 0 && (
+            <div style={{ background: 'var(--g5)', border: '1px solid var(--g4)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--text2)' }}>Debit Note Amount (Return Value)</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: '#7c3aed', fontFamily: 'var(--mono)' }}>
+                ₹{returnValue.toLocaleString('en-IN')}
+              </span>
+            </div>
+          )}
+          <div style={SECTION_TITLE}>📝 Reason &amp; Authorization</div>
+          <div style={{ marginBottom: 14 }}>
+            <Sel label="Reason for Return *" value={form.reason} onChange={set('reason')} options={RETURN_REASONS} required />
+          </div>
+          <div style={ROW2}>
+            <Inp label="Return Date" value={form.return_date} onChange={set('return_date')} type="date" />
+            <Inp label="Authorized By" value={form.authorized_by} onChange={set('authorized_by')} placeholder="Store Manager" />
+          </div>
+          <div style={FIELD}>
+            <label style={LABEL}>Additional Notes</label>
+            <textarea value={form.notes} onChange={e => set('notes')(e.target.value)}
+              rows={2} placeholder="Any additional notes, reference numbers, or instructions…"
+              style={{ ...INPUT, resize: 'vertical', lineHeight: 1.5 }} />
+          </div>
+          {error && (
+            <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 7, padding: '9px 13px', fontSize: 12, color: 'var(--r2)', marginBottom: 8 }}>
+              ⚠ {error}
+            </div>
+          )}
+        </div>
+        <div style={MODAL_FTR}>
+          <button onClick={onClose} style={BTN_GHOST} disabled={submitting}>Cancel</button>
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ ...BTN_PRIMARY, background: '#7c3aed', opacity: submitting ? 0.7 : 1 }}>
+            {submitting ? '⏳ Submitting…' : '↩ Submit Return for Approval'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── CREATE INVOICE MODAL ──────────────────────────────────────────────────────
+
+function CreateInvoiceModal({ po, onClose, onSuccess }) {
+  const derivedUnitCost = (() => {
+    if (po?.unit_price && Number(po.unit_price) > 0) return Number(po.unit_price);
+    const raw = String(po?.value || po?.total_value || '');
+    const cleaned = raw.replace(/[₹,\s]/g, '');
+    const isLakh = cleaned.includes('L');
+    const n = parseFloat(cleaned.replace('L', ''));
+    const total = isNaN(n) ? 0 : isLakh ? n * 100000 : n;
+    const qty = Number(po?.qty_ordered || 0);
+    return qty > 0 ? Math.round(total / qty) : 0;
+  })();
+
+  const qtyOrdered = Number(po?.qty_ordered || po?.quantity || 0);
+
+  const [form, setForm] = useState({
+    product_name:  po?.sku || po?.sku_name || po?.product_name || '',
+    qty_received:  qtyOrdered > 0 ? String(qtyOrdered) : '',
+    unit:          po?.unit || 'Units',
+    unit_cost:     derivedUnitCost > 0 ? String(derivedUnitCost) : '',
+    invoice_value: '',
+    pi_date:       new Date().toISOString().split('T')[0],
+    notes:         '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState('');
+  const [grnList, setGrnList]       = useState([]);
+  const [grnLoading, setGrnLoading] = useState(false);
+  const [selectedGrns, setSelectedGrns] = useState([]);
+  const [isPartial, setIsPartial]   = useState(false);
+  const set = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Fetch GRNs for this PO on open
+  useEffect(() => {
+    if (!po?.po_number) return;
+    setGrnLoading(true);
+    fetch(`/api/po/${encodeURIComponent(po.po_number)}/grns`)
+      .then(r => r.json())
+      .then(d => {
+        const grns = d.grns || [];
+        setGrnList(grns);
+        if (grns.length > 0) setSelectedGrns(grns.map(g => g.grn_number));
+      })
+      .catch(() => {})
+      .finally(() => setGrnLoading(false));
+  }, [po?.po_number]);
+
+  // Auto-fill qty + value from selected GRNs
+  useEffect(() => {
+    if (grnList.length === 0 || selectedGrns.length === 0) return;
+    const sel = grnList.filter(g => selectedGrns.includes(g.grn_number));
+    const totalQty = sel.reduce((s, g) => s + (parseFloat(g.qty_received) || 0), 0);
+    const totalVal = sel.reduce((s, g) => s + (parseFloat(g.grn_value) || parseFloat(g.invoice_value) || 0), 0);
+    setForm(f => ({
+      ...f,
+      qty_received:  totalQty > 0 ? String(totalQty) : f.qty_received,
+      invoice_value: totalVal > 0 ? String(totalVal.toFixed(2)) : f.invoice_value,
+    }));
+  }, [selectedGrns, grnList]);
+
+  // Auto-calculate from qty × unit_cost only when no GRNs selected
+  const qty = Number(form.qty_received) || 0;
+  const uc  = Number(form.unit_cost)    || 0;
+  const autoValue = qty > 0 && uc > 0 ? String((qty * uc).toFixed(2)) : '';
+  useEffect(() => {
+    if (autoValue && selectedGrns.length === 0) setForm(f => ({ ...f, invoice_value: autoValue }));
+  }, [autoValue, selectedGrns.length]);
+
+  const toggleGrn = (grn_number, checked) => {
+    setSelectedGrns(prev => checked ? [...prev, grn_number] : prev.filter(n => n !== grn_number));
+  };
+
+  const handleSubmit = async () => {
+    if (!form.qty_received || Number(form.qty_received) <= 0)
+      return setError('Qty received must be greater than 0.');
+    if (!form.invoice_value || Number(form.invoice_value) <= 0)
+      return setError('Invoice value must be greater than 0.');
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch('/api/po-grn/purchase-invoices', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          po_number:       po?.po_number     || '',
+          supplier_name:   po?.supplier_name || po?.supplier || '',
+          product_name:    form.product_name,
+          qty_received:    Number(form.qty_received),
+          unit:            form.unit,
+          unit_cost:       Number(form.unit_cost)    || 0,
+          invoice_value:   Number(form.invoice_value) || 0,
+          pi_date:         form.pi_date,
+          notes:           form.notes,
+          grn_numbers:     selectedGrns.join(','),
+          is_partial:      isPartial ? 1 : 0,
+          grn_qty_covered: selectedGrns.reduce((s, n) => {
+            const g = grnList.find(g => g.grn_number === n);
+            return s + (parseFloat(g?.qty_received) || 0);
+          }, 0),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) { onSuccess(data); }
+      else { setError(data.detail || data.error || 'Failed to create invoice.'); }
+    } catch { setError('Network error — could not reach server.'); }
+    finally { setSubmitting(false); }
+  };
+
+  const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+
+  return (
+    <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...MODAL_BOX, maxWidth: 580, marginTop: 40 }}>
+        <div style={{ ...MODAL_HDR, borderLeft: '4px solid #0891b2' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Create Purchase Invoice</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Created in DRAFT — approve once GRN is verified</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
+        </div>
+        <div style={MODAL_BODY}>
+          {/* PO Reference */}
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, color: '#1e293b' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Purchase Order Reference</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e40af' }}>{po?.po_number || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>SUPPLIER</div><strong style={{ color: '#1e293b' }}>{po?.supplier_name || po?.supplier || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>STATUS</div>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#fef9c3', color: '#854d0e', display: 'inline-block' }}>{po?.status || '—'}</span>
+              </div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>QTY ORDERED</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e293b' }}>{qtyOrdered} {po?.unit || ''}</strong></div>
+              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11, color: '#1e293b' }}>{po?.sku || po?.sku_name || po?.product_name || '—'}</strong></div>
+              {derivedUnitCost > 0 && (
+                <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>UNIT PRICE</div><strong style={{ fontFamily: 'var(--mono)', color: '#7c3aed' }}>₹{derivedUnitCost.toLocaleString('en-IN')}</strong></div>
+              )}
+            </div>
+          </div>
+
+          {/* GRN Selection */}
+          {(grnLoading || grnList.length > 0) && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+                📦 Link GRNs to this Invoice
+              </div>
+              {grnLoading ? (
+                <div style={{ fontSize: 12, color: 'var(--text3)' }}>Loading GRNs…</div>
+              ) : (
+                <>
+                  {grnList.map(grn => (
+                    <label key={grn.grn_number} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer', fontSize: 12 }}>
+                      <input type="checkbox" checked={selectedGrns.includes(grn.grn_number)}
+                        onChange={e => toggleGrn(grn.grn_number, e.target.checked)} />
+                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#2563eb', fontSize: 11 }}>{grn.grn_number}</span>
+                      {grn.received_date && <span style={{ color: 'var(--text3)', fontSize: 11 }}>{fmtD(grn.received_date)}</span>}
+                      {parseFloat(grn.qty_received) > 0 && <span style={{ color: 'var(--text2)', fontSize: 11 }}>{parseFloat(grn.qty_received)} {po?.unit || 'units'}</span>}
+                      <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontWeight: 700, color: '#15803d', fontSize: 12 }}>
+                        ₹{parseFloat(grn.grn_value || 0).toLocaleString('en-IN')}
+                      </span>
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                        background: grn.qc_completed ? 'rgba(22,163,74,.1)' : 'rgba(234,88,12,.1)',
+                        color: grn.qc_completed ? '#15803d' : '#ea580c' }}>
+                        {grn.qc_completed ? 'QC ✓' : 'QC ⚠'}
+                      </span>
+                    </label>
+                  ))}
+                  {grnList.length > 1 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #bbf7d0', fontSize: 12, cursor: 'pointer', color: 'var(--text2)' }}>
+                      <input type="checkbox" checked={isPartial} onChange={e => setIsPartial(e.target.checked)} />
+                      Partial invoice — more invoices expected against this PO
+                    </label>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          <div style={SECTION_TITLE}>🧾 Invoice Details</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Inp label="Qty Received *" type="number" value={form.qty_received} onChange={set('qty_received')} placeholder="0" required />
+            <Sel label="Unit" value={form.unit} onChange={set('unit')} options={['Units', 'Pieces', 'KG', 'Meters', 'Rolls', 'Sheets', 'Nos', 'Bags']} />
+            <Inp label="Unit Cost (₹)" type="number" value={form.unit_cost} onChange={set('unit_cost')} placeholder="0.00" />
+            <Inp label="Invoice Value (₹) *" type="number" value={form.invoice_value} onChange={set('invoice_value')} placeholder="Auto-calculated" required />
+          </div>
+          <Inp label="Invoice Date *" type="date" value={form.pi_date} onChange={set('pi_date')} required />
+          <Inp label="Product / SKU" value={form.product_name} onChange={set('product_name')} placeholder="Product name or SKU" />
+          <div style={FIELD}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>NOTES</div>
+            <textarea value={form.notes} onChange={e => set('notes')(e.target.value)}
+              style={{ width: '100%', minHeight: 56, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 12, padding: '6px 10px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Optional notes…" />
+          </div>
+          {error && (
+            <div style={{ padding: '8px 12px', background: 'rgba(220,38,38,.08)', border: '1px solid rgba(220,38,38,.2)', borderRadius: 6, color: '#dc2626', fontSize: 12 }}>{error}</div>
+          )}
+        </div>
+        <div style={MODAL_FTR}>
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ ...BTN_PRIMARY, background: '#0891b2', opacity: submitting ? 0.7 : 1 }}>
+            {submitting ? '⏳ Creating…' : '🧾 Create Invoice (DRAFT)'}
+          </button>
+          <button onClick={onClose} style={BTN_GHOST}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── CLOSE PO MODAL ────────────────────────────────────────────────────────────
+
+function ClosePOModal({ po, onClose, onSuccess }) {
+  const [closedBy, setClosedBy] = useState('');
+  const [reason, setReason]     = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState('');
+
+  const handleSubmit = async () => {
+    if (!closedBy.trim()) return setError('Your name is required to close the PO.');
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch(`/api/po/${encodeURIComponent(po.po_number)}/close`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ closed_by: closedBy.trim(), reason }),
+      });
+      const data = await res.json();
+      if (data.success) { onSuccess(data); }
+      else { setError(data.detail || data.error || 'Close failed.'); }
+    } catch { setError('Network error.'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...MODAL_BOX, maxWidth: 460, marginTop: 60 }}>
+        <div style={{ ...MODAL_HDR, borderLeft: '4px solid #64748b' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>🔒 Close Purchase Order</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontFamily: 'var(--mono)' }}>{po.po_number}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
+        </div>
+        <div style={MODAL_BODY}>
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>SUPPLIER</div><strong>{po.supplier_name || po.supplier || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>STATUS</div><strong>{po.status}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>ORDERED</div><strong style={{ fontFamily: 'var(--mono)' }}>{po.qty_ordered}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>RECEIVED</div><strong style={{ fontFamily: 'var(--mono)' }}>{po.qty_received}</strong></div>
+            </div>
+          </div>
+          <Inp label="Your Name (Closing Authority) *" value={closedBy} onChange={setClosedBy} placeholder="Enter your name" required />
+          <div style={FIELD}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>CLOSE REASON</div>
+            <textarea value={reason} onChange={e => setReason(e.target.value)}
+              style={{ width: '100%', minHeight: 56, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 12, padding: '6px 10px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Why is this PO being closed? (optional)" />
+          </div>
+          {error && <div style={{ padding: '8px 12px', background: 'rgba(220,38,38,.08)', border: '1px solid rgba(220,38,38,.2)', borderRadius: 6, color: '#dc2626', fontSize: 12 }}>{error}</div>}
+        </div>
+        <div style={MODAL_FTR}>
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ ...BTN_PRIMARY, background: '#64748b', opacity: submitting ? 0.7 : 1 }}>
+            {submitting ? '⏳ Closing…' : '🔒 Confirm Close'}
+          </button>
+          <button onClick={onClose} style={BTN_GHOST}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── CANCEL REMAINING MODAL ────────────────────────────────────────────────────
+
+function CancelRemainingModal({ po, onClose, onSuccess }) {
+  const [action, setAction]         = useState('CANCEL');
+  const [cancelledBy, setCancelledBy] = useState('');
+  const [reason, setReason]           = useState('');
+  const [submitting, setSubmitting]   = useState(false);
+  const [error, setError]             = useState('');
+
+  const pendingQty = Math.max(0, (po.qty_ordered || 0) - (po.qty_received || 0));
+
+  const handleSubmit = async () => {
+    if (!cancelledBy.trim()) return setError('Your name is required.');
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch(`/api/po/${encodeURIComponent(po.po_number)}/cancel-remaining`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, cancelled_by: cancelledBy.trim(), reason }),
+      });
+      const data = await res.json();
+      if (data.success) { onSuccess(data); }
+      else { setError(data.detail || data.error || 'Operation failed.'); }
+    } catch { setError('Network error.'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...MODAL_BOX, maxWidth: 460, marginTop: 60 }}>
+        <div style={{ ...MODAL_HDR, borderLeft: '4px solid #ea580c' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>✕ Cancel Remaining Quantity</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontFamily: 'var(--mono)' }}>{po.po_number} — {pendingQty} {po.unit || 'units'} pending</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
+        </div>
+        <div style={MODAL_BODY}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>ACTION FOR REMAINING QTY</div>
+            {[
+              { val: 'CANCEL',     label: 'Cancel Qty',   desc: 'Mark remaining qty as cancelled — PO will be CLOSED' },
+              { val: 'DEBIT_NOTE', label: 'Raise Debit Note', desc: 'Raise a debit note for the pending qty shortfall' },
+            ].map(opt => (
+              <label key={opt.val} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 8, border: `2px solid ${action === opt.val ? '#ea580c' : 'var(--border)'}`, marginBottom: 8, cursor: 'pointer', background: action === opt.val ? 'rgba(234,88,12,.05)' : 'var(--s2)' }}>
+                <input type="radio" name="cancel_action" value={opt.val} checked={action === opt.val} onChange={() => setAction(opt.val)} style={{ marginTop: 2 }} />
+                <div><div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text)' }}>{opt.label}</div><div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{opt.desc}</div></div>
+              </label>
+            ))}
+          </div>
+          <Inp label="Your Name *" value={cancelledBy} onChange={setCancelledBy} placeholder="Enter your name" required />
+          <div style={FIELD}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>REASON</div>
+            <textarea value={reason} onChange={e => setReason(e.target.value)}
+              style={{ width: '100%', minHeight: 56, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 12, padding: '6px 10px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Reason for cancellation (optional)" />
+          </div>
+          {error && <div style={{ padding: '8px 12px', background: 'rgba(220,38,38,.08)', border: '1px solid rgba(220,38,38,.2)', borderRadius: 6, color: '#dc2626', fontSize: 12 }}>{error}</div>}
+        </div>
+        <div style={MODAL_FTR}>
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ ...BTN_PRIMARY, background: '#ea580c', opacity: submitting ? 0.7 : 1 }}>
+            {submitting ? '⏳ Processing…' : `✕ ${action === 'CANCEL' ? 'Cancel Remaining' : 'Raise Debit Note'}`}
+          </button>
+          <button onClick={onClose} style={BTN_GHOST}>Back</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
-export default function POGRN({ onGoChat }) {
+export default function POGRN({ onGoChat, dbStatus, period }) {
   const [data, setData]                     = useState(null);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState(null);
@@ -1799,6 +2497,24 @@ export default function POGRN({ onGoChat }) {
   const [activeTab, setActiveTab]           = useState('open');
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [approvalLoading, setApprovalLoading]   = useState(false);
+  const [purchaseReturns, setPurchaseReturns]   = useState([]);
+  const [returnsLoading, setReturnsLoading]     = useState(false);
+  const [returnModal, setReturnModal]           = useState(null); // po object or null
+  const [returnSuccess, setReturnSuccess]       = useState(null);
+  const [showClosedPOs, setShowClosedPOs]       = useState(false);
+  const [approvingReturnId, setApprovingReturnId] = useState(null);
+  const [grnPreFillPo, setGrnPreFillPo]         = useState(null); // PO row to pre-fill in GRN modal
+  const [poDetailModal, setPoDetailModal]       = useState(null); // PO object to show in detail modal
+  const [invoices, setInvoices]                 = useState([]);
+  const [invoicesLoading, setInvoicesLoading]   = useState(false);
+  const [invoiceActionId, setInvoiceActionId]   = useState(null); // pi_number being actioned
+  const [invoiceDetailModal, setInvoiceDetailModal] = useState(null); // invoice object
+  const [invoicePayModal, setInvoicePayModal]   = useState(null);  // invoice for pay dialog
+  const [payMode, setPayMode]                   = useState('Bank Transfer');
+  const [payRef, setPayRef]                     = useState('');
+  const [createInvoiceModal, setCreateInvoiceModal] = useState(null); // po row for manual invoice creation
+  const [closePoModal, setClosePoModal]             = useState(null); // po row for manual close
+  const [cancelRemainingModal, setCancelRemainingModal] = useState(null); // po row for cancel remaining
 
   const fetchData = useCallback(async () => {
     setError(null);
@@ -1821,10 +2537,103 @@ export default function POGRN({ onGoChat }) {
     finally { setApprovalLoading(false); }
   }, []);
 
-  useEffect(() => { fetchData(); fetchPendingApprovals(); }, [fetchData, fetchPendingApprovals]);
+  const fetchPurchaseReturns = useCallback(async () => {
+    setReturnsLoading(true);
+    try {
+      const res = await fetch('/api/purchase-returns');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setPurchaseReturns(json.purchase_returns || []);
+    } catch (e) { /* non-fatal */ }
+    finally { setReturnsLoading(false); }
+  }, []);
+
+  const fetchInvoices = useCallback(async () => {
+    setInvoicesLoading(true);
+    try {
+      const res = await fetch('/api/po-grn/purchase-invoices');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setInvoices(json.invoices || []);
+    } catch (e) { /* non-fatal */ }
+    finally { setInvoicesLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchData(); fetchPendingApprovals(); fetchPurchaseReturns(); fetchInvoices(); }, [fetchData, fetchPendingApprovals, fetchPurchaseReturns, fetchInvoices]);
   useAutoRefresh(fetchData, 5 * 60_000);
 
   const goChat = (q) => { if (onGoChat) onGoChat(q); };
+
+  const handleApproveReturn = async (returnId) => {
+    const approverName = prompt('Enter your name for approval:');
+    if (!approverName?.trim()) return;
+    setApprovingReturnId(returnId);
+    try {
+      const res = await fetch(`/api/purchase-returns/${returnId}/approve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approver_name: approverName.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPurchaseReturns(prev =>
+          prev.map(r => r.return_id === returnId ? { ...r, status: 'APPROVED', authorized_by: approverName.trim() } : r)
+        );
+        alert(`Return approved. Debit note ${data.document_number || ''} is now active.`);
+      } else {
+        alert(data.detail || data.error || 'Approval failed. Please retry.');
+      }
+    } catch {
+      alert('Network error — could not approve return. Please retry.');
+    } finally {
+      setApprovingReturnId(null);
+    }
+  };
+
+  const handleApproveInvoice = async (invoice) => {
+    const approvedBy = prompt('Enter your name to approve this invoice:');
+    if (!approvedBy?.trim()) return;
+    setInvoiceActionId(invoice.pi_number);
+    try {
+      const res = await fetch(`/api/po-grn/purchase-invoices/${encodeURIComponent(invoice.pi_number)}/approve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved_by: approvedBy.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setInvoices(prev => prev.map(i => i.pi_number === invoice.pi_number
+          ? { ...i, status: 'APPROVED', approved_by: approvedBy.trim() } : i));
+        setInvoiceDetailModal(null);
+      } else {
+        alert(data.detail || data.error || 'Approval failed. Please retry.');
+      }
+    } catch { alert('Network error — could not approve invoice.'); }
+    finally { setInvoiceActionId(null); }
+  };
+
+  const handlePayInvoice = async (invoice, paymentMode, paymentRef) => {
+    const paidBy = prompt('Enter your name (accounts person authorising payment):');
+    if (!paidBy?.trim()) return;
+    setInvoiceActionId(invoice.pi_number);
+    try {
+      const res = await fetch(`/api/po-grn/purchase-invoices/${encodeURIComponent(invoice.pi_number)}/pay`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paid_by: paidBy.trim(), payment_mode: paymentMode || 'Bank Transfer', payment_ref: paymentRef || '' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setInvoices(prev => prev.map(i => i.pi_number === invoice.pi_number
+          ? { ...i, status: 'PAID', paid_by: paidBy.trim(), payment_mode: paymentMode } : i));
+        setInvoicePayModal(null);
+        setInvoiceDetailModal(null);
+      } else {
+        alert(data.detail || data.error || 'Payment failed. Please retry.');
+      }
+    } catch { alert('Network error — could not record payment.'); }
+    finally { setInvoiceActionId(null); }
+  };
 
   // Called from QuotationsSection "Raise PO" button
   const handleRaisePOFromQuote = ({ supplier, item, rate, industry: ind }) => {
@@ -1895,9 +2704,16 @@ export default function POGRN({ onGoChat }) {
 
   const fillColor = (pct) => pct >= 100 ? '#16a34a' : pct >= 70 ? '#d97706' : '#dc2626';
   const statusBadge = (status, days) => {
-    if (status === 'OVERDUE')  return { cls: 'br', label: `OVERDUE +${days}d` };
-    if (status === 'RECEIVED') return { cls: 'bg', label: 'COMPLETE' };
-    if (status === 'PARTIAL')  return { cls: 'ba', label: 'IN PROGRESS' };
+    if (status === 'OVERDUE')        return { cls: 'br', label: `OVERDUE +${days}d` };
+    if (status === 'RECEIVED')       return { cls: 'bg', label: 'FULLY RECEIVED' };
+    if (status === 'FULLY_RECEIVED') return { cls: 'bg', label: 'FULLY RECEIVED' };
+    if (status === 'COMPLETE')       return { cls: 'bg', label: 'COMPLETE' };
+    if (status === 'CLOSED')         return { cls: 'bs', label: 'CLOSED' };
+    if (status === 'RETURNED')       return { cls: 'bs', label: 'RETURNED' };
+    if (status === 'PARTIAL')        return { cls: 'ba', label: 'PARTIALLY RECEIVED' };
+    if (status === 'OPEN')           return { cls: 'sb', label: 'OPEN' };
+    if (status === 'APPROVED')       return { cls: 'bg', label: 'APPROVED' };
+    if (status === 'DRAFT')          return { cls: 'bs', label: 'DRAFT' };
     return { cls: 'bs', label: status };
   };
 
@@ -1907,11 +2723,100 @@ export default function POGRN({ onGoChat }) {
     <div className="view">
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
+      {poDetailModal && (
+        <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && setPoDetailModal(null)}>
+          <div style={{ ...MODAL_BOX, maxWidth: 520, marginTop: 60 }}>
+            <div style={MODAL_HDR}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Purchase Order Details</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>{poDetailModal.po_number}</div>
+              </div>
+              <button onClick={() => setPoDetailModal(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 4px' }}>×</button>
+            </div>
+            <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                ['PO Number',     poDetailModal.po_number],
+                ['PR Reference',  poDetailModal.pr_number || '—'],
+                ['GRN Number',    poDetailModal.grn_number || '—'],
+                ['Supplier',      poDetailModal.supplier],
+                ['SKU / Product', poDetailModal.sku],
+                ['Qty Ordered',   poDetailModal.qty_ordered],
+                ['Qty Received',  poDetailModal.qty_received],
+                ['Balance Qty',   Math.max(0, (poDetailModal.qty_ordered || 0) - (poDetailModal.qty_received || 0))],
+                ['Fill %',        `${poDetailModal.fill_pct}%`],
+                ['Value',         poDetailModal.value],
+                ['ETA',           poDetailModal.eta],
+                ['Status',        poDetailModal.status],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontFamily: ['PO Number','GRN Number','PR Reference','Balance Qty','Fill %','Qty Ordered','Qty Received'].includes(label) ? 'var(--mono)' : 'inherit' }}>{val}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end', background: 'var(--s3)', borderRadius: '0 0 14px 14px' }}>
+              {poDetailModal.status !== 'RECEIVED' && poDetailModal.fill_pct < 100 && !poDetailModal.grn_number && (
+                <button onClick={() => { setPoDetailModal(null); setGrnPreFillPo(poDetailModal); setModal('grn'); }}
+                  style={{ ...BTN_GREEN, fontSize: 12, padding: '7px 16px' }}>
+                  📦 Record GRN
+                </button>
+              )}
+              <button onClick={() => { setPoDetailModal(null); goChat(`Explain the full status of ${poDetailModal.po_number} from ${poDetailModal.supplier} — SKU: ${poDetailModal.sku}, ordered: ${poDetailModal.qty_ordered}, received: ${poDetailModal.qty_received}. Give me an action plan.`); }}
+                style={{ ...BTN_PRIMARY, fontSize: 12, padding: '7px 16px' }}>
+                🤖 Ask AI
+              </button>
+              <button onClick={() => setPoDetailModal(null)} style={{ ...BTN_GHOST, fontSize: 12, padding: '7px 16px' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
       {modal === 'po' && (
         <CreatePOModal industry={industry} prefill={poPreFill} onClose={() => { setModal(null); setPoPreFill(null); }} onSuccess={handlePOSuccess} />
       )}
       {modal === 'grn' && (
-        <CreateGRNModal industry={industry} onClose={() => setModal(null)} onSuccess={handleGRNSuccess} />
+        <CreateGRNModal
+          industry={industry}
+          prefillPo={grnPreFillPo}
+          onClose={() => { setModal(null); setGrnPreFillPo(null); }}
+          onSuccess={handleGRNSuccess}
+        />
+      )}
+      {returnModal && (
+        <PurchaseReturnModal
+          po={returnModal}
+          onClose={() => setReturnModal(null)}
+          onSuccess={(result) => {
+            setReturnModal(null);
+            setReturnSuccess(result);
+            fetchPurchaseReturns();
+            setActiveTab('returns');
+          }}
+        />
+      )}
+      {createInvoiceModal && (
+        <CreateInvoiceModal
+          po={createInvoiceModal}
+          onClose={() => setCreateInvoiceModal(null)}
+          onSuccess={(result) => {
+            setCreateInvoiceModal(null);
+            fetchInvoices();
+            setActiveTab('invoices');
+          }}
+        />
+      )}
+      {closePoModal && (
+        <ClosePOModal
+          po={closePoModal}
+          onClose={() => setClosePoModal(null)}
+          onSuccess={() => { setClosePoModal(null); fetchData(); }}
+        />
+      )}
+      {cancelRemainingModal && (
+        <CancelRemainingModal
+          po={cancelRemainingModal}
+          onClose={() => setCancelRemainingModal(null)}
+          onSuccess={() => { setCancelRemainingModal(null); fetchData(); }}
+        />
       )}
       {showPOScanner && (
         <POScannerModal
@@ -1939,6 +2844,30 @@ export default function POGRN({ onGoChat }) {
               onClose={() => { setSuccess(null); }}
               onAskAI={handleSuccessAI}
             />
+          </div>
+        </div>
+      )}
+      {returnSuccess && (
+        <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && setReturnSuccess(null)}>
+          <div style={{ ...MODAL_BOX, maxWidth: 420, marginTop: 100 }}>
+            <div style={{ textAlign: 'center', padding: '32px 24px' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>↩</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#7c3aed', marginBottom: 6 }}>Purchase Return Recorded</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>
+                {returnSuccess.document_type === 'DEBIT_NOTE' ? 'Debit Note' : 'Credit Note'} generated successfully against the supplier.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 280, margin: '0 auto 24px', textAlign: 'left' }}>
+                <Row label="Return #"    val={returnSuccess.return_number} />
+                <Row label="Document #"  val={returnSuccess.document_number} />
+                <Row label="Document"    val={returnSuccess.document_type === 'DEBIT_NOTE' ? 'Debit Note' : 'Credit Note'} />
+                <Row label="Return Value" val={`₹${Number(returnSuccess.return_value || 0).toLocaleString('en-IN')}`} />
+                <Row label="Status"      val={returnSuccess.status || 'PENDING'} />
+                {returnSuccess.demo_mode && (
+                  <div style={{ fontSize: 10, color: 'var(--text3)', textAlign: 'center', fontFamily: 'var(--mono)', marginTop: 4 }}>Demo mode — not saved to DB</div>
+                )}
+              </div>
+              <button onClick={() => setReturnSuccess(null)} style={BTN_GHOST}>Done</button>
+            </div>
           </div>
         </div>
       )}
@@ -2051,6 +2980,8 @@ export default function POGRN({ onGoChat }) {
           { id: 'open',         label: '📋 Open POs',           count: openPOs.length },
           { id: 'approvals',    label: '⏳ Pending Approvals',   count: pendingApprovals.filter(p => p.status !== 'APPROVED' && p.status !== 'REJECTED').length },
           { id: 'discrepancies',label: '⚠ GRN Issues',          count: discrepancies.length },
+          { id: 'returns',      label: '↩ Purchase Returns',     count: purchaseReturns.length },
+          { id: 'invoices',     label: '🧾 Purchase Invoices',   count: invoices.filter(i => i.status !== 'PAID' && i.status !== 'CANCELLED').length },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             style={{
@@ -2063,7 +2994,7 @@ export default function POGRN({ onGoChat }) {
             {tab.label}
             {tab.count > 0 && (
               <span style={{
-                background: tab.id === 'approvals' ? '#d97706' : tab.id === 'discrepancies' ? '#dc2626' : 'var(--b2)',
+                background: tab.id === 'approvals' ? '#d97706' : tab.id === 'discrepancies' ? '#dc2626' : tab.id === 'returns' ? '#7c3aed' : tab.id === 'invoices' ? '#0891b2' : 'var(--b2)',
                 color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 800,
               }}>{tab.count}</span>
             )}
@@ -2129,11 +3060,12 @@ export default function POGRN({ onGoChat }) {
           </div>
           {/* Workflow legend */}
           <div style={{ display: 'flex', gap: 16, marginBottom: 16, padding: '10px 14px', background: 'var(--s3)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, color: 'var(--text2)' }}>Workflow:</span>
-            <span>📋 <strong>DRAFT</strong> → PO created, awaiting review</span>
-            <span>⏳ <strong>PENDING</strong> → At least one team has approved</span>
-            <span>✅ <strong>APPROVED</strong> → Both approved, ready to release</span>
-            <span>🚀 <strong>OPEN</strong> → Released to supplier</span>
+            <span style={{ fontWeight: 700, color: 'var(--text2)' }}>Sequential Workflow:</span>
+            <span>📋 <strong>DRAFT</strong> → PO created</span>
+            <span>→ ⏳ <strong>A/P APPROVAL</strong> → Accounts Payable reviews first</span>
+            <span>→ ⏳ <strong>FINANCE</strong> → Finance approves after A/P (sequential)</span>
+            <span>→ ✅ <strong>APPROVED</strong> → Both approved, ready to release</span>
+            <span>→ 🚀 <strong>OPEN</strong> → Released to supplier</span>
           </div>
           <POApprovalPanel
             pendingApprovals={pendingApprovals}
@@ -2151,8 +3083,14 @@ export default function POGRN({ onGoChat }) {
             <div className="ctit">Open Purchase Orders</div>
             <div className="csub">Track all open, partial, and overdue POs · Click any row to ask AI</div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="bdg ba">{openPOs.length} Open</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="bdg ba">{openPOs.filter(p => p.status !== 'RECEIVED').length} Open</span>
+            {openPOs.some(p => p.status === 'RECEIVED') && (
+              <button onClick={() => setShowClosedPOs(v => !v)}
+                style={{ fontSize: 11, padding: '3px 10px', background: showClosedPOs ? '#f0fdf4' : 'var(--s3)', border: `1px solid ${showClosedPOs ? 'var(--g4)' : 'var(--border)'}`, borderRadius: 5, cursor: 'pointer', color: showClosedPOs ? 'var(--green)' : 'var(--text3)', fontWeight: 600 }}>
+                {showClosedPOs ? '✓ Showing Closed' : 'Show Closed POs'}
+              </button>
+            )}
             <ExportButton rows={openPOs} filename="open_purchase_orders" columns={[
               { key: 'po_number', label: 'PO #' }, { key: 'supplier', label: 'Supplier' },
               { key: 'sku', label: 'SKU' }, { key: 'qty_ordered', label: 'Qty Ordered' },
@@ -2165,20 +3103,29 @@ export default function POGRN({ onGoChat }) {
             </button>
           </div>
         </div>
-        {openPOs.length === 0 ? (
+        {(() => {
+          const TERMINAL = ['RECEIVED', 'FULLY_RECEIVED', 'COMPLETE', 'CLOSED', 'RETURNED', 'CANCELLED'];
+          const displayPOs = showClosedPOs ? openPOs : openPOs.filter(po => !TERMINAL.includes(po.status));
+          return displayPOs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)', fontSize: 13 }}>No open purchase orders.</div>
         ) : (
           <table className="tbl">
             <thead>
-              <tr><th>PO#</th><th>Supplier</th><th>SKU / Product</th><th>Ordered</th><th>Received</th><th>Fill %</th><th>Value</th><th>ETA</th><th>Status</th><th>Action</th></tr>
+              <tr><th>PO#</th><th>PR#</th><th>GRN#</th><th>Supplier</th><th>SKU / Product</th><th>Ordered</th><th>Received</th><th>Fill %</th><th>Value</th><th>ETA</th><th>Status</th><th>Action</th></tr>
             </thead>
             <tbody>
-              {openPOs.map(po => {
+              {displayPOs.map(po => {
                 const badge = statusBadge(po.status, po.overdue_days);
                 return (
                   <tr key={po.po_number} style={{ cursor: 'pointer' }}
                     onClick={() => goChat(`What is the status of ${po.po_number} from ${po.supplier}? Any risks?`)}>
-                    <td style={{ fontFamily: 'var(--mono)', color: 'var(--b2)', fontWeight: 600 }}>{po.po_number}</td>
+                    <td style={{ fontFamily: 'var(--mono)', color: 'var(--b2)', fontWeight: 600 }} onClick={e => { e.stopPropagation(); setPoDetailModal(po); }}>
+                      <span style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }} title="Click to view PO details">{po.po_number}</span>
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: po.pr_number ? '#7c3aed' : 'var(--text3)' }}>{po.pr_number || '—'}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: po.grn_number ? 'var(--green)' : 'var(--text3)' }}>
+                      {po.grn_number || '—'}
+                    </td>
                     <td style={{ fontWeight: 600 }}>{po.supplier}</td>
                     <td style={{ fontSize: 11.5 }}>{po.sku}</td>
                     <td style={{ fontFamily: 'var(--mono)' }}>{po.qty_ordered}</td>
@@ -2188,14 +3135,48 @@ export default function POGRN({ onGoChat }) {
                     <td><span className={`bdg ${badge.cls}`}>{po.eta}</span></td>
                     <td><span className={`bdg ${badge.cls}`}>{badge.label}</span></td>
                     <td onClick={e => e.stopPropagation()}>
-                      <div style={{ display: 'flex', gap: 4 }}>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         <button onClick={() => goChat(`Explain the status of ${po.po_number} from ${po.supplier} and give me an action plan`)}
                           style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--b2)', fontWeight: 600 }}>
                           Ask AI
                         </button>
-                        <button onClick={() => { setModal('grn'); }}
-                          style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid var(--g4)', borderRadius: 4, cursor: 'pointer', color: 'var(--green)', fontWeight: 600 }}>
-                          GRN
+                        {(['RECEIVED','FULLY_RECEIVED','COMPLETE','CLOSED','RETURNED'].includes(po.status)) ? (
+                          <span style={{ fontSize: 10, padding: '2px 7px', background: 'var(--g3)', color: 'var(--green)', border: '1px solid var(--g4)', borderRadius: 4, fontWeight: 700, fontFamily: 'var(--mono)' }}>
+                            ✓ {po.status === 'CLOSED' ? 'Closed' : po.status === 'RETURNED' ? 'Returned' : 'Received'}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => { setGrnPreFillPo(po); setModal('grn'); }}
+                            title={po.status === 'PARTIAL'
+                              ? `Record GRN for remaining ${po.qty_pending ?? Math.max(0, po.qty_ordered - po.qty_received)} ${po.unit || 'units'}`
+                              : 'Record Goods Received Note'}
+                            style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid var(--g4)', borderRadius: 4, cursor: 'pointer', color: 'var(--green)', fontWeight: 600 }}>
+                            {po.status === 'PARTIAL'
+                              ? `GRN (+${po.qty_pending ?? Math.max(0, po.qty_ordered - po.qty_received)})`
+                              : 'GRN'}
+                          </button>
+                        )}
+                        {po.status === 'PARTIAL' && (
+                          <button onClick={(e) => { e.stopPropagation(); setCancelRemainingModal(po); }}
+                            title="Cancel or raise debit note for remaining quantity"
+                            style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #ea580c', borderRadius: 4, cursor: 'pointer', color: '#ea580c', fontWeight: 600 }}>
+                            ✕ Cancel Rem.
+                          </button>
+                        )}
+                        {(['FULLY_RECEIVED','RECEIVED','COMPLETE','OPEN','PARTIAL'].includes(po.status)) && (
+                          <button onClick={(e) => { e.stopPropagation(); setClosePoModal(po); }}
+                            title="Manually close this PO"
+                            style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #64748b', borderRadius: 4, cursor: 'pointer', color: '#64748b', fontWeight: 600 }}>
+                            🔒 Close
+                          </button>
+                        )}
+                        <button onClick={() => setReturnModal(po)}
+                          style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #a855f7', borderRadius: 4, cursor: 'pointer', color: '#7c3aed', fontWeight: 600 }}>
+                          ↩ Return
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setCreateInvoiceModal(po); }}
+                          style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #0891b2', borderRadius: 4, cursor: 'pointer', color: '#0891b2', fontWeight: 600 }}>
+                          🧾 Invoice
                         </button>
                       </div>
                     </td>
@@ -2204,7 +3185,8 @@ export default function POGRN({ onGoChat }) {
               })}
             </tbody>
           </table>
-        )}
+        );
+        })()}
       </div>}
 
       {/* ── GRN Discrepancy Log ─────────────────────────────────────────── */}
@@ -2268,6 +3250,346 @@ export default function POGRN({ onGoChat }) {
           </table>
         )}
       </div>}
+
+      {/* ── Purchase Returns Tab ────────────────────────────────────────── */}
+      {activeTab === 'returns' && (
+        <div className="card">
+          <div className="ch" style={{ marginBottom: 12 }}>
+            <div>
+              <div className="ctit">Purchase Returns — Debit &amp; Credit Notes</div>
+              <div className="csub">Full / partial returns against supplier POs · Auto-generates DN or CN document</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="bdg ba">{purchaseReturns.length} Returns</span>
+              <button onClick={fetchPurchaseReturns}
+                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', color: 'var(--text3)', fontSize: 11, padding: '3px 9px', fontFamily: 'var(--mono)' }}>
+                ↻ Refresh
+              </button>
+            </div>
+          </div>
+          {returnsLoading ? (
+            <div style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>Loading returns…</div>
+          ) : purchaseReturns.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>
+              No purchase returns recorded yet. Click "↩ Return" on any open PO to raise one.
+            </div>
+          ) : (
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Return #</th><th>PO #</th><th>Supplier</th><th>Product</th>
+                  <th>Type</th><th>Qty</th><th>Value</th><th>Document</th>
+                  <th>Doc #</th><th>Return Date</th><th>Status</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {purchaseReturns.map(r => (
+                  <tr key={r.return_id || r.return_number}>
+                    <td style={{ fontFamily: 'var(--mono)', color: '#7c3aed', fontWeight: 600 }}>{r.return_number}</td>
+                    <td style={{ fontFamily: 'var(--mono)', color: 'var(--b2)' }}>{r.po_number}</td>
+                    <td style={{ fontWeight: 600 }}>{r.supplier}</td>
+                    <td style={{ fontSize: 11.5 }}>{r.product}</td>
+                    <td>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                        background: r.return_type === 'FULL' ? '#fee2e2' : '#fef3c7',
+                        color: r.return_type === 'FULL' ? '#dc2626' : '#92400e' }}>
+                        {r.return_type}
+                      </span>
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)' }}>{r.qty_returned} {r.unit}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontWeight: 700 }}>₹{Number(r.return_value).toLocaleString('en-IN')}</td>
+                    <td>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                        background: r.document_type === 'DEBIT_NOTE' ? '#ede9fe' : '#dcfce7',
+                        color: r.document_type === 'DEBIT_NOTE' ? '#6d28d9' : '#15803d' }}>
+                        {r.document_type === 'DEBIT_NOTE' ? 'Debit Note' : 'Credit Note'}
+                      </span>
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.document_number}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.return_date}</td>
+                    <td>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                        background: r.status === 'SETTLED' ? '#dcfce7' : r.status === 'APPROVED' ? '#dbeafe' : '#fef3c7',
+                        color: r.status === 'SETTLED' ? '#15803d' : r.status === 'APPROVED' ? '#1e40af' : '#92400e' }}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td>
+                      {r.status === 'PENDING' ? (
+                        <button
+                          onClick={() => handleApproveReturn(r.return_id)}
+                          disabled={approvingReturnId === r.return_id}
+                          style={{ fontSize: 10, padding: '3px 9px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap', opacity: approvingReturnId === r.return_id ? 0.6 : 1 }}>
+                          {approvingReturnId === r.return_id ? 'Approving…' : '✓ Approve'}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 10, color: 'var(--text3)' }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Purchase Invoices Tab ───────────────────────────────────────── */}
+      {activeTab === 'invoices' && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="ch" style={{ marginBottom: 14 }}>
+            <div>
+              <div className="ctit">Purchase Invoices</div>
+              <div className="csub">Auto-generated on GRN · DRAFT → APPROVED → PAID lifecycle · PAID invoices are locked</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: 'rgba(8,145,178,.1)', color: '#0891b2' }}>
+                {invoices.filter(i => i.status === 'DRAFT').length} Draft
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: 'rgba(37,99,235,.1)', color: '#2563eb' }}>
+                {invoices.filter(i => i.status === 'APPROVED').length} Approved
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: 'rgba(22,163,74,.1)', color: '#15803d' }}>
+                {invoices.filter(i => i.status === 'PAID').length} Paid
+              </span>
+              <button onClick={fetchInvoices} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', color: 'var(--text3)', fontSize: 11, padding: '3px 9px', fontFamily: 'var(--mono)' }}>↻ Refresh</button>
+            </div>
+          </div>
+
+          {invoicesLoading ? (
+            <div style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>Loading invoices…</div>
+          ) : invoices.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>
+              No purchase invoices yet. Invoices are auto-generated when a GRN is recorded.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>PI #</th><th>GRN #</th><th>PO #</th><th>Supplier</th><th>Product</th>
+                    <th>Qty</th><th>Invoice Value</th><th>Date</th><th>GRN Match</th><th>Status</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map(inv => {
+                    const isPaid     = inv.status === 'PAID';
+                    const isDraft    = inv.status === 'DRAFT';
+                    const isApproved = inv.status === 'APPROVED';
+                    const statusStyle = isPaid
+                      ? { background: 'rgba(22,163,74,.12)', color: '#15803d' }
+                      : isApproved
+                      ? { background: 'rgba(37,99,235,.12)', color: '#1e40af' }
+                      : isDraft
+                      ? { background: 'rgba(217,119,6,.12)', color: '#b45309' }
+                      : { background: 'var(--s3)', color: 'var(--text3)' };
+                    const matchStyle = inv.match_status === 'MATCH'
+                      ? { background: 'rgba(22,163,74,.12)', color: '#15803d' }
+                      : inv.match_status === 'MISMATCH'
+                      ? { background: 'rgba(220,38,38,.1)', color: '#dc2626' }
+                      : { background: 'var(--s3)', color: 'var(--text3)' };
+                    const busy = invoiceActionId === inv.pi_number;
+                    return (
+                      <tr key={inv.pi_number} style={{ cursor: 'pointer' }} onClick={() => setInvoiceDetailModal(inv)}>
+                        <td style={{ fontFamily: 'var(--mono)', color: '#0891b2', fontWeight: 700 }}>{inv.pi_number}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11.5 }}>{inv.grn_number}</td>
+                        <td style={{ fontFamily: 'var(--mono)', color: 'var(--b2)', fontSize: 11.5 }}>{inv.po_number}</td>
+                        <td style={{ fontWeight: 600, fontSize: 12 }}>{inv.supplier_name}</td>
+                        <td style={{ fontSize: 11.5, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.product_name}</td>
+                        <td style={{ fontFamily: 'var(--mono)' }}>{inv.qty_received} {inv.unit}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontWeight: 700 }}>₹{Number(inv.invoice_value).toLocaleString('en-IN')}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{inv.pi_date}</td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, ...matchStyle }}>
+                            {inv.match_status || 'PENDING'}
+                          </span>
+                        </td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4, ...statusStyle }}>
+                            {isPaid ? '🔒 ' : ''}{inv.status}
+                          </span>
+                        </td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {isDraft && (
+                              <button
+                                disabled={busy}
+                                onClick={() => handleApproveInvoice(inv)}
+                                style={{ fontSize: 10, padding: '3px 9px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                                {busy ? '…' : '✓ Approve'}
+                              </button>
+                            )}
+                            {isApproved && (
+                              <button
+                                disabled={busy}
+                                onClick={() => { setPayMode('Bank Transfer'); setPayRef(''); setInvoicePayModal(inv); }}
+                                style={{ fontSize: 10, padding: '3px 9px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                                💳 Pay
+                              </button>
+                            )}
+                            {isPaid && (
+                              <span style={{ fontSize: 10, color: '#15803d', fontWeight: 700, fontFamily: 'var(--mono)' }}>🔒 Locked</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Invoice Detail Modal ────────────────────────────────────────── */}
+      {invoiceDetailModal && (() => {
+        const inv = invoiceDetailModal;
+        const isPaid     = inv.status === 'PAID';
+        const isDraft    = inv.status === 'DRAFT';
+        const isApproved = inv.status === 'APPROVED';
+        const busy = invoiceActionId === inv.pi_number;
+        return (
+          <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && setInvoiceDetailModal(null)}>
+            <div style={{ ...MODAL_BOX, maxWidth: 580, marginTop: 50 }}>
+              <div style={{ ...MODAL_HDR, borderLeft: '4px solid #0891b2' }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Purchase Invoice</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>{inv.pi_number}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12,
+                    background: isPaid ? 'rgba(22,163,74,.15)' : isApproved ? 'rgba(37,99,235,.15)' : 'rgba(217,119,6,.15)',
+                    color: isPaid ? '#15803d' : isApproved ? '#1e40af' : '#b45309' }}>
+                    {isPaid ? '🔒 ' : ''}{inv.status}
+                  </span>
+                  <button onClick={() => setInvoiceDetailModal(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
+                </div>
+              </div>
+              <div style={{ ...MODAL_BODY }}>
+                {isPaid && (
+                  <div style={{ background: 'rgba(22,163,74,.08)', border: '1px solid rgba(22,163,74,.25)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#15803d', display: 'flex', gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>🔒</span>
+                    <div><strong>Invoice Locked</strong> — This invoice has been paid and is now immutable. No further changes are permitted.</div>
+                  </div>
+                )}
+                {/* PO / GRN Reference */}
+                <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Invoice Details</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, fontSize: 12 }}>
+                    {[
+                      ['PI Number',    inv.pi_number],
+                      ['GRN Number',   inv.grn_number],
+                      ['PO Number',    inv.po_number],
+                      ['Supplier',     inv.supplier_name],
+                      ['Product',      inv.product_name],
+                      ['Date',         inv.pi_date],
+                      ['Qty Received', `${inv.qty_received} ${inv.unit}`],
+                      ['Unit Cost',    inv.unit_cost > 0 ? `₹${Number(inv.unit_cost).toLocaleString('en-IN')}` : '—'],
+                      ['Invoice Value', `₹${Number(inv.invoice_value).toLocaleString('en-IN')}`],
+                      ['Freight',      inv.freight_charges > 0 ? `₹${Number(inv.freight_charges).toLocaleString('en-IN')}` : '₹0'],
+                      ['Landed Cost',  inv.total_landed_cost > 0 ? `₹${Number(inv.total_landed_cost).toLocaleString('en-IN')}` : '—'],
+                      ['GRN Match',    inv.match_status || 'PENDING'],
+                    ].map(([lbl, val]) => (
+                      <div key={lbl}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>{lbl}</div>
+                        <strong style={{ fontSize: 12 }}>{val || '—'}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Approval info */}
+                {(inv.approved_by || isApproved || isPaid) && (
+                  <div style={{ background: 'rgba(37,99,235,.06)', border: '1px solid rgba(37,99,235,.2)', borderRadius: 8, padding: '8px 14px', marginBottom: 14, fontSize: 12 }}>
+                    <strong style={{ color: '#1e40af' }}>✓ Approved</strong>
+                    <span style={{ color: 'var(--text2)', marginLeft: 8 }}>by {inv.approved_by || '—'}</span>
+                    {inv.approved_at && <span style={{ color: 'var(--text3)', marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 11 }}>{inv.approved_at.slice(0,16)}</span>}
+                  </div>
+                )}
+                {/* Payment info */}
+                {isPaid && (
+                  <div style={{ background: 'rgba(22,163,74,.08)', border: '1px solid rgba(22,163,74,.25)', borderRadius: 8, padding: '8px 14px', marginBottom: 14, fontSize: 12 }}>
+                    <strong style={{ color: '#15803d' }}>💳 Paid</strong>
+                    <span style={{ color: 'var(--text2)', marginLeft: 8 }}>by {inv.paid_by || '—'}</span>
+                    {inv.payment_mode && <span style={{ color: 'var(--text3)', marginLeft: 8 }}>via {inv.payment_mode}</span>}
+                    {inv.payment_ref && <span style={{ color: 'var(--text3)', marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 11 }}>Ref: {inv.payment_ref}</span>}
+                    {inv.paid_at && <span style={{ color: 'var(--text3)', marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 11 }}>{inv.paid_at.slice(0,16)}</span>}
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                {isDraft && !isPaid && (
+                  <button disabled={busy} onClick={() => handleApproveInvoice(inv)}
+                    style={{ padding: '7px 18px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
+                    {busy ? 'Approving…' : '✓ Approve Invoice'}
+                  </button>
+                )}
+                {isApproved && !isPaid && (
+                  <button disabled={busy} onClick={() => { setPayMode('Bank Transfer'); setPayRef(''); setInvoiceDetailModal(null); setInvoicePayModal(inv); }}
+                    style={{ padding: '7px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
+                    💳 Mark as Paid
+                  </button>
+                )}
+                <button onClick={() => { setInvoiceDetailModal(null); goChat(`Explain the purchase invoice ${inv.pi_number} for GRN ${inv.grn_number} from ${inv.supplier_name}. What is the payment status and any action required?`); }}
+                  style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', fontWeight: 600, fontSize: 12, color: 'var(--text2)' }}>
+                  🤖 Ask AI
+                </button>
+                <button onClick={() => setInvoiceDetailModal(null)}
+                  style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', fontWeight: 600, fontSize: 12, color: 'var(--text2)' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Pay Invoice Modal ───────────────────────────────────────────── */}
+      {invoicePayModal && (() => {
+        const inv = invoicePayModal;
+        const busy = invoiceActionId === inv.pi_number;
+        return (
+          <div style={MODAL_OVERLAY} onClick={e => e.target === e.currentTarget && setInvoicePayModal(null)}>
+            <div style={{ ...MODAL_BOX, maxWidth: 440, marginTop: 120 }}>
+              <div style={{ ...MODAL_HDR, borderLeft: '4px solid #2563eb' }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>💳 Record Payment</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>{inv.pi_number} · ₹{Number(inv.invoice_value).toLocaleString('en-IN')}</div>
+                </div>
+                <button onClick={() => setInvoicePayModal(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
+              </div>
+              <div style={{ ...MODAL_BODY }}>
+                <div style={{ background: 'rgba(220,38,38,.05)', border: '1px solid rgba(220,38,38,.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--r2)' }}>
+                  ⚠ Once marked as PAID, this invoice will be <strong>permanently locked</strong>. This action cannot be undone.
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.4px', display: 'block', marginBottom: 5 }}>Payment Mode</label>
+                  <select value={payMode} onChange={e => setPayMode(e.target.value)}
+                    style={{ width: '100%', padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }}>
+                    {['Bank Transfer', 'NEFT', 'RTGS', 'IMPS', 'Cheque', 'Cash', 'UPI', 'DD'].map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.4px', display: 'block', marginBottom: 5 }}>Payment Reference / UTR</label>
+                  <input value={payRef} onChange={e => setPayRef(e.target.value)}
+                    placeholder="e.g. NEFT-7742281 or Cheque-0042"
+                    style={{ width: '100%', padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--mono)', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button disabled={busy} onClick={() => handlePayInvoice(inv, payMode, payRef)}
+                  style={{ padding: '8px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
+                  {busy ? 'Processing…' : '💳 Confirm Payment'}
+                </button>
+                <button onClick={() => setInvoicePayModal(null)}
+                  style={{ padding: '8px 14px', background: 'none', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', fontWeight: 600, fontSize: 12, color: 'var(--text2)' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Supplier Quotations ─────────────────────────────────────────── */}
       <QuotationsSection

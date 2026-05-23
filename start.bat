@@ -23,8 +23,8 @@ echo [3/4] Waiting for backend health check...
 set COUNT=0
 :WAIT_LOOP
 timeout /t 2 /nobreak >nul
-curl -s -o nul http://127.0.0.1:8000/api/health >nul 2>&1
-if %ERRORLEVEL%==0 goto BACKEND_READY
+curl -s -o nul -w "%%{http_code}" http://127.0.0.1:8000/api/health 2>nul | findstr "200" >nul
+if not errorlevel 1 goto BACKEND_READY
 set /a COUNT+=1
 if %COUNT% lss 10 goto WAIT_LOOP
 echo      Backend is slow to start — continuing anyway...

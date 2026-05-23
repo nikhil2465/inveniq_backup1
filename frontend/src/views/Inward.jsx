@@ -49,6 +49,7 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
   const [dispatchError,      setDispatchError]      = useState('');
   const [dispatchSuccess,    setDispatchSuccess]    = useState(null);
   const setDF = (k) => (v) => setDispatchForm(f => ({ ...f, [k]: v }));
+  const [catalogProducts, setCatalogProducts] = useState([]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -98,6 +99,14 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
     fetch('/api/distributors/inventory')
       .then(r => r.json())
       .then(data => setDistributors(data.distributors || []))
+      .catch(() => {});
+  }, []);
+
+  // Load product catalog for SKU picker (once — catalog is stable)
+  useEffect(() => {
+    fetch('/api/catalog')
+      .then(r => r.json())
+      .then(data => setCatalogProducts(data.products || []))
       .catch(() => {});
   }, []);
 
@@ -490,9 +499,31 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px', fontFamily: 'var(--mono)' }}>
                   SKU / Product <span style={{ color: 'var(--r2)' }}>*</span>
                 </label>
-                <input value={transferForm.sku_name} onChange={e => setTF('sku_name')(e.target.value)}
-                  placeholder="e.g. 18mm BWP (8x4) or Soft-Close Hinge 35mm"
-                  style={{ width: '100%', padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+                <input
+                  list="transfer-sku-catalog"
+                  value={transferForm.sku_name}
+                  onChange={e => {
+                    const name = e.target.value;
+                    const prod = catalogProducts.find(p => p.name === name);
+                    if (prod) {
+                      setTransferForm(f => ({
+                        ...f,
+                        sku_name:  prod.name,
+                        sku_code:  prod.sku_code || '',
+                        buy_price: prod.buy_price != null ? String(prod.buy_price) : '',
+                      }));
+                    } else {
+                      setTF('sku_name')(name);
+                    }
+                  }}
+                  placeholder="Type or select from Product Catalog…"
+                  style={{ width: '100%', padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }}
+                />
+                <datalist id="transfer-sku-catalog">
+                  {catalogProducts.map(p => (
+                    <option key={p.sku_code || p.product_id} value={p.name} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px', fontFamily: 'var(--mono)' }}>SKU Code</label>
@@ -726,9 +757,34 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px', fontFamily: 'var(--mono)' }}>
                   SKU / Product <span style={{ color: 'var(--r2)' }}>*</span>
                 </label>
-                <input value={dispatchForm.sku_name} onChange={e => setDF('sku_name')(e.target.value)}
-                  placeholder="e.g. Ebco Soft-Close Hinge 35mm Pk-10"
-                  style={{ width: '100%', padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+                <input
+                  list="dispatch-sku-catalog"
+                  value={dispatchForm.sku_name}
+                  onChange={e => {
+                    const name = e.target.value;
+                    const prod = catalogProducts.find(p => p.name === name);
+                    if (prod) {
+                      setDispatchForm(f => ({
+                        ...f,
+                        sku_name:   prod.name,
+                        sku_code:   prod.sku_code  || '',
+                        category:   prod.category  || '',
+                        buy_price:  prod.buy_price  != null ? String(prod.buy_price)  : '',
+                        sell_price: prod.sell_price != null ? String(prod.sell_price) : '',
+                        unit: prod.unit === 'sheet' ? 'Sheets' : prod.unit === 'piece' ? 'Pieces' : prod.unit || f.unit,
+                      }));
+                    } else {
+                      setDF('sku_name')(name);
+                    }
+                  }}
+                  placeholder="Type or select from Product Catalog…"
+                  style={{ width: '100%', padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'var(--font)', boxSizing: 'border-box' }}
+                />
+                <datalist id="dispatch-sku-catalog">
+                  {catalogProducts.map(p => (
+                    <option key={p.sku_code || p.product_id} value={p.name} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px', fontFamily: 'var(--mono)' }}>SKU Code</label>

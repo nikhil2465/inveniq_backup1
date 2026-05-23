@@ -36,7 +36,7 @@ export default function Login({ onLoginSuccess }) {
         setLoading(false);
         return;
       }
-      onLoginSuccess(data.access_token, data.user);
+      onLoginSuccess(data.access_token, data.user, data.refresh_token ?? null);
     } catch {
       setError('Unable to connect to server. Please try again.');
       setLoading(false);
@@ -266,71 +266,6 @@ const styles = {
     borderTopColor: '#fff',
     borderRadius: '50%',
     animation: 'iq-spin 0.6s linear infinite',
-  },
-  demoBox: {
-    marginTop: '1.75rem',
-    background: '#0a120b',
-    border: '1px solid #1a2e1b',
-    borderRadius: '8px',
-    padding: '0.85rem 1rem',
-  },
-  demoLabel: {
-    fontSize: '0.72rem',
-    fontWeight: 700,
-    color: '#4a7a4e',
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-    display: 'block',
-    marginBottom: '0.5rem',
-    fontFamily: 'Inter, sans-serif',
-  },
-  demoRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    marginBottom: '0.25rem',
-  },
-  demoKey: {
-    fontSize: '0.78rem',
-    color: '#5a8f60',
-    width: '64px',
-    fontFamily: 'Inter, sans-serif',
-  },
-  demoVal: {
-    fontSize: '0.78rem',
-    color: '#a7d7a8',
-    fontFamily: 'JetBrains Mono, monospace',
-    background: '#0d160e',
-    padding: '0.08rem 0.35rem',
-    borderRadius: '3px',
-    border: '1px solid #1e3320',
-  },
-  demoTable: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    marginBottom: '0.2rem',
-  },
-  demoTh: {
-    fontSize: '0.68rem',
-    fontWeight: 700,
-    color: '#3d6641',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    padding: '0.2rem 0.3rem',
-    textAlign: 'left',
-    fontFamily: 'Inter, sans-serif',
-    borderBottom: '1px solid #1a2e1b',
-  },
-  demoTr: {
-    cursor: 'pointer',
-    transition: 'background 0.1s',
-  },
-  demoTd: {
-    fontSize: '0.75rem',
-    color: '#5a8f60',
-    padding: '0.25rem 0.3rem',
-    fontFamily: 'Inter, sans-serif',
-    borderBottom: '1px solid #111d13',
   },
   footer: {
     marginTop: '1.5rem',

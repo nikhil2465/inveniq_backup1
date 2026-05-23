@@ -58,10 +58,6 @@ const NAV_ITEMS = [
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 5h6M5 8h4M5 11h5" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".75"/><path d="M11 9l1.5 1.5L15 8" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
   },
   {
-    id: 'gateentry', label: 'Gate Entry', badge: 'NEW', badgeClass: 'nb-b',
-    icon: <svg viewBox="0 0 16 16" fill="none"><path d="M7 1H2a1 1 0 00-1 1v12a1 1 0 001 1h5" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".85"/><path d="M11 4l4 4-4 4M15 8H6" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
-  },
-  {
     id: 'pr', label: 'Purchase Requisition', badge: 'NEW', badgeClass: 'nb-p',
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 5h6M5 8h6M5 11h4" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".7"/><path d="M10 11h2M11 10v2" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".9"/></svg>,
   },

@@ -69,7 +69,13 @@ async def get_louvers_dashboard():
                                    status, delivery_date,
                                    DATE(created_at) AS order_date,
                                    COALESCE(supplier_name, '') AS supplier_name,
-                                   COALESCE(notes, '') AS notes
+                                   COALESCE(notes, '') AS notes,
+                                   COALESCE(quote_number, '') AS quote_number,
+                                   COALESCE(invoice_number, '') AS invoice_number,
+                                   invoiced_at,
+                                   COALESCE(site_location, '') AS site_location,
+                                   COALESCE(payment_status, 'UNPAID') AS payment_status,
+                                   COALESCE(pod_note, '') AS pod_note
                             FROM sales_orders
                             ORDER BY created_at DESC
                             LIMIT 200
@@ -123,21 +129,184 @@ class CreateOrderRequest(BaseModel):
     delivery_date:  Optional[str]  = None
     site_location:  Optional[str]  = None
     notes:          Optional[str]  = None
+    status:         Optional[str]  = "CONFIRMED"
 
 class OrderStatusUpdate(BaseModel):
-    status: str
+    status:         str
+    pod_note:       Optional[str] = None
+    payment_status: Optional[str] = None
+
+class RaiseInvoiceRequest(BaseModel):
+    invoice_number: Optional[str] = None
+
+class PaymentStatusUpdate(BaseModel):
+    payment_status: str                    # UNPAID | PARTIAL | PAID
+    payment_ref:    Optional[str] = None
+
+
+async def _ensure_sales_orders_schema(pool):
+    """Ensure sales_orders + inventory_reservations tables exist — idempotent."""
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS sales_orders (
+                        id            INT AUTO_INCREMENT PRIMARY KEY,
+                        order_number  VARCHAR(50)  NOT NULL,
+                        customer_name VARCHAR(200) NOT NULL,
+                        customer_type VARCHAR(100),
+                        product_id    INT,
+                        product_name  VARCHAR(300),
+                        category      VARCHAR(200),
+                        quantity      DECIMAL(12,3),
+                        unit          VARCHAR(50),
+                        sell_price    DECIMAL(12,2),
+                        buy_price     DECIMAL(12,2),
+                        total_value   DECIMAL(14,2),
+                        status        VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                        delivery_date DATE,
+                        site_location VARCHAR(300),
+                        supplier_name VARCHAR(200),
+                        notes         TEXT,
+                        quote_number  VARCHAR(50),
+                        created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                         ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+                for _col in [
+                    "ALTER TABLE sales_orders ADD COLUMN quote_number VARCHAR(50)",
+                    "ALTER TABLE sales_orders ADD COLUMN invoice_number VARCHAR(50)",
+                    "ALTER TABLE sales_orders ADD COLUMN invoiced_at DATETIME",
+                    "ALTER TABLE sales_orders ADD COLUMN pod_note TEXT",
+                    "ALTER TABLE sales_orders ADD COLUMN payment_status VARCHAR(20) DEFAULT 'UNPAID'",
+                    "ALTER TABLE sales_orders ADD COLUMN payment_ref VARCHAR(100)",
+                    "ALTER TABLE sales_orders ADD COLUMN site_location VARCHAR(300)",
+                ]:
+                    try:
+                        await cur.execute(_col)
+                    except Exception:
+                        pass
+                # Inventory reservations — tracks qty reserved against confirmed sales orders
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS inventory_reservations (
+                        reservation_id  INT AUTO_INCREMENT PRIMARY KEY,
+                        sales_order_id  VARCHAR(50)  NOT NULL,
+                        product_name    VARCHAR(300) NOT NULL,
+                        reserved_qty    DECIMAL(12,3) NOT NULL DEFAULT 0,
+                        unit            VARCHAR(50) DEFAULT 'Units',
+                        status          ENUM('ACTIVE','RELEASED','CANCELLED')
+                                        NOT NULL DEFAULT 'ACTIVE',
+                        reserved_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        released_at     DATETIME DEFAULT NULL,
+                        INDEX idx_ir_so     (sales_order_id),
+                        INDEX idx_ir_status (status),
+                        INDEX idx_ir_prod   (product_name(60))
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+            await conn.commit()
+    except Exception as exc:
+        logger.warning("_ensure_sales_orders_schema: %s", exc)
+
+
+async def _create_reservation(pool, order_number: str, product_name: str,
+                               quantity: float, unit: str) -> None:
+    """Insert an ACTIVE inventory reservation for a confirmed sales order."""
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """INSERT INTO inventory_reservations
+                           (sales_order_id, product_name, reserved_qty, unit, status)
+                       VALUES (%s, %s, %s, %s, 'ACTIVE')
+                       ON DUPLICATE KEY UPDATE
+                           reserved_qty = VALUES(reserved_qty),
+                           status = 'ACTIVE', released_at = NULL""",
+                    (order_number, product_name, quantity, unit),
+                )
+            await conn.commit()
+    except Exception as exc:
+        logger.warning("_create_reservation failed for %s: %s", order_number, exc)
+
+
+async def _release_reservation(pool, order_number: str) -> None:
+    """Mark all ACTIVE reservations for this SO as RELEASED."""
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """UPDATE inventory_reservations
+                       SET status = 'RELEASED', released_at = NOW()
+                       WHERE sales_order_id = %s AND status = 'ACTIVE'""",
+                    (order_number,),
+                )
+            await conn.commit()
+    except Exception as exc:
+        logger.warning("_release_reservation failed for %s: %s", order_number, exc)
+
 
 @router.post("/louvers/orders")
 async def create_order(req: CreateOrderRequest):
-    today     = datetime.date.today()
-    num       = f"LO-{today.strftime('%Y%m%d')}-{datetime.datetime.now().strftime('%H%M%S')}"
-    gross     = round(req.sell_price * req.quantity, 2)
-    cost      = round(req.buy_price  * req.quantity, 2)
-    margin    = round((gross - cost) / gross * 100, 2) if gross else 0
-    return {"success": True, "order_number": num,
-            "total_value": gross, "margin_pct": margin,
-            "valid_till": (today + datetime.timedelta(days=14)).isoformat(),
-            "demo_mode": True}
+    today  = datetime.date.today()
+    num    = f"SO-{today.strftime('%Y%m%d')}-{datetime.datetime.now().strftime('%H%M%S')}"
+    gross  = round(req.sell_price * req.quantity, 2)
+    cost   = round(req.buy_price  * req.quantity, 2)
+    margin = round((gross - cost) / gross * 100, 2) if gross else 0
+    status = (req.status or "CONFIRMED").upper()
+    if status not in VALID_ORDER_STATUSES:
+        status = "CONFIRMED"
+
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                await _ensure_sales_orders_schema(pool)
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            """INSERT INTO sales_orders
+                                   (order_number, customer_name, customer_type,
+                                    product_id, product_name, category,
+                                    quantity, unit, sell_price, buy_price, total_value,
+                                    status, delivery_date, site_location,
+                                    supplier_name, notes)
+                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                            (
+                                num,
+                                req.customer_name, req.customer_type,
+                                req.product_id, req.product_name, req.category,
+                                req.quantity, req.unit,
+                                req.sell_price, req.buy_price, gross,
+                                status,
+                                req.delivery_date or None,
+                                req.site_location or None,
+                                req.supplier_name or None,
+                                req.notes or None,
+                            ),
+                        )
+                        order_id = cur.lastrowid
+                    await conn.commit()
+                # Reserve inventory immediately when order is CONFIRMED
+                if status == "CONFIRMED":
+                    await _create_reservation(
+                        pool, num, req.product_name, req.quantity, req.unit
+                    )
+                return {
+                    "success": True, "order_id": order_id, "order_number": num,
+                    "total_value": gross, "margin_pct": margin, "status": status,
+                    "valid_till": (today + datetime.timedelta(days=14)).isoformat(),
+                    "reserved": status == "CONFIRMED",
+                    "demo_mode": False,
+                }
+        except Exception as exc:
+            logger.warning("create_order DB insert failed: %s", exc)
+
+    return {
+        "success": True, "order_number": num,
+        "total_value": gross, "margin_pct": margin, "status": status,
+        "valid_till": (today + datetime.timedelta(days=14)).isoformat(),
+        "demo_mode": True,
+    }
 
 @router.put("/louvers/orders/{order_id}/status")
 async def update_order_status(order_id: int, req: OrderStatusUpdate):
@@ -150,11 +319,45 @@ async def update_order_status(order_id: int, req: OrderStatusUpdate):
             if pool:
                 async with pool.acquire() as conn:
                     async with conn.cursor() as cur:
+                        # Fetch order_number + product details before update (needed for reservation logic)
+                        await cur.execute(
+                            "SELECT order_number, product_name, quantity, unit, status AS old_status "
+                            "FROM sales_orders WHERE id = %s",
+                            (order_id,),
+                        )
+                        row = await cur.fetchone()
+                        order_number = row[0] if row else None
+                        product_name = row[1] if row else None
+                        quantity     = float(row[2]) if row and row[2] else 0
+                        unit         = row[3] if row else "Units"
+                        old_status   = row[4] if row else None
+
                         await cur.execute(
                             "UPDATE sales_orders SET status = %s WHERE id = %s",
                             (req.status, order_id),
                         )
+                        if req.pod_note:
+                            await cur.execute(
+                                "UPDATE sales_orders SET pod_note = %s WHERE id = %s",
+                                (req.pod_note, order_id),
+                            )
+                        if req.payment_status and req.payment_status in ("UNPAID", "PARTIAL", "PAID"):
+                            await cur.execute(
+                                "UPDATE sales_orders SET payment_status = %s WHERE id = %s",
+                                (req.payment_status, order_id),
+                            )
                     await conn.commit()
+
+                # Reservation lifecycle management
+                if order_number:
+                    new_status = req.status.upper()
+                    if new_status == "CONFIRMED" and old_status != "CONFIRMED":
+                        # Newly confirmed — reserve inventory
+                        await _create_reservation(pool, order_number, product_name, quantity, unit)
+                    elif new_status in ("DELIVERED", "CANCELLED"):
+                        # Order closed — release reservation
+                        await _release_reservation(pool, order_number)
+
                 return {"success": True, "order_id": order_id, "status": req.status, "demo_mode": False}
         except Exception as exc:
             logger.warning("Status update DB failed: %s", exc)
@@ -163,6 +366,125 @@ async def update_order_status(order_id: int, req: OrderStatusUpdate):
     from app.core.demo_state import set_order_status
     set_order_status(order_id, req.status)
     return {"success": True, "order_id": order_id, "status": req.status, "demo_mode": True}
+
+
+@router.post("/louvers/orders/{order_id}/invoice")
+async def raise_invoice(order_id: int, req: RaiseInvoiceRequest):
+    """Raise a tax invoice against a sales order — saves invoice_number + invoiced_at to DB."""
+    today   = datetime.date.today()
+    now     = datetime.datetime.now()
+    inv_num = req.invoice_number or f"INV-{today.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}"
+
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                await _ensure_sales_orders_schema(pool)
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            "UPDATE sales_orders SET invoice_number=%s, invoiced_at=%s WHERE id=%s",
+                            (inv_num, now, order_id),
+                        )
+                    await conn.commit()
+                return {"success": True, "order_id": order_id, "invoice_number": inv_num, "demo_mode": False}
+        except Exception as exc:
+            logger.warning("raise_invoice DB failed: %s", exc)
+
+    return {"success": True, "order_id": order_id, "invoice_number": inv_num, "demo_mode": True}
+
+
+@router.put("/louvers/orders/{order_id}/payment")
+async def update_payment_status(order_id: int, req: PaymentStatusUpdate):
+    """Update payment status (UNPAID / PARTIAL / PAID) on a sales order."""
+    if req.payment_status not in ("UNPAID", "PARTIAL", "PAID"):
+        raise HTTPException(422, "payment_status must be UNPAID, PARTIAL, or PAID")
+
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            "UPDATE sales_orders SET payment_status=%s, payment_ref=%s WHERE id=%s",
+                            (req.payment_status, req.payment_ref or None, order_id),
+                        )
+                    await conn.commit()
+                return {"success": True, "order_id": order_id, "payment_status": req.payment_status, "demo_mode": False}
+        except Exception as exc:
+            logger.warning("update_payment_status DB failed: %s", exc)
+
+    return {"success": True, "order_id": order_id, "payment_status": req.payment_status, "demo_mode": True}
+
+
+@router.get("/louvers/reservations")
+async def get_reservations():
+    """Return active inventory reservations with ATP summary per product."""
+    if _DB_AVAILABLE:
+        try:
+            pool = await get_pool()
+            if pool:
+                await _ensure_sales_orders_schema(pool)
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        # Active reservations with order details
+                        await cur.execute("""
+                            SELECT ir.reservation_id, ir.sales_order_id, ir.product_name,
+                                   ir.reserved_qty, ir.unit, ir.status, ir.reserved_at,
+                                   so.customer_name, so.delivery_date, so.status AS order_status
+                            FROM inventory_reservations ir
+                            LEFT JOIN sales_orders so ON so.order_number = ir.sales_order_id
+                            WHERE ir.status = 'ACTIVE'
+                            ORDER BY ir.reserved_at DESC
+                            LIMIT 200
+                        """)
+                        rows = await cur.fetchall()
+                        cols = [d[0] for d in cur.description]
+                        reservations = [dict(zip(cols, r)) for r in rows]
+
+                        # ATP summary: total reserved per product
+                        await cur.execute("""
+                            SELECT product_name,
+                                   SUM(reserved_qty) AS total_reserved,
+                                   COUNT(*) AS reservation_count
+                            FROM inventory_reservations
+                            WHERE status = 'ACTIVE'
+                            GROUP BY product_name
+                            ORDER BY total_reserved DESC
+                        """)
+                        atp_rows = await cur.fetchall()
+                        atp_by_product = [
+                            {
+                                "product_name": r[0],
+                                "total_reserved": float(r[1] or 0),
+                                "reservation_count": int(r[2] or 0),
+                            }
+                            for r in atp_rows
+                        ]
+
+                        for r in reservations:
+                            if r.get("reserved_at") and not isinstance(r["reserved_at"], str):
+                                r["reserved_at"] = str(r["reserved_at"])
+                            if r.get("delivery_date") and not isinstance(r["delivery_date"], str):
+                                r["delivery_date"] = r["delivery_date"].isoformat()
+
+                        return {
+                            "data_source": "mysql",
+                            "reservations": reservations,
+                            "atp_by_product": atp_by_product,
+                            "total_active": len(reservations),
+                        }
+        except Exception as exc:
+            logger.warning("GET /louvers/reservations failed: %s", exc)
+
+    # Demo fallback
+    return {
+        "data_source": "demo",
+        "reservations": [],
+        "atp_by_product": [],
+        "total_active": 0,
+    }
 
 
 @router.post("/louvers/test-email")

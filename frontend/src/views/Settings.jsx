@@ -32,7 +32,6 @@ const MODULE_LIST = [
   { icon: '📋', id: 'pr',          label: 'Purchase Requisition',   section: 'P2P' },
   { icon: '🔬', id: 'qc',          label: 'QC Inspection',          section: 'P2P' },
   { icon: '🧮', id: 'invoicematch',label: 'Invoice Matching',       section: 'P2P' },
-  { icon: '🚦', id: 'gateentry',   label: 'Gate Entry',             section: 'P2P' },
   { icon: '📤', id: 'tally',       label: 'Tally Prime Export',     section: 'Integrations' },
   { icon: '🤖', id: 'chatbot',     label: 'AI Assistant',           section: 'AI' },
   { icon: 'ℹ️',  id: 'about',      label: 'About InvenIQ',          section: 'Info' },
@@ -66,7 +65,7 @@ const InfoRow = ({ label, value, mono, ok }) => (
   </div>
 );
 
-export default function Settings({ onNavigate, dbStatus, currentUser, allowedModules }) {
+export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, allowedModules }) {
   const [health,    setHealth]    = useState(null);
   const [dbDetail,  setDbDetail]  = useState(null);
   const [loading,   setLoading]   = useState(true);
@@ -163,7 +162,6 @@ export default function Settings({ onNavigate, dbStatus, currentUser, allowedMod
     { keys: ['g', '6'], desc: 'Purchase Requisition',   module: 'pr'           },
     { keys: ['g', '7'], desc: 'QC Inspection',          module: 'qc'           },
     { keys: ['g', '8'], desc: 'Invoice Matching',       module: 'invoicematch' },
-    { keys: ['g', '9'], desc: 'Gate Entry',             module: 'gateentry'    },
     { keys: ['g', 'j'], desc: 'About InvenIQ',          module: 'about'        },
   ].filter(s => isUnrestricted || (allowedModules ?? []).includes(s.module));
 
@@ -365,7 +363,7 @@ export default function Settings({ onNavigate, dbStatus, currentUser, allowedMod
               <InfoRow label="Knowledge Base"    value="34 topics — inventory, finance, P2P, operations" />
               <InfoRow label="Insights Engine"   value="16 proactive insight types"                    />
               <InfoRow label="RCA Engine"        value="14 structured analysis templates"               />
-              <InfoRow label="Data Tools"        value="27 live business data tools"                    />
+              <InfoRow label="Data Tools"        value="26 live business data tools"                    />
             </div>
           </div>
         </div>
@@ -439,17 +437,32 @@ export default function Settings({ onNavigate, dbStatus, currentUser, allowedMod
         </div>
       </div>
 
-      {/* Quick Setup Guide — admin only */}
+      {/* Administrator Reference — admin only */}
       {isUnrestricted && <div className="card" style={{ marginTop: 12 }}>
-        <div className="ch"><div className="ctit">Quick Setup Guide</div><div className="csub">Get InvenIQ running in under 5 minutes</div></div>
+        <div className="ch"><div className="ctit">Administrator Reference</div><div className="csub">Data sources, AI configuration, and role management</div></div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, padding: '4px 0 8px' }}>
           {[
-            { step: '1', title: 'Demo Mode — Zero Setup', color: 'var(--green)',
-              items: ['Double-click start.bat (Windows) to auto-start both servers', 'Or: cd backend && uvicorn app.main:app --reload', `Open http://localhost:3000 — all ${MODULE_LIST.length} modules show demo data`, 'No database or API key needed'] },
-            { step: '2', title: 'Enable MySQL Live Data', color: 'var(--b2)',
-              items: ['Copy backend/.env.example → backend/.env', 'Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB', 'Run database/seed_complete.sql on your MySQL instance', 'Restart backend — DB badge turns green automatically'] },
-            { step: '3', title: 'Enable All AI Features', color: '#8b5cf6',
-              items: ['Get OpenAI API key at platform.openai.com', 'Add OPENAI_API_KEY=sk-... to backend/.env', 'Restart backend — AI badge turns green', 'Unlocks: chat, WhatsApp scanner, quote analysis, RCA'] },
+            { step: '1', title: 'Live Data Connection', color: 'var(--green)',
+              items: [
+                `Database badge is ${dbOk ? '🟢 LIVE — all modules showing real-time data' : '🟡 DEMO — all modules showing sample data'}`,
+                'Contact your system administrator to connect to your MySQL database',
+                'Once connected, all 34 modules automatically switch to live business data',
+                'No data is lost when switching between Demo and Live mode',
+              ] },
+            { step: '2', title: 'AI Features', color: '#8b5cf6',
+              items: [
+                `AI Engine is ${aiOk ? '🟢 ACTIVE — all AI features operational' : '🔴 NOT CONFIGURED — contact your administrator'}`,
+                'AI features: Business intelligence chat, WhatsApp quote scanner, demand forecasting, RCA engine',
+                'AI works in both Demo Mode and Live Data mode independently',
+                'Context window retains last 16 messages per session',
+              ] },
+            { step: '3', title: 'Role & Access Management', color: 'var(--b2)',
+              items: [
+                '6 roles: Admin (full access), Sales Manager, CFO, Warehouse Manager, Finance Manager, Distributor',
+                'Each role has a curated module list — users only see their permitted modules',
+                'Contact your administrator to add or modify user accounts and role assignments',
+                'Distributor accounts access only their personalised stock and order portal',
+              ] },
           ].map(s => (
             <div key={s.step} style={{ padding: 16, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, borderTop: `3px solid ${s.color}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -459,13 +472,24 @@ export default function Settings({ onNavigate, dbStatus, currentUser, allowedMod
               {s.items.map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 11, color: 'var(--text2)', alignItems: 'flex-start' }}>
                   <span style={{ color: s.color, fontWeight: 800, flexShrink: 0 }}>→</span>
-                  <span style={{ fontFamily: 'var(--mono)', lineHeight: 1.6 }}>{item}</span>
+                  <span style={{ lineHeight: 1.6 }}>{item}</span>
                 </div>
               ))}
             </div>
           ))}
         </div>
       </div>}
+
+      {/* AI CTA */}
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginTop: 20 }} onClick={() => onGoChat(
+          'Analyse my InvenIQ setup: database connection status, AI configuration, module access, and user roles. ' +
+          'What should I check or optimise in my current configuration?'
+        )}>
+          <span>✨</span>
+          <span>Ask AI: Review my configuration — database, AI engine, roles, and module access</span>
+        </div>
+      )}
     </div>
   );
 }

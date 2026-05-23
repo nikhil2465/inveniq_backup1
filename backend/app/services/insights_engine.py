@@ -43,6 +43,18 @@ _INSIGHTS_KEYWORDS = [
     "qc status", "quality status", "rejection report",
     "invoice status", "ap status", "payment queue",
     "gate status", "receiving status", "inbound status",
+    # Natural language pain-point triggers
+    "pain points", "what's wrong", "whats wrong", "what is wrong",
+    "what's broken", "whats broken", "problem areas", "trouble areas",
+    "where am i losing", "where do i lose", "money leaks", "leakage",
+    "biggest risks", "biggest problems", "what to fix", "fix first",
+    "worst performers", "underperforming", "concerns", "red flags",
+    "alerts today", "anything urgent", "urgent alerts",
+    "opportunity analysis", "opportunities today",
+    "give me the bad news", "bad news", "tell me everything",
+    "complete picture", "full picture", "bird's eye", "birds eye",
+    "collections status", "payment status overview", "unpaid overview",
+    "damage summary", "return damage", "sr damage summary",
 ]
 
 
@@ -93,7 +105,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                     f"Daily sale: {item.get('daily_sale', '?')} sheets/day. Lead time: {item.get('lead_time', '6 days')}."
                 ),
                 "impact": f"{rev_risk_str} revenue at risk if stockout occurs",
-                "action": f"Place emergency PO for {item.get('daily_sale', 8) * 21} units/packs from {item.get('supplier', 'Ebco India')} — today",
+                "action": f"Place emergency PO for {item.get('daily_sale', 12) * 21} units/sheets from {item.get('supplier', 'Hindalco Extrusions')} — today. Confirm flat-rack truck availability.",
                 "urgency": "TODAY",
                 "rupee_impact": rupee_val,
             })
@@ -115,7 +127,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                 f"Capital locked earning 0% return, plus ₹{_format_lakh(int(total_dead * 0.22))} annual holding cost."
             ),
             "impact": f"₹{_format_lakh(total_dead)} cash recovery possible. Plus ₹{_format_lakh(int(total_dead * 0.22))} annual holding cost saved.",
-            "action": "Offer 12% discount to plumbers and contractors (Raju Plumbing, Mehta Construction). Bundle old Ebco LED lights with new hinge sets for kitchen studio customers.",
+            "action": "Offer 10% discount to façade contractors and MEP contractors. Bundle PVC louver panels with ACP accessories for utility/parking-shade projects. Contact Greenlam for return/swap on discontinued HPL prints.",
             "urgency": "THIS WEEK",
             "rupee_impact": total_dead,
         })
@@ -149,7 +161,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                     f"That's {stated_pct - real_pct:.0f}pp margin gap hidden by stated buy-price-only calculation."
                 ),
                 "impact": f"₹{_format_lakh(annual_leakage)} annual profit leakage on current volumes",
-                "action": "Review Hindware freight terms or switch volume to Jaquar (better margin + reliability). Reprice Hindware SKUs to reflect true landed cost.",
+                "action": "Review Viva Composite freight terms or switch volume to Alucobond (better spec + reliability). Reprice affected SKUs to reflect true landed cost including flat-rack transport.",
                 "urgency": "THIS WEEK",
                 "rupee_impact": annual_leakage,
             })
@@ -189,10 +201,10 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             "title": "GSTR-3B Filing Overdue — ₹50/Day Penalty Accruing",
             "finding": (
                 f"GSTR-3B is PENDING with ₹{_format_lakh(net_payable)} GST payable. "
-                f"Additionally ₹{_format_lakh(unclaimed)} ITC unclaimed (Hindware + Jaquar invoices not reconciled in GSTR-2B)."
+                f"Additionally ₹{_format_lakh(unclaimed)} ITC unclaimed (Viva Composite + Alucobond invoices not reconciled in GSTR-2B)."
             ),
             "impact": f"₹50/day late fee + 18% p.a. interest on ₹{_format_lakh(net_payable)} = ~₹1,500/month cost",
-            "action": f"File GSTR-3B immediately. Reconcile Hindware and Jaquar invoices to claim ₹{_format_lakh(unclaimed)} ITC.",
+            "action": f"File GSTR-3B immediately. Reconcile Viva Composite and Alucobond invoices to claim ₹{_format_lakh(unclaimed)} ITC.",
             "urgency": "URGENT",
             "rupee_impact": net_payable + unclaimed,
         })
@@ -207,10 +219,10 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             "title": f"{len(overdue_pos)} Supplier POs Overdue — Supply Risk",
             "finding": (
                 f"Overdue: {', '.join(overdue_pos)}. "
-                f"Hindware PO-8841 overdue +3 days (76% historical on-time = high risk of further delay). Jaquar PO-8839 +1 day."
+                f"Viva Composite PO-9124 overdue +2 days (78% historical on-time = high delay risk). Alucobond PO-9118 +1 day (Mumbai–Bangalore transit delay)."
             ),
-            "impact": "Stockout risk on delayed sanitary SKUs + ₹18,000 GRN quantity mismatch from Hindware",
-            "action": "Call Hindware (PO-8841) for confirmed ETA on concealed cisterns. If >2 more days, source from Jaquar as emergency substitute.",
+            "impact": "Stockout risk on delayed ACP SKUs + ₹22,000 GRN thickness mismatch from Viva Composite (3.8mm received vs 4mm ordered)",
+            "action": "Call Viva Composite (PO-9124) for confirmed ETA on ACP panels. If >2 more days, source from Alucobond budget line as emergency substitute. Arrange flat-rack truck on standby.",
             "urgency": "TODAY",
             "rupee_impact": 45000,
         })
@@ -227,7 +239,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             extra_sheets = max(0, int(f30) - int(curr))
         else:
             extra_sheets = 100
-        extra_revenue = extra_sheets * 485  # approx sell price for A-class hardware (Ebco hinge pack)
+        extra_revenue = extra_sheets * 1260  # approx sell price for A-class louver blade (Hindalco Z-section 150mm)
         insights.append({
             "id": "demand_surge_opportunity",
             "category": "📈 Revenue Opportunity",
@@ -238,7 +250,7 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
                 f"Signal: {top_surge.get('signal', 'GROWING')}. {top_surge.get('action', 'Pre-order recommended')}."
             ),
             "impact": f"₹{_format_lakh(extra_revenue)} additional revenue if stock is available for the surge",
-            "action": f"Pre-order {extra_sheets} extra units from primary supplier (Ebco/Jaquar) at current price before demand surge",
+            "action": f"Pre-order {extra_sheets} extra units from Hindalco Extrusions at current LME-linked price before pre-monsoon surge drives costs up. Confirm flat-rack capacity at Peenya godown.",
             "urgency": "THIS WEEK",
             "rupee_impact": extra_revenue,
         })
@@ -461,6 +473,268 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             ),
             "urgency": "THIS WEEK",
             "rupee_impact": discrepancy_val,
+        })
+
+    # ── 17. Sales Revenue Acceleration / Deceleration ────────────────────────
+    sales_data = tool_data.get("sales", {})
+    monthly_revenue = sales_data.get("monthly_revenue", [])
+    if len(monthly_revenue) >= 2:
+        last = monthly_revenue[-1]
+        prev = monthly_revenue[-2]
+        try:
+            last_val = float(last.get("revenue", 0)) * 100_000
+            prev_val = float(prev.get("revenue", 0)) * 100_000
+            if prev_val > 0:
+                pct_change = (last_val - prev_val) / prev_val * 100
+                if pct_change <= -10:
+                    rev_drop = int(prev_val - last_val)
+                    insights.append({
+                        "id": "sales_revenue_deceleration",
+                        "category": "📉 Sales Alert",
+                        "severity": "HIGH",
+                        "title": f"Revenue Drop: {last.get('month', 'This Month')} Down {abs(pct_change):.0f}% vs Prior Month",
+                        "finding": (
+                            f"Revenue this period: ₹{_format_lakh(int(last_val))} vs "
+                            f"₹{_format_lakh(int(prev_val))} prior. "
+                            f"Category split: {sales_data.get('category_split', {})}"
+                        ),
+                        "impact": f"₹{_format_lakh(rev_drop)} revenue shortfall vs prior month",
+                        "action": (
+                            "Review orders pipeline: check if top customer orders are delayed or cancelled. "
+                            "Identify which category (louvers/ACP/HPL) declined most and investigate root cause."
+                        ),
+                        "urgency": "THIS WEEK",
+                        "rupee_impact": rev_drop,
+                    })
+        except (ValueError, TypeError):
+            pass
+
+    # ── 18. Inward GRN Mismatches ─────────────────────────────────────────────
+    inward_data = tool_data.get("inward", {})
+    recent_grn = inward_data.get("recent_grn", [])
+    grn_mismatches = [g for g in recent_grn if g.get("status") == "MISMATCH"]
+    shrinkage_val = _parse_rupee(str(inward_data.get("shrinkage_mtd", "Rs.0")).replace("₹", "Rs."))
+    if grn_mismatches or shrinkage_val > 5_000:
+        top_mm = grn_mismatches[0] if grn_mismatches else {}
+        impact_val = max(shrinkage_val, len(grn_mismatches) * 5_000)
+        insights.append({
+            "id": "inward_grn_mismatches",
+            "category": "🚛 Inward / GRN",
+            "severity": "MEDIUM",
+            "title": f"{len(grn_mismatches)} GRN Mismatches This Period — ₹{_format_lakh(shrinkage_val)} Shrinkage MTD",
+            "finding": (
+                f"{len(grn_mismatches)} recent GRNs have STATUS=MISMATCH. "
+                + (f"Latest: {top_mm.get('supplier', '')} — {top_mm.get('grn', '')}. " if top_mm else "")
+                + f"QC pass rate: {inward_data.get('qc_pass_rate', '?')}. "
+                f"Total shrinkage this month: ₹{_format_lakh(shrinkage_val)}."
+            ),
+            "impact": f"₹{_format_lakh(impact_val)} at risk from unresolved GRN discrepancies and shrinkage",
+            "action": (
+                "Resolve each MISMATCH GRN: raise credit note or return-to-vendor. "
+                "Run cycle count on high-shrinkage SKUs. Investigate if shortages are at receiving or picking stage."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": impact_val,
+        })
+
+    # ── 19. Counter POS — Low Stock Alerts ────────────────────────────────────
+    pos_data = tool_data.get("pos", {})
+    low_stock_counter = [s for s in pos_data.get("low_stock_alerts_at_counter", [])
+                         if s.get("reorder_flag")]
+    if low_stock_counter:
+        top_sku = low_stock_counter[0]
+        daily_pos_rev = _parse_rupee(
+            str(pos_data.get("today_summary", {}).get("gross_revenue", "₹0")).replace("₹", "Rs.")
+        )
+        insights.append({
+            "id": "pos_counter_low_stock",
+            "category": "🏪 Counter POS",
+            "severity": "MEDIUM",
+            "title": f"{len(low_stock_counter)} Counter SKUs Below Reorder — Walk-In Sales at Risk",
+            "finding": (
+                f"{len(low_stock_counter)} SKUs at the counter need immediate replenishment. "
+                f"Critically low: {top_sku.get('sku', '?')} ({top_sku.get('counter_stock', 0)} units left). "
+                f"Today's counter revenue: ₹{_format_lakh(daily_pos_rev)}."
+            ),
+            "impact": f"Walk-in lost sales risk on {len(low_stock_counter)} SKUs — counter revenue is ₹{_format_lakh(daily_pos_rev)}/day",
+            "action": (
+                f"Immediately replenish {top_sku.get('sku', 'counter SKUs')} from Main Godown. "
+                "Set daily replenishment task: counter stock checked every morning before 10 AM."
+            ),
+            "urgency": "TODAY",
+            "rupee_impact": daily_pos_rev,
+        })
+
+    # ── 20. Warehouse Capacity Alert ──────────────────────────────────────────
+    warehouse_data = tool_data.get("warehouse", {})
+    warehouses = warehouse_data.get("warehouses", [])
+    near_capacity = [w for w in warehouses if w.get("utilisation_pct", 0) >= 80]
+    if near_capacity:
+        top_wh = near_capacity[0]
+        cap_pct = top_wh.get("utilisation_pct", 0)
+        wh_val = _parse_rupee(str(top_wh.get("value", "₹0")).replace("₹", "Rs."))
+        insights.append({
+            "id": f"warehouse_near_capacity_{top_wh.get('name', 'main')[:20].replace(' ', '_')}",
+            "category": "🏗️ Warehouse",
+            "severity": "MEDIUM" if cap_pct < 90 else "HIGH",
+            "title": f"Warehouse Capacity Alert: {top_wh.get('name', 'Main Godown')} at {cap_pct}%",
+            "finding": (
+                f"{top_wh.get('name', 'Main Godown')} is at {cap_pct}% capacity "
+                f"({top_wh.get('stock', 0)}/{top_wh.get('capacity', 0)} units, ₹{_format_lakh(wh_val)} value). "
+                f"Inbound POs may not fit without clearing space. "
+                f"{warehouse_data.get('summary', {}).get('near_capacity_alert', '')}"
+            ),
+            "impact": f"Inbound stock deliveries will be blocked if godown exceeds 90% — procurement plan at risk",
+            "action": (
+                "Expedite dispatch of pending orders to free capacity. "
+                "Identify slow-moving SKUs to shift to Transit Hub or liquidate. "
+                "Pre-arrange flat-rack space reorg before next inbound shipment."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": int(wh_val * 0.05),  # 5% capacity constraint risk estimate
+        })
+
+    # ── 21. Open Sales Return Credit Balance ─────────────────────────────────
+    sr_data = tool_data.get("sales_return", {})
+    open_credit_notes = sr_data.get("open_credit_notes", [])
+    open_balance_str = sr_data.get("summary", {}).get("open_credit_balance", "₹0")
+    open_balance = _parse_rupee(str(open_balance_str).replace("₹", "Rs."))
+    if open_credit_notes and open_balance > 5_000:
+        top_cn = open_credit_notes[0]
+        insights.append({
+            "id": "open_sales_return_credit",
+            "category": "↩️ Sales Returns",
+            "severity": "LOW",
+            "title": f"{len(open_credit_notes)} Open Credit Notes — {open_balance_str} Pending Settlement",
+            "finding": (
+                f"{len(open_credit_notes)} sales return credit notes are open and unapplied. "
+                f"Total open balance: {open_balance_str}. "
+                f"Oldest open: {top_cn.get('customer', '?')} — ₹{top_cn.get('balance', '0')} "
+                f"(valid until {top_cn.get('valid_until', '?')})."
+            ),
+            "impact": f"{open_balance_str} in credit notes that reduce customer receivables when applied — recover against next invoice",
+            "action": (
+                f"Contact {top_cn.get('customer', 'customers with open credit')} — apply credit note against their next purchase invoice. "
+                "Closed credit notes reduce DSO and improve customer goodwill."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": open_balance,
+        })
+
+    # ── 22. Landing Cost Overhead Spike ───────────────────────────────────────
+    lc_data = tool_data.get("landing_cost", {})
+    recent_sheets = lc_data.get("recent_sheets", [])
+    avg_overhead = lc_data.get("summary", {}).get("avg_overhead_pct", 0)
+    try:
+        avg_overhead_f = float(avg_overhead)
+    except (ValueError, TypeError):
+        avg_overhead_f = 0
+    if recent_sheets and avg_overhead_f >= 10:
+        top_sheet = recent_sheets[0]
+        landed_val = _parse_rupee(
+            str(top_sheet.get("total_landed_cost", "₹0")).replace("₹", "Rs.")
+        )
+        invoice_val = _parse_rupee(
+            str(top_sheet.get("invoice_value", "₹0")).replace("₹", "Rs.")
+        )
+        overhead_gap = landed_val - invoice_val
+        if overhead_gap > 5_000:
+            insights.append({
+                "id": "landing_cost_overhead_spike",
+                "category": "💸 Landing Cost",
+                "severity": "MEDIUM",
+                "title": f"High Landed Cost Overhead: {avg_overhead_f:.0f}% Avg — Margin Being Eroded",
+                "finding": (
+                    f"Average overhead on landed cost sheets is {avg_overhead_f:.0f}% (target: 6-8% domestic). "
+                    f"Latest sheet: {top_sheet.get('supplier', '?')} — "
+                    f"Invoice {top_sheet.get('invoice_value', '?')} → Landed {top_sheet.get('total_landed_cost', '?')} "
+                    f"(₹{_format_lakh(overhead_gap)} overhead). "
+                    f"Impact: {top_sheet.get('per_unit_impact', '?')}."
+                ),
+                "impact": f"₹{_format_lakh(overhead_gap)} overhead on recent purchase — margin gap vs invoice-based pricing",
+                "action": (
+                    "Reprice affected SKUs using true landed cost (not invoice price). "
+                    "Negotiate freight inclusion with supplier for next PO. "
+                    "Review if Domestic Road can be substituted with Local Pickup for nearby suppliers."
+                ),
+                "urgency": "THIS WEEK",
+                "rupee_impact": overhead_gap,
+            })
+
+    # ── 23. Delivered But Unpaid Sales Orders ────────────────────────────────
+    louvers_data     = tool_data.get("louvers", {})
+    delivered_unpaid = louvers_data.get("delivered_unpaid_orders", [])
+    unpaid_val_str   = louvers_data.get("summary", {}).get("delivered_unpaid_value", "₹0")
+    unpaid_val       = _parse_rupee(unpaid_val_str.replace("₹", "Rs."))
+    if delivered_unpaid and unpaid_val > 50_000:
+        top_u = delivered_unpaid[0]
+        partial_count = louvers_data.get("summary", {}).get("partial_payment_count", 0)
+        insights.append({
+            "id": "delivered_unpaid_orders",
+            "category": "💰 Collections",
+            "severity": "HIGH",
+            "title": (
+                f"{len(delivered_unpaid)} Delivered Orders Unpaid"
+                f" — {unpaid_val_str} Outstanding"
+            ),
+            "finding": (
+                f"{len(delivered_unpaid)} sales orders are marked DELIVERED but payment_status"
+                f" is UNPAID. Top outstanding: SO#{top_u.get('#', '?')} for"
+                f" {top_u.get('customer', '?')} ({top_u.get('value', '?')})."
+                + (f" Additionally {partial_count} orders are PARTIAL." if partial_count else "")
+                + " Goods are delivered — cash collection is 100% in scope."
+            ),
+            "impact": (
+                f"{unpaid_val_str} in receivables due now. These are invoiced, delivered, and"
+                " zero-risk — no dispute basis exists once POD is captured."
+            ),
+            "action": (
+                "Call each customer today to collect payment. Once received, click the 💳 badge"
+                " on the Sales Orders screen to cycle to PAID. Update partial payments to PARTIAL"
+                " and note reference in payment_ref."
+            ),
+            "urgency": "TODAY",
+            "rupee_impact": unpaid_val,
+        })
+
+    # ── 24. Sales Return Damage Pattern ──────────────────────────────────────
+    damage_data      = tool_data.get("damage", {})
+    sr_incidents     = damage_data.get("summary", {}).get("sales_return_damage_incidents", 0)
+    sr_val_str       = damage_data.get("summary", {}).get("total_sr_damage_value", "₹0")
+    sr_val           = _parse_rupee(sr_val_str.replace("₹", "Rs."))
+    recent_sr        = damage_data.get("recent_sr_damages", [])
+    if sr_incidents > 0 and sr_val > 2_000:
+        sku_counts: dict = {}
+        for rec in recent_sr:
+            sku = rec.get("product") or rec.get("sku") or rec.get("sku_name", "Unknown")
+            sku_counts[sku] = sku_counts.get(sku, 0) + 1
+        top_sku = max(sku_counts, key=lambda k: sku_counts[k]) if sku_counts else "Unknown"
+        fully_dmg = sum(1 for r in recent_sr if r.get("condition") == "FULLY_DAMAGED")
+        insights.append({
+            "id": "sales_return_damage_pattern",
+            "category": "📦 Returns & Damage",
+            "severity": "MEDIUM" if sr_val < 50_000 else "HIGH",
+            "title": (
+                f"{sr_incidents} Sales Return Damage Incidents"
+                f" — {sr_val_str} Written Off"
+            ),
+            "finding": (
+                f"{sr_incidents} sales returns logged damage on return."
+                + (f" {fully_dmg} items were FULLY_DAMAGED and written off entirely." if fully_dmg else "")
+                + (f" Highest repeat SKU: {top_sku} ({sku_counts.get(top_sku, 1)} incidents)." if top_sku != "Unknown" else "")
+                + f" Total damage loss: {sr_val_str}."
+            ),
+            "impact": (
+                f"{sr_val_str} in write-off losses from sales returns."
+                " Pattern indicates possible packaging, handling, or product quality issues."
+            ),
+            "action": (
+                f"Review packaging for SKU {top_sku}. Raise vendor quality claim if damage"
+                " is supplier-attributable. Investigate customer handling patterns."
+                " Consider adding pre-dispatch quality photos to reduce dispute risk."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": sr_val,
         })
 
     # ── Sort: ₹ impact descending, then severity ──────────────────────────────

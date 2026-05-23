@@ -133,6 +133,18 @@ KEYWORD_MAP = {
         "powder coated", "anodized", "pvc blade",
         "greenlam", "merino laminates", "formica", "stylam",
         "alufit", "jindal aluminium", "technal", "ykk",
+        # POD / delivery confirmation
+        "proof of delivery", "pod", "delivery confirmation", "delivery received",
+        "receiver name", "who received", "delivery signature", "delivered confirmed",
+        "delivery timestamp", "delivery time", "when was delivered",
+        # Payment status on sales orders
+        "payment status", "unpaid orders", "unpaid sales", "collect payment so",
+        "sales order payment", "so payment", "delivered unpaid", "pending payment so",
+        "partial payment so", "payment received so", "mark paid", "paid order",
+        "outstanding payment sales", "collect balance", "payment collection sales",
+        "are unpaid", "orders unpaid", "delivered not paid", "collected payment",
+        "how many unpaid", "which orders unpaid", "payment pending so",
+        "as paid", "mark as paid", "update payment", "payment update so",
     ],
     "discount": [
         "discount", "discounts", "discount rate", "discount policy",
@@ -261,6 +273,11 @@ KEYWORD_MAP = {
         "refund", "reverse sale", "return invoice", "return reason",
         "return policy", "how to process return", "return accounting",
         "return gst", "gst reversal on return", "sr-", "cn-",
+        # Return condition-specific keywords
+        "good condition return", "damaged return", "condition of returned goods",
+        "return condition", "partially damaged return", "fully damaged return",
+        "goods returned good", "goods returned damaged",
+        "return linked so", "return linked invoice", "return dc number",
     ],
     "damage": [
         "damage", "damaged", "damages",
@@ -276,7 +293,11 @@ KEYWORD_MAP = {
         "insurance recoverable", "transit loss", "damage value",
         "physical damage", "moisture damage", "packaging damage",
         "damage prevention", "damage report", "damage recording",
-        "gd-", "td-", "ins-",
+        "sales return damage", "return damage", "damaged returns",
+        "customer returned damaged", "goods returned damaged",
+        "partially damaged return", "fully damaged return",
+        "return condition", "return inspection", "sr damage",
+        "gd-", "td-", "sr-", "ins-",
     ],
     "landing_cost": [
         "landed cost", "landing cost", "true cost", "total landed", "import cost",
@@ -315,16 +336,6 @@ KEYWORD_MAP = {
         "payment blocked", "invoice queue", "ap queue", "invoice reconciliation",
         "invoice reconcile", "payment approval", "invoice to pay",
         "im-", "inv-", "matching status", "3-way reconciliation",
-    ],
-    "gate_entry": [
-        "gate entry", "gate pass", "vehicle arrival", "truck arrival",
-        "vehicle entry", "delivery vehicle", "dc verification",
-        "delivery challan", "dc number", "vehicle at gate", "security clearance",
-        "ge-", "gate log", "arrival log", "inbound vehicle",
-        "vehicle clearance", "vehicle pending", "short shipment gate",
-        "who arrived today", "which vehicles came", "supplier arrival",
-        "receiving dock", "delivery expected", "vehicle register",
-        "entry rejected", "no po vehicle", "walk in delivery",
     ],
 }
 
@@ -417,7 +428,7 @@ def select_tools(query: str, mode: str = "ask") -> List[str]:
             tools.append("finance")
 
     # P2P workflow queries pull related tools for full procurement context
-    if any(t in tools for t in ["pr", "qc", "invoice_matching", "gate_entry"]):
+    if any(t in tools for t in ["pr", "qc", "invoice_matching"]):
         if "po_grn" not in tools:
             tools.append("po_grn")
         if "supplier" not in tools:

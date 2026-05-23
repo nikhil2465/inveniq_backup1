@@ -142,50 +142,50 @@ def _build_ai_brief(s, f, c, o):
     if overdue:
         parts.append(f"Outstanding receivables: {c.get('total_outstanding','')}")
     return ". ".join(parts) if parts else (
-        "Revenue up 11.8% this month — Ebco hinges and Jaquar CP fittings are your top movers. "
-        "Dead stock worth ₹3.8L sitting unsold for 75+ days — 3 SKUs identified for urgent action."
+        "Revenue up 14.2% this month — Hindalco Z-Section louver blades and Alucobond ACP panels are your top movers. "
+        "Dead stock worth ₹4.1L sitting unsold for 80+ days — 3 SKUs identified for urgent liquidation action."
     )
 
 
 _MOCK_MONTHLY_REVENUE = [
-    {"month": "May", "revenue": 19.2, "orders": 312},
-    {"month": "Jun", "revenue": 20.1, "orders": 328},
-    {"month": "Jul", "revenue": 21.4, "orders": 344},
-    {"month": "Aug", "revenue": 22.8, "orders": 369},
-    {"month": "Sep", "revenue": 21.6, "orders": 350},
-    {"month": "Oct", "revenue": 20.4, "orders": 336},
-    {"month": "Nov", "revenue": 22.1, "orders": 357},
-    {"month": "Dec", "revenue": 23.8, "orders": 384},
-    {"month": "Jan", "revenue": 24.4, "orders": 394},
-    {"month": "Feb", "revenue": 25.2, "orders": 406},
-    {"month": "Mar", "revenue": 26.0, "orders": 419},
-    {"month": "Apr", "revenue": 28.4, "orders": 486},
+    {"month": "May", "revenue": 22.4, "orders": 248},
+    {"month": "Jun", "revenue": 24.8, "orders": 264},
+    {"month": "Jul", "revenue": 23.6, "orders": 252},
+    {"month": "Aug", "revenue": 22.0, "orders": 238},
+    {"month": "Sep", "revenue": 21.2, "orders": 228},
+    {"month": "Oct", "revenue": 26.4, "orders": 272},
+    {"month": "Nov", "revenue": 28.8, "orders": 296},
+    {"month": "Dec", "revenue": 30.2, "orders": 312},
+    {"month": "Jan", "revenue": 28.6, "orders": 298},
+    {"month": "Feb", "revenue": 30.4, "orders": 318},
+    {"month": "Mar", "revenue": 32.8, "orders": 342},
+    {"month": "Apr", "revenue": 34.6, "orders": 368},
 ]
 
 
 def _mock_overview():
     return {
-        "revenue_mtd": "₹28.4L", "gross_margin": "24.8%",
-        "dead_stock_value": "₹3.8L", "outstanding_receivables": "₹12.8L",
-        "orders_today": 24, "orders_dispatched": 18, "orders_pending": 6,
-        "low_stock_skus": 5, "working_capital_days": 44,
-        "inventory_accuracy": "97.2%", "stock_turnover": "5.2x", "gmroi": "₹2.14",
-        "at_risk_customers": 6, "total_stock_value": "₹42.6L",
+        "revenue_mtd": "₹34.6L", "gross_margin": "26.4%",
+        "dead_stock_value": "₹4.1L", "outstanding_receivables": "₹15.4L",
+        "orders_today": 18, "orders_dispatched": 13, "orders_pending": 5,
+        "low_stock_skus": 4, "working_capital_days": 52,
+        "inventory_accuracy": "96.8%", "stock_turnover": "4.8x", "gmroi": "₹2.06",
+        "at_risk_customers": 5, "total_stock_value": "₹46.2L",
         "critical_low": [
-            {"sku": "Ebco Soft-Close Hinge 35mm Pk-10", "days_cover": 6,  "stock": 48},
-            {"sku": "Jaquar Lyric Basin Mixer Chrome",   "days_cover": 9,  "stock": 12},
-            {"sku": "Hettich InnoTech Drawer 400mm",     "days_cover": 11, "stock": 21},
+            {"sku": "Hindalco Z-Section Louver Blade 150mm", "days_cover": 5,  "stock": 62},
+            {"sku": "Alucobond ACP 4mm Silver 8×4ft",        "days_cover": 8,  "stock": 18},
+            {"sku": "Greenlam HPL Sheet 1mm Ivory Matt 8×4ft","days_cover": 10, "stock": 24},
         ],
         "top_at_risk": [
-            {"name": "Modern Kitchens Pvt Ltd",  "days_silent": 45, "monthly_value": "₹4.2L"},
-            {"name": "Green Valley Interiors",   "days_silent": 38, "monthly_value": "₹2.8L"},
+            {"name": "Prestige Façade Systems",    "days_silent": 42, "monthly_value": "₹5.8L"},
+            {"name": "Skyline ACP Contractors",    "days_silent": 36, "monthly_value": "₹3.4L"},
         ],
         "monthly_revenue": _MOCK_MONTHLY_REVENUE,
         "ai_brief": (
-            "Revenue up 11.8% this month — Ebco soft-close hinges and Jaquar CP fittings are your top movers. "
-            "Dead stock worth ₹3.8L sitting unsold for 75+ days — Parryware sensor tap and Dorset lock need urgent action. "
-            "Customer 'Modern Kitchens Pvt Ltd' hasn't ordered in 45 days — at-risk account worth ₹4.2L/month. "
-            "Hindware delayed 3 deliveries this month — consider shifting volume to Jaquar."
+            "Revenue up 14.2% this month — Hindalco Z-Section louver blades and Alucobond ACP panels are top movers. "
+            "Pre-monsoon façade rush driving demand — Aerofoil blades and ACP panels need urgent replenishment. "
+            "Customer 'Prestige Façade Systems' hasn't ordered in 42 days — at-risk account worth ₹5.8L/month. "
+            "Viva Composite delayed 2 ACP shipments — LME-linked price revision expected; lock forward orders now."
         ),
         "data_source": "mock",
     }
@@ -229,22 +229,22 @@ async def get_inventory(period: str = Query("MTD")):
 
 def _mock_inventory():
     return {
-        "total_stock_value": "₹42.6L",
-        "critical_count": 5,
-        "dead_stock_value": 3.8,
-        "inventory_accuracy": "97.2%",
-        "stock_turnover": "5.2x",
+        "total_stock_value": "₹46.2L",
+        "critical_count": 4,
+        "dead_stock_value": 4.1,
+        "inventory_accuracy": "96.8%",
+        "stock_turnover": "4.8x",
         "skus": [
-            {"name": "Ebco Soft-Close Hinge 35mm Pk-10",      "brand": "Ebco",     "stock": 48,   "buy": 365,  "sell": 485,  "days_cover": 6,  "sales_30": 240, "status": "critical"},
-            {"name": "Jaquar Lyric Basin Mixer Chrome",        "brand": "Jaquar",   "stock": 12,   "buy": 3200, "sell": 4850, "days_cover": 9,  "sales_30": 42,  "status": "critical"},
-            {"name": "Hettich InnoTech Drawer Sys 400mm",      "brand": "Hettich",  "stock": 21,   "buy": 880,  "sell": 1280, "days_cover": 11, "sales_30": 62,  "status": "critical"},
-            {"name": "Hafele Zinc D-Handle 128mm (pair)",      "brand": "Hafele",   "stock": 186,  "buy": 240,  "sell": 320,  "days_cover": 22, "sales_30": 264, "status": "ok"},
-            {"name": "Hindware Aura Stop Cock DN15",           "brand": "Hindware", "stock": 148,  "buy": 520,  "sell": 750,  "days_cover": 18, "sales_30": 240, "status": "ok"},
-            {"name": "Ebco LED Cam Lock 25mm",                 "brand": "Ebco",     "stock": 94,   "buy": 62,   "sell": 88,   "days_cover": 28, "sales_30": 82,  "status": "ok"},
-            {"name": "Parryware Pilot EV Sensor Tap",          "brand": "Parryware","stock": 44,   "buy": 3800, "sell": 0,    "days_cover": 95, "sales_30": 0,   "status": "dead"},
-            {"name": "Dorset Euro Cylinder Lock (old model)",  "brand": "Dorset",   "stock": 72,   "buy": 1480, "sell": 0,    "days_cover": 87, "sales_30": 2,   "status": "dead"},
-            {"name": "Ebco LED Cabinet Light (old model)",     "brand": "Ebco",     "stock": 58,   "buy": 1200, "sell": 0,    "days_cover": 76, "sales_30": 4,   "status": "dead"},
-            {"name": "Jaquar Allied Overhead Shower 200mm",    "brand": "Jaquar",   "stock": 68,   "buy": 1640, "sell": 2400, "days_cover": 32, "sales_30": 62,  "status": "ok"},
+            {"name": "Hindalco Z-Section Louver Blade 150mm",      "brand": "Hindalco",  "stock": 62,   "buy": 980,  "sell": 1260, "days_cover": 5,  "sales_30": 380, "status": "critical"},
+            {"name": "Alucobond ACP 4mm Silver 8×4ft",             "brand": "Alucobond", "stock": 18,   "buy": 2800, "sell": 3650, "days_cover": 8,  "sales_30": 68,  "status": "critical"},
+            {"name": "Greenlam HPL Sheet 1mm Ivory Matt 8×4ft",    "brand": "Greenlam",  "stock": 24,   "buy": 2400, "sell": 3150, "days_cover": 10, "sales_30": 72,  "status": "critical"},
+            {"name": "Aerofoil Louver Blade 200mm Anodised Silver", "brand": "Hindalco",  "stock": 38,   "buy": 2200, "sell": 2800, "days_cover": 9,  "sales_30": 124, "status": "critical"},
+            {"name": "Alucobond ACP 4mm Champagne 8×4ft",          "brand": "Alucobond", "stock": 142,  "buy": 2650, "sell": 3450, "days_cover": 24, "sales_30": 178, "status": "ok"},
+            {"name": "Merino HPL Sheet 0.8mm Concrete Grey 8×4ft", "brand": "Merino",    "stock": 88,   "buy": 2600, "sell": 3400, "days_cover": 26, "sales_30": 102, "status": "ok"},
+            {"name": "PVC Louver Panel 100mm White 3m",            "brand": "Generic",   "stock": 112,  "buy": 380,  "sell": 0,    "days_cover": 98, "sales_30": 0,   "status": "dead"},
+            {"name": "Alucobond ACP 4mm Gold 8×4ft (old finish)",  "brand": "Alucobond", "stock": 54,   "buy": 2750, "sell": 0,    "days_cover": 92, "sales_30": 2,   "status": "dead"},
+            {"name": "Merino HPL Sheet Abstract Print (disc.)",    "brand": "Merino",    "stock": 36,   "buy": 2800, "sell": 0,    "days_cover": 84, "sales_30": 4,   "status": "dead"},
+            {"name": "Aluminium C-Channel Extrusion 25×25mm 6m",   "brand": "Hindalco",  "stock": 186,  "buy": 420,  "sell": 560,  "days_cover": 34, "sales_30": 164, "status": "ok"},
         ],
         "data_source": "mock",
     }
@@ -273,9 +273,9 @@ async def get_dead_stock(period: str = Query("MTD")):
         "oldest_days": 95,
         "cash_recovery_potential": "₹3.2L",
         "items": [
-            {"sku": "Parryware Pilot EV Sensor Tap",         "days_old": 95, "stock": 44, "value": "₹1.84L", "action": "10% discount to plumbers + electricians, offer as project bundle"},
-            {"sku": "Dorset Euro Cylinder Lock (old model)", "days_old": 87, "stock": 72, "value": "₹1.21L", "action": "Offer at 15% discount to hardware retailers; return to Dorset if possible"},
-            {"sku": "Ebco LED Cabinet Light (old model)",    "days_old": 76, "stock": 58, "value": "₹0.78L", "action": "Bundle with new Ebco hinge sets; 12% combo discount to kitchen studios"},
+            {"sku": "PVC Louver Panel 100mm White 3m",           "days_old": 98, "stock": 112, "value": "₹1.94L", "action": "10% discount to MEP contractors; offer as utility/parking-shade bundle"},
+            {"sku": "Alucobond ACP 4mm Gold 8×4ft (old finish)", "days_old": 92, "stock": 54,  "value": "₹1.38L", "action": "Offer at 15% discount to interior designers; return to Alucobond for credit if possible"},
+            {"sku": "Merino HPL Sheet Abstract Print (disc.)",   "days_old": 84, "stock": 36,  "value": "₹0.78L", "action": "Bundle with Greenlam HPL orders; 12% combo discount to architect firms for feature-wall projects"},
         ],
         "data_source": "mock",
     }
@@ -304,9 +304,9 @@ async def get_inward(period: str = Query("MTD")):
             {"label": "Stock Updated", "count": 2, "value": "₹4.8L",  "status": "done"},
         ],
         "recent_grn": [
-            {"grn": "GRN-4424", "supplier": "Ebco India",    "value": "₹3.8L", "status": "MATCH",    "date": str(date.today())},
-            {"grn": "GRN-4423", "supplier": "Jaquar India",  "value": "₹2.4L", "status": "MATCH",    "date": str(date.today())},
-            {"grn": "GRN-4422", "supplier": "Hindware",      "value": "₹1.6L", "status": "MISMATCH", "date": str(date.today())},
+            {"grn": "GRN-4424", "supplier": "Hindalco Extrusions", "value": "₹8.4L", "status": "MATCH",    "date": str(date.today())},
+            {"grn": "GRN-4423", "supplier": "Greenlam Industries", "value": "₹4.2L", "status": "MATCH",    "date": str(date.today())},
+            {"grn": "GRN-4422", "supplier": "Viva Composite",      "value": "₹3.6L", "status": "MISMATCH", "date": str(date.today())},
         ],
         "data_source": "mock",
     }
@@ -319,24 +319,24 @@ async def get_sales(period: str = Query("MTD")):
     if result:
         return result
     return {
-        "revenue_mtd": "₹28.4L",
-        "revenue_growth": "+11.8% MoM",
-        "orders_mtd": 512,
-        "avg_order_value": "₹55,470",
-        "gross_margin": "24.8%",
-        "top_sku": "Ebco Soft-Close Hinge 35mm",
+        "revenue_mtd": "₹34.6L",
+        "revenue_growth": "+14.2% MoM",
+        "orders_mtd": 428,
+        "avg_order_value": "₹80,840",
+        "gross_margin": "26.4%",
+        "top_sku": "Hindalco Z-Section Louver Blade 150mm",
         "monthly_revenue": [
-            {"month": "May",  "revenue": 18.6}, {"month": "Jun",  "revenue": 19.4},
-            {"month": "Jul",  "revenue": 20.2}, {"month": "Aug",  "revenue": 21.8},
-            {"month": "Sep",  "revenue": 20.8}, {"month": "Oct",  "revenue": 22.4},
-            {"month": "Nov",  "revenue": 23.6}, {"month": "Dec",  "revenue": 25.4},
-            {"month": "Jan",  "revenue": 24.8}, {"month": "Feb",  "revenue": 25.8},
-            {"month": "Mar",  "revenue": 26.4}, {"month": "Apr",  "revenue": 28.4},
+            {"month": "May",  "revenue": 22.4}, {"month": "Jun",  "revenue": 24.8},
+            {"month": "Jul",  "revenue": 23.6}, {"month": "Aug",  "revenue": 22.0},
+            {"month": "Sep",  "revenue": 21.2}, {"month": "Oct",  "revenue": 26.4},
+            {"month": "Nov",  "revenue": 28.8}, {"month": "Dec",  "revenue": 30.2},
+            {"month": "Jan",  "revenue": 28.6}, {"month": "Feb",  "revenue": 30.4},
+            {"month": "Mar",  "revenue": 32.8}, {"month": "Apr",  "revenue": 34.6},
         ],
         "margin_by_sku": [
-            {"sku": "Ebco Hinges",      "margin": 28.4}, {"sku": "Jaquar CP",       "margin": 34.2},
-            {"sku": "Hettich Drawers",  "margin": 31.1}, {"sku": "Hafele Handles",  "margin": 29.6},
-            {"sku": "Hindware Sanitary","margin": 27.8}, {"sku": "Door Hardware",   "margin": 24.2},
+            {"sku": "Aluminium Louvers",  "margin": 27.2}, {"sku": "ACP Premium",       "margin": 28.8},
+            {"sku": "HPL Laminates",      "margin": 30.8}, {"sku": "Aerofoil Blades",   "margin": 28.5},
+            {"sku": "ACP Budget",         "margin": 24.6}, {"sku": "Operable Systems",  "margin": 32.4},
         ],
         "day_of_week": [
             {"day": "Mon", "avg": 42.0}, {"day": "Tue", "avg": 38.4},
@@ -378,28 +378,28 @@ def _mock_customers(added: list | None = None):
     if added is None:
         added = _load_added_customers()
     base = [
-        {"name": "Modern Kitchens Pvt Ltd",     "segment": "Kitchen Studio",  "monthly_value": "₹4.2L", "outstanding": "₹0",    "days_since_order": 45, "risk": "MEDIUM", "score": 54},
-        {"name": "Mehta Construction Group",    "segment": "Contractor",      "monthly_value": "₹3.8L", "outstanding": "₹0",    "days_since_order": 2,  "risk": "LOW",    "score": 94},
-        {"name": "Green Valley Interiors",      "segment": "Interior Firm",   "monthly_value": "₹2.8L", "outstanding": "₹0",    "days_since_order": 38, "risk": "MEDIUM", "score": 58},
-        {"name": "Kumar Bath & Tile Studio",    "segment": "Bath Studio",     "monthly_value": "₹2.4L", "outstanding": "₹0.4L", "days_since_order": 6,  "risk": "LOW",    "score": 88},
-        {"name": "Sharma Constructions",        "segment": "Contractor",      "monthly_value": "₹2.2L", "outstanding": "₹3.4L", "days_since_order": 78, "risk": "HIGH",   "score": 42},
-        {"name": "Metro Builders & Developers", "segment": "Contractor",      "monthly_value": "₹1.8L", "outstanding": "₹2.1L", "days_since_order": 52, "risk": "HIGH",   "score": 46},
-        {"name": "Patel Interiors & Projects",  "segment": "Interior Firm",   "monthly_value": "₹1.4L", "outstanding": "₹1.8L", "days_since_order": 44, "risk": "MEDIUM", "score": 62},
-        {"name": "Raju Plumbing & Sanitary",    "segment": "Plumber/Installer","monthly_value": "₹1.1L","outstanding": "₹0.2L", "days_since_order": 4,  "risk": "LOW",    "score": 87},
-        {"name": "Sunrise Hardware Traders",    "segment": "Retailer",        "monthly_value": "₹0.9L", "outstanding": "₹0",    "days_since_order": 8,  "risk": "LOW",    "score": 91},
+        {"name": "Prestige Façade Systems",       "segment": "Façade Contractor",   "monthly_value": "₹5.8L", "outstanding": "₹0",    "days_since_order": 42, "risk": "MEDIUM", "score": 52},
+        {"name": "Brigade Enterprises",           "segment": "Developer/Builder",   "monthly_value": "₹4.6L", "outstanding": "₹0",    "days_since_order": 3,  "risk": "LOW",    "score": 94},
+        {"name": "Skyline ACP Contractors",       "segment": "Façade Contractor",   "monthly_value": "₹3.4L", "outstanding": "₹0",    "days_since_order": 36, "risk": "MEDIUM", "score": 58},
+        {"name": "Nikhil Architects Studio",      "segment": "Architect/Designer",  "monthly_value": "₹2.8L", "outstanding": "₹0.6L", "days_since_order": 5,  "risk": "LOW",    "score": 88},
+        {"name": "Apex Cladding Works",           "segment": "Façade Contractor",   "monthly_value": "₹2.4L", "outstanding": "₹3.8L", "days_since_order": 82, "risk": "HIGH",   "score": 40},
+        {"name": "Metro Build & Infrastructure",  "segment": "Developer/Builder",   "monthly_value": "₹2.0L", "outstanding": "₹2.4L", "days_since_order": 58, "risk": "HIGH",   "score": 44},
+        {"name": "Patel Design Associates",       "segment": "Architect/Designer",  "monthly_value": "₹1.6L", "outstanding": "₹1.6L", "days_since_order": 46, "risk": "MEDIUM", "score": 62},
+        {"name": "Nova Interior Solutions",       "segment": "Interior Designer",   "monthly_value": "₹1.2L", "outstanding": "₹0.3L", "days_since_order": 4,  "risk": "LOW",    "score": 86},
+        {"name": "Sunrise Building Materials",    "segment": "Retailer/Distributor","monthly_value": "₹0.8L", "outstanding": "₹0",    "days_since_order": 9,  "risk": "LOW",    "score": 92},
     ]
     all_customers = base + added
     overdue = [
-        {"customer": "Sharma Constructions",        "amount": "₹3.4L", "days_overdue": 78, "risk": "HIGH"},
-        {"customer": "Metro Builders & Developers", "amount": "₹2.1L", "days_overdue": 52, "risk": "HIGH"},
-        {"customer": "Patel Interiors & Projects",  "amount": "₹1.8L", "days_overdue": 44, "risk": "MEDIUM"},
-        {"customer": "Others (9 accounts)",         "amount": "₹5.5L", "days_overdue": 26, "risk": "LOW"},
+        {"customer": "Apex Cladding Works",          "amount": "₹3.8L", "days_overdue": 82, "risk": "HIGH"},
+        {"customer": "Metro Build & Infrastructure",  "amount": "₹2.4L", "days_overdue": 58, "risk": "HIGH"},
+        {"customer": "Patel Design Associates",       "amount": "₹1.6L", "days_overdue": 46, "risk": "MEDIUM"},
+        {"customer": "Others (8 accounts)",           "amount": "₹7.6L", "days_overdue": 28, "risk": "LOW"},
     ]
     return {
         "total_customers": len(all_customers),
-        "at_risk_count": 6,
-        "total_outstanding": "₹12.8L",
-        "best_segment": "Kitchen Studios",
+        "at_risk_count": 5,
+        "total_outstanding": "₹15.4L",
+        "best_segment": "Façade Contractors",
         "customers": all_customers,
         "overdue_receivables": overdue,
         "data_source": "mock" if not added else "mock+added",
@@ -661,11 +661,11 @@ def _compute_verdict(on_time_pct: float, avg_delay_days: float, grn_match_rate_s
 
 
 _SUPPLIER_PERF = [
-    {"name": "Ebco India",    "on_time_pct": 94, "avg_delay_days": 0.6, "grn_match_rate": "99%", "open_pos": 2, "overdue_pos": 0},
-    {"name": "Hafele India",  "on_time_pct": 92, "avg_delay_days": 0.8, "grn_match_rate": "97%", "open_pos": 1, "overdue_pos": 0},
-    {"name": "Hettich India", "on_time_pct": 90, "avg_delay_days": 1.2, "grn_match_rate": "96%", "open_pos": 2, "overdue_pos": 0},
-    {"name": "Jaquar India",  "on_time_pct": 88, "avg_delay_days": 1.4, "grn_match_rate": "94%", "open_pos": 2, "overdue_pos": 1},
-    {"name": "Hindware",      "on_time_pct": 76, "avg_delay_days": 3.2, "grn_match_rate": "86%", "open_pos": 1, "overdue_pos": 1},
+    {"name": "Hindalco Extrusions", "on_time_pct": 92, "avg_delay_days": 0.8, "grn_match_rate": "98%", "open_pos": 2, "overdue_pos": 0},
+    {"name": "Greenlam Industries", "on_time_pct": 90, "avg_delay_days": 1.0, "grn_match_rate": "97%", "open_pos": 1, "overdue_pos": 0},
+    {"name": "Alucobond (3A)",      "on_time_pct": 86, "avg_delay_days": 1.8, "grn_match_rate": "94%", "open_pos": 2, "overdue_pos": 1},
+    {"name": "Viva Composite",      "on_time_pct": 78, "avg_delay_days": 2.8, "grn_match_rate": "88%", "open_pos": 2, "overdue_pos": 1},
+    {"name": "Merino Industries",   "on_time_pct": 88, "avg_delay_days": 1.2, "grn_match_rate": "96%", "open_pos": 1, "overdue_pos": 0},
 ]
 
 
@@ -676,16 +676,16 @@ def _mock_procurement():
     ]
     return {
         "suppliers": suppliers,
-        "overdue_pos": ["PO-8841 (Hindware, +3d)", "PO-8839 (Jaquar, +1d)"],
+        "overdue_pos": ["PO-9124 (Viva Composite, +2d)", "PO-9118 (Alucobond, +1d)"],
         "open_pos": 8,
-        "open_po_value": "₹14.2L",
-        "grn_match_rate": "96%",
-        "grn_mismatches": 3,
+        "open_po_value": "₹22.6L",
+        "grn_match_rate": "95%",
+        "grn_mismatches": 2,
         "alerts": [
-            {"type": "danger",  "text": "PO-8841 Hindware overdue +3 days — ₹1.8L pending concealed cisterns"},
-            {"type": "warning", "text": "GRN-4422: Hindware qty mismatch — 18 units received vs 24 ordered"},
-            {"type": "warning", "text": "PO-8839 Jaquar +1 day delay — ₹2.4L CP fittings lot in transit"},
-            {"type": "info",    "text": "Ebco India 94% on-time — preferred supplier this quarter"},
+            {"type": "danger",  "text": "PO-9124 Viva Composite overdue +2 days — ₹3.6L ACP budget panels pending"},
+            {"type": "warning", "text": "GRN-4422: Viva Composite thickness mismatch — 3.8mm received vs 4mm ordered"},
+            {"type": "warning", "text": "PO-9118 Alucobond +1 day delay — ₹4.8L ACP Silver panels in transit from Mumbai"},
+            {"type": "info",    "text": "Hindalco Extrusions 92% on-time — preferred aluminium supplier this quarter"},
         ],
         "data_source": "mock",
     }
@@ -758,10 +758,10 @@ async def get_freight(period: str = Query("MTD")):
             {"lane": "Hebbal",          "zone": "North", "cost_per_delivery": 590,  "fill_pct": 64, "status": "HIGH"},
         ],
         "inbound_costs": {
-            "Ebco India":    "₹1.8/unit (packs)",
-            "Hafele India":  "₹2.2/unit (premium)",
-            "Jaquar India":  "₹3.8/unit (fragile packing)",
-            "Hindware":      "₹5.4/unit (heavy — sanitary ware)",
+            "Hindalco Extrusions": "₹3.2/sheet (flat-rack — aluminium profiles)",
+            "Greenlam Industries": "₹2.8/sheet (palletised HPL)",
+            "Alucobond (3A)":      "₹4.2/sheet (cradle transport — ACP panels)",
+            "Viva Composite":      "₹3.8/sheet (flat-bed — ACP budget grade)",
         },
         "freight_trend_30d": [18, 19, 17, 20, 18, 21, 19, 18, 17, 20, 19, 18, 20, 21, 18, 17, 19, 18, 20, 18, 17, 19, 18, 19, 20, 18, 17, 18, 19, 18],
         "data_source": "mock",
@@ -802,13 +802,13 @@ async def get_in_transit():
          "status": "DISPATCHED",   "delivery_date": d(0),  "notes": "Matte grey kitchen fitout"},
         {"order_id": 8,  "order_number": "LO-20260430-001", "customer_name": "Deccan Builders",
          "site_location": "Koramangala, Bangalore", "total_value": 320000,
-         "status": "DISPATCHED",   "delivery_date": d(1),  "notes": "Ebco fittings + Hettich drawers"},
+         "status": "DISPATCHED",   "delivery_date": d(1),  "notes": "Aerofoil louver blades + Alucobond ACP panels"},
         {"order_id": 9,  "order_number": "LO-20260501-001", "customer_name": "SkyTech Infra",
          "site_location": "Electronic City, Bangalore", "total_value": 210000,
-         "status": "IN_PRODUCTION", "delivery_date": d(6), "notes": "Compact laminate cubicles"},
+         "status": "IN_PRODUCTION", "delivery_date": d(6), "notes": "HPL compact laminate feature-wall panels"},
         {"order_id": 10, "order_number": "LO-20260503-001", "customer_name": "Metro Constructions",
          "site_location": "Hebbal, Bangalore",       "total_value": 145000,
-         "status": "DISPATCHED",   "delivery_date": d(2),  "notes": "Hafele hardware + sanitary CP"},
+         "status": "DISPATCHED",   "delivery_date": d(2),  "notes": "Greenlam HPL + aluminium Z-section profiles"},
     ]
     return {"deliveries": deliveries, "total": len(deliveries), "data_source": "mock"}
 
@@ -847,40 +847,40 @@ async def get_finance(period: str = Query("MTD")):
 
 def _mock_finance():
     return {
-        "revenue_mtd": "₹28.4L",
-        "gross_profit_mtd": "₹7.05L",
-        "gross_margin": "24.8%",
-        "working_capital_days": 44,
-        "outstanding_receivables": "₹12.8L",
-        "dead_stock_locked": "₹3.8L",
-        "returns_mtd": "₹0.62L",
-        "net_cash": "₹5.2L",
+        "revenue_mtd": "₹34.6L",
+        "gross_profit_mtd": "₹9.14L",
+        "gross_margin": "26.4%",
+        "working_capital_days": 52,
+        "outstanding_receivables": "₹15.4L",
+        "dead_stock_locked": "₹4.1L",
+        "returns_mtd": "₹0.72L",
+        "net_cash": "₹6.4L",
         "gst": {
-            "output_collected": "₹5.11L",
-            "itc_available": "₹4.44L",
-            "net_payable": "₹0.67L",
+            "output_collected": "₹6.23L",
+            "itc_available": "₹5.46L",
+            "net_payable": "₹0.77L",
             "gstr3b_status": "PENDING",
         },
-        "cash_cycle": "DIO 20 + DSO 32 − DPO 8 = 44 days",
+        "cash_cycle": "DIO 24 + DSO 38 − DPO 10 = 52 days",
         "margin_by_sku": [
-            {"sku": "Jaquar CP Fittings",    "margin": 34.2}, {"sku": "Ebco Hinges",          "margin": 28.4},
-            {"sku": "Hettich Drawer Sys",    "margin": 31.1}, {"sku": "Hafele Handles",        "margin": 29.6},
-            {"sku": "Hindware Sanitary",     "margin": 27.8}, {"sku": "Door Hardware",         "margin": 24.2},
-            {"sku": "Parryware (dead stock)","margin": 0.0},  {"sku": "Others",                "margin": 22.4},
+            {"sku": "Operable Systems",    "margin": 32.4}, {"sku": "HPL Laminates",       "margin": 30.8},
+            {"sku": "ACP Premium",         "margin": 28.8}, {"sku": "Aerofoil Blades",     "margin": 28.5},
+            {"sku": "Aluminium Louvers",   "margin": 27.2}, {"sku": "ACP Budget",          "margin": 24.6},
+            {"sku": "Dead Stock (PVC/old)","margin": 0.0},  {"sku": "Accessories",         "margin": 36.2},
         ],
         "cash_flow_6m": [
-            {"month": "Nov", "collections": 22.4, "purchases": 16.8},
-            {"month": "Dec", "collections": 25.6, "purchases": 18.4},
-            {"month": "Jan", "collections": 23.2, "purchases": 18.8},
-            {"month": "Feb", "collections": 24.8, "purchases": 17.6},
-            {"month": "Mar", "collections": 26.0, "purchases": 19.2},
-            {"month": "Apr", "collections": 28.4, "purchases": 20.4},
+            {"month": "Nov", "collections": 28.2, "purchases": 20.4},
+            {"month": "Dec", "collections": 31.6, "purchases": 22.8},
+            {"month": "Jan", "collections": 29.4, "purchases": 21.6},
+            {"month": "Feb", "collections": 31.2, "purchases": 22.4},
+            {"month": "Mar", "collections": 33.6, "purchases": 24.2},
+            {"month": "Apr", "collections": 34.6, "purchases": 25.8},
         ],
         "overdue_receivables": [
-            {"customer": "Sharma Constructions",        "amount": "₹3.4L", "days_overdue": 78, "risk": "HIGH"},
-            {"customer": "Metro Builders & Developers", "amount": "₹2.1L", "days_overdue": 52, "risk": "HIGH"},
-            {"customer": "Patel Interiors & Projects",  "amount": "₹1.8L", "days_overdue": 44, "risk": "MEDIUM"},
-            {"customer": "Others (12 accounts)",        "amount": "₹5.5L", "days_overdue": 24, "risk": "LOW"},
+            {"customer": "Apex Cladding Works",          "amount": "₹3.8L", "days_overdue": 82, "risk": "HIGH"},
+            {"customer": "Metro Build & Infrastructure",  "amount": "₹2.4L", "days_overdue": 58, "risk": "HIGH"},
+            {"customer": "Patel Design Associates",       "amount": "₹1.6L", "days_overdue": 46, "risk": "MEDIUM"},
+            {"customer": "Others (10 accounts)",          "amount": "₹7.6L", "days_overdue": 26, "risk": "LOW"},
         ],
         "data_source": "mock",
     }
@@ -911,15 +911,15 @@ async def get_demand(period: str = Query("MTD")):
 def _mock_demand():
     return {
         "forecast": [
-            {"sku": "Ebco Soft-Close Hinge 35mm Pk-10",  "curr": 240, "f30": 312, "f60": 368, "f90": 396, "signal": "SURGE +30%",    "action": "Pre-order 500 packs NOW — Diwali kitchen demand approaching"},
-            {"sku": "Jaquar Lyric Basin Mixer Chrome",    "curr": 42,  "f30": 52,  "f60": 64,  "f90": 72,  "signal": "GROWING +23.8%", "action": "Increase order by 30% — pre-monsoon plumbing surge"},
-            {"sku": "Hettich InnoTech Drawer Sys 400mm",  "curr": 62,  "f30": 76,  "f60": 88,  "f90": 94,  "signal": "GROWING +22.6%", "action": "Increase stock by 25% — modular kitchen demand rising"},
-            {"sku": "Hafele Zinc D-Handle 128mm",         "curr": 264, "f30": 278, "f60": 284, "f90": 276, "signal": "STABLE +5.3%",   "action": "Normal ordering cycle"},
-            {"sku": "Hindware Aura Stop Cock DN15",       "curr": 240, "f30": 304, "f60": 352, "f90": 388, "signal": "SURGE +26.7%",   "action": "Pre-order 200 units — pre-monsoon plumbing season"},
-            {"sku": "Parryware Pilot EV Sensor Tap",      "curr": 0,   "f30": 0,   "f60": 2,   "f90": 4,   "signal": "DEAD",           "action": "Liquidate existing stock — no viable demand forecast"},
+            {"sku": "Hindalco Z-Section Louver Blade 150mm",     "curr": 380, "f30": 512, "f60": 596, "f90": 648, "signal": "SURGE +34.7%",  "action": "Pre-order 800 units NOW — pre-monsoon façade rush; Peenya godown at 74%"},
+            {"sku": "Alucobond ACP 4mm Silver 8×4ft",            "curr": 68,  "f30": 84,  "f60": 96,  "f90": 104, "signal": "GROWING +23.5%", "action": "Increase order by 30% — commercial park façade projects surging"},
+            {"sku": "Greenlam HPL Sheet 1mm Ivory Matt 8×4ft",   "curr": 72,  "f30": 88,  "f60": 102, "f90": 116, "signal": "GROWING +22.2%", "action": "Increase stock 25% — interior laminate demand rising post-monsoon"},
+            {"sku": "Aerofoil Louver Blade 200mm Anodised Silver","curr": 124, "f30": 152, "f60": 172, "f90": 186, "signal": "GROWING +22.6%", "action": "Increase by 25% — high-spec commercial façade demand picking up"},
+            {"sku": "Merino HPL Sheet 0.8mm Concrete Grey 8×4ft","curr": 102, "f30": 108, "f60": 112, "f90": 108, "signal": "STABLE +5.9%",   "action": "Normal ordering cycle — interior designers ordering steadily"},
+            {"sku": "PVC Louver Panel 100mm White 3m",            "curr": 0,   "f30": 0,   "f60": 2,   "f90": 4,   "signal": "DEAD",           "action": "Liquidate at 10% discount to MEP contractors — no viable demand forecast"},
         ],
-        "seasonal_insight": "Jun–Aug pre-monsoon surge for plumbing (+32%). Sep–Nov Diwali kitchen hardware peak (+28%). Stock hinges and drawer systems by August.",
-        "seasonal_index": [86, 82, 94, 90, 96, 88, 112, 128, 118, 132, 138, 124],
+        "seasonal_insight": "Apr–Jun pre-monsoon façade rush — aluminium louvers +35%, ACP cladding +28%. Oct–Nov post-monsoon interior surge — HPL laminates +22%. Stock louver blades and ACP by March each year.",
+        "seasonal_index": [94, 88, 108, 124, 138, 128, 96, 84, 88, 114, 128, 116],
         "data_source": "mock",
     }
 

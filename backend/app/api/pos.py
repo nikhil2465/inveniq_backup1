@@ -11,16 +11,16 @@ async def get_pos_products():
     return {
         "data_source": "demo",
         "products": [
-            {"id": "P001", "name": "Ebco Soft-Close Hinge 35mm Pk-10",     "category": "Hardware Fittings",    "price": 485,  "unit": "pack",  "stock": 48},
-            {"id": "P002", "name": "Hettich InnoTech Drawer System 400mm", "category": "Hardware Fittings",    "price": 1280, "unit": "set",   "stock": 21},
-            {"id": "P003", "name": "Hafele Zinc D-Handle 128mm (pair)",    "category": "Hardware Fittings",    "price": 320,  "unit": "pair",  "stock": 186},
-            {"id": "P004", "name": "Ebco Cam Lock 25mm (pk-50)",           "category": "Hardware Fittings",    "price": 420,  "unit": "pack",  "stock": 94},
-            {"id": "P005", "name": "Jaquar Lyric Basin Mixer Chrome",      "category": "Sanitary CP Fittings", "price": 4850, "unit": "unit",  "stock": 12},
-            {"id": "P006", "name": "Jaquar Allied Overhead Shower 200mm",  "category": "Sanitary CP Fittings", "price": 2400, "unit": "unit",  "stock": 68},
-            {"id": "P007", "name": "Hindware Aura Stop Cock DN15",         "category": "Sanitary CP Fittings", "price": 750,  "unit": "unit",  "stock": 148},
-            {"id": "P008", "name": "Dorset Euro Cylinder Lock 60mm",       "category": "Door Hardware & Locks","price": 580,  "unit": "unit",  "stock": 62},
-            {"id": "P009", "name": "Godrej Ultra Locks 60mm",              "category": "Door Hardware & Locks","price": 940,  "unit": "unit",  "stock": 38},
-            {"id": "P010", "name": "Blum Tandem Drawer Runner 500mm",      "category": "Hardware Fittings",    "price": 1640, "unit": "pair",  "stock": 24},
+            {"id": "P001", "name": "Hindalco Z-Section Louver Blade 150mm 3m",    "category": "Aluminium Louvers",   "price": 1260, "unit": "piece", "stock": 62},
+            {"id": "P002", "name": "Aerofoil Louver Blade 200mm Anodised 3m",     "category": "Aluminium Louvers",   "price": 2600, "unit": "piece", "stock": 38},
+            {"id": "P003", "name": "Aluminium C-Channel Extrusion 25×25mm 6m",   "category": "Aluminium Profiles",  "price": 560,  "unit": "piece", "stock": 186},
+            {"id": "P004", "name": "Aluminium U-Section Trim 30×20mm 6m",        "category": "Aluminium Profiles",  "price": 480,  "unit": "piece", "stock": 124},
+            {"id": "P005", "name": "Alucobond ACP 4mm Silver Metallic 8×4ft",    "category": "ACP Cladding",        "price": 3650, "unit": "sheet", "stock": 18},
+            {"id": "P006", "name": "Alucobond ACP 4mm Champagne Gold 8×4ft",     "category": "ACP Cladding",        "price": 3450, "unit": "sheet", "stock": 142},
+            {"id": "P007", "name": "Viva Composite ACP 4mm Pure White 8×4ft",    "category": "ACP Cladding",        "price": 2480, "unit": "sheet", "stock": 96},
+            {"id": "P008", "name": "Greenlam HPL Sheet 1mm Ivory Matt 8×4ft",    "category": "HPL Laminates",       "price": 3150, "unit": "sheet", "stock": 24},
+            {"id": "P009", "name": "Merino HPL Sheet 0.8mm Concrete Grey 8×4ft", "category": "HPL Laminates",       "price": 3400, "unit": "sheet", "stock": 88},
+            {"id": "P010", "name": "ACP Panel Fixing Rivets Box-500",             "category": "Accessories & Fixings","price": 280, "unit": "box",   "stock": 214},
         ],
     }
 
@@ -30,9 +30,9 @@ async def get_pos_summary():
     return {
         "data_source": "demo",
         "today_bills": 18,
-        "today_revenue": 124000,
-        "today_cash": 68200,
-        "today_upi": 43800,
-        "today_credit": 12000,
-        "avg_bill_value": 6889,
+        "today_revenue": 168400,
+        "today_cash": 52600,
+        "today_upi": 74800,
+        "today_credit": 41000,
+        "avg_bill_value": 9356,
     }

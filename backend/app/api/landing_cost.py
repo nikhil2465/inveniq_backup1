@@ -11,6 +11,7 @@ Operation types:
   Purchase Order: Customer Operated | Third Party Operated | Vendor Operated
 """
 import datetime
+import json
 import logging
 from typing import Optional
 
@@ -19,6 +20,12 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Landing Cost"])
+
+try:
+    from app.db.connection import get_pool
+    _DB_AVAILABLE = True
+except ImportError:
+    _DB_AVAILABLE = False
 
 # ── Charge head definitions ───────────────────────────────────────────────────
 
@@ -150,7 +157,7 @@ WHO_BEARS_LABEL = {
     "included_in_price": "Included in Price",
 }
 
-# ── Session state ─────────────────────────────────────────────────────────────
+# ── Session state (in-process fallback when DB is unavailable) ────────────────
 _SHEET_COUNTER = [100]
 _SESSION_SHEETS: list[dict] = []
 
@@ -158,6 +165,111 @@ _SESSION_SHEETS: list[dict] = []
 def _next_sheet_id() -> str:
     _SHEET_COUNTER[0] += 1
     return f"LC-2026-{_SHEET_COUNTER[0]:04d}"
+
+
+# ── DB persistence helpers ────────────────────────────────────────────────────
+
+async def _db_save_sheet(sheet: dict) -> bool:
+    """Persist sheet to landing_cost_sheets table. Returns True on success."""
+    if not _DB_AVAILABLE:
+        return False
+    try:
+        pool = await get_pool()
+        if not pool:
+            return False
+        product = sheet.get("product", {})
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    INSERT INTO landing_cost_sheets
+                        (sheet_id, ref_type, ref_number, operation_type,
+                         sku_code, sku_name, qty, unit, base_price,
+                         charges_json, total_landed, per_unit_cost, margin_impact)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON DUPLICATE KEY UPDATE
+                        charges_json   = VALUES(charges_json),
+                        total_landed   = VALUES(total_landed),
+                        per_unit_cost  = VALUES(per_unit_cost),
+                        margin_impact  = VALUES(margin_impact)
+                """, (
+                    sheet["sheet_id"],
+                    sheet["ref_type"],
+                    sheet["ref_number"],
+                    sheet.get("operation_type", ""),
+                    product.get("sku_code", "")[:100],
+                    product.get("sku_name", "")[:300],
+                    product.get("qty", 0),
+                    product.get("unit", "Pcs")[:20],
+                    product.get("base_price", 0),
+                    json.dumps(sheet, ensure_ascii=False),
+                    sheet.get("landed_cost", 0),
+                    sheet.get("landed_cost_per_unit", 0),
+                    sheet.get("margin_impact_pct", 0),
+                ))
+                await conn.commit()
+        return True
+    except Exception as exc:
+        logger.warning("LC sheet DB save failed: %s", exc)
+        return False
+
+
+async def _db_list_sheets(ref_type: str = "", operation: str = "") -> list | None:
+    """Return sheets from DB; None if DB unavailable."""
+    if not _DB_AVAILABLE:
+        return None
+    try:
+        pool = await get_pool()
+        if not pool:
+            return None
+        where_parts, params = [], []
+        if ref_type:
+            where_parts.append("ref_type = %s")
+            params.append(ref_type.upper())
+        if operation:
+            where_parts.append("operation_type LIKE %s")
+            params.append(f"%{operation}%")
+        where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f"SELECT charges_json FROM landing_cost_sheets {where} "
+                    f"ORDER BY created_at DESC LIMIT 200",
+                    params,
+                )
+                rows = await cur.fetchall()
+        sheets = []
+        for row in rows:
+            try:
+                sheets.append(json.loads(row[0]))
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return sheets
+    except Exception as exc:
+        logger.warning("LC sheet DB list failed: %s", exc)
+        return None
+
+
+async def _db_get_sheet(sheet_id: str) -> dict | None:
+    """Fetch one sheet from DB by sheet_id. Returns None if not found or DB unavailable."""
+    if not _DB_AVAILABLE:
+        return None
+    try:
+        pool = await get_pool()
+        if not pool:
+            return None
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT charges_json FROM landing_cost_sheets WHERE sheet_id=%s LIMIT 1",
+                    (sheet_id,),
+                )
+                row = await cur.fetchone()
+        if row:
+            return json.loads(row[0])
+        return None
+    except Exception as exc:
+        logger.warning("LC sheet DB get failed: %s", exc)
+        return None
 
 
 # ── Static demo sheets ────────────────────────────────────────────────────────
@@ -346,23 +458,42 @@ async def list_sheets(
     ref_type:  str = Query(default=""),
     operation: str = Query(default=""),
 ):
-    sheets = _mock_sheets() + _SESSION_SHEETS
-    if ref_type:
-        sheets = [s for s in sheets if s["ref_type"] == ref_type.upper()]
-    if operation:
-        sheets = [s for s in sheets if operation in s["operation_type"]]
-    total_landed = sum(s["landed_cost"] for s in sheets)
+    db_sheets = await _db_list_sheets(ref_type=ref_type, operation=operation)
+    if db_sheets is not None:
+        # DB available: return DB sheets + mock demo sheets (mock sheets have IDs < LC-2026-0100)
+        mock = _mock_sheets()
+        if ref_type:
+            mock = [s for s in mock if s["ref_type"] == ref_type.upper()]
+        if operation:
+            mock = [s for s in mock if operation in s["operation_type"]]
+        sheets = db_sheets + mock
+        data_source = "mysql"
+    else:
+        # DB unavailable: fall back to mock + in-process session sheets
+        sheets = _mock_sheets() + _SESSION_SHEETS
+        if ref_type:
+            sheets = [s for s in sheets if s["ref_type"] == ref_type.upper()]
+        if operation:
+            sheets = [s for s in sheets if operation in s["operation_type"]]
+        data_source = "demo"
+
+    total_landed = sum(s.get("landed_cost", 0) for s in sheets)
     return {
         "sheets":       sheets,
         "total_sheets": len(sheets),
         "total_landed": round(total_landed, 2),
         "period":       period,
-        "data_source":  "demo",
+        "data_source":  data_source,
     }
 
 
 @router.get("/landing-cost/sheets/{sheet_id}")
 async def get_sheet(sheet_id: str):
+    # Try DB first
+    sheet = await _db_get_sheet(sheet_id)
+    if sheet:
+        return {"sheet": sheet, "data_source": "mysql"}
+    # Fall back to mock + session
     all_sheets = _mock_sheets() + _SESSION_SHEETS
     sheet = next((s for s in all_sheets if s["sheet_id"] == sheet_id), None)
     if not sheet:
@@ -448,11 +579,19 @@ async def create_sheet(req: CreateLandingCostSheet):
         "status":               "FINALISED",
     }
 
-    _SESSION_SHEETS.append(sheet)
-    logger.info("Landing cost sheet %s created — landed cost ₹%.2f/unit", sheet_id, landed_cost_per_unit)
+    # Persist to DB (primary); fall back to session memory if DB unavailable
+    saved_to_db = await _db_save_sheet(sheet)
+    if not saved_to_db:
+        _SESSION_SHEETS.append(sheet)
+
+    logger.info(
+        "Landing cost sheet %s %s — landed cost ₹%.2f/unit",
+        sheet_id, "saved to DB" if saved_to_db else "saved to session", landed_cost_per_unit,
+    )
 
     return {
-        "success": True,
-        "sheet":   sheet,
-        "message": f"Sheet {sheet_id} created. Landed cost: ₹{landed_cost_per_unit:,.2f}/{req.product.unit}",
+        "success":     True,
+        "sheet":       sheet,
+        "data_source": "mysql" if saved_to_db else "demo",
+        "message":     f"Sheet {sheet_id} created. Landed cost: ₹{landed_cost_per_unit:,.2f}/{req.product.unit}",
     }

@@ -13,15 +13,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-try:
-    from slowapi import Limiter, _rate_limit_exceeded_handler
-    from slowapi.util import get_remote_address
-    from slowapi.errors import RateLimitExceeded
-    _RATE_LIMIT_AVAILABLE = True
-    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
-except ImportError:
-    _RATE_LIMIT_AVAILABLE = False
-    limiter = None
+from app.core.limiter import limiter, RATE_LIMIT_AVAILABLE as _RATE_LIMIT_AVAILABLE, RateLimitExceeded, _rate_limit_exceeded_handler
 
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
@@ -46,7 +38,6 @@ from app.api.distributor import router as distributor_router
 from app.api.purchase_requisition import router as pr_router
 from app.api.qc_inspection import router as qc_router
 from app.api.invoice_matching import router as invoice_matching_router
-from app.api.gate_entry import router as gate_entry_router
 from app.core.config import get_settings
 
 load_dotenv()
@@ -76,7 +67,7 @@ _MODULE_API_PREFIXES: dict[str, tuple[str, ...]] = {
     "distributor": ("/api/distributor",),
     "damage":      ("/api/damage",),
     "procurement": ("/api/procurement",),
-    "pogrn":       ("/api/po-grn",),
+    "pogrn":       ("/api/po-grn", "/api/po", "/api/grn", "/api/quotations", "/api/purchase-returns"),
     "sales":       ("/api/sales",),
     "customers":   ("/api/customers",),
     "louvers":     ("/api/orders", "/api/sales-orders"),
@@ -97,7 +88,6 @@ _MODULE_API_PREFIXES: dict[str, tuple[str, ...]] = {
     "pr":          ("/api/pr",),
     "qc":          ("/api/qc",),
     "invoicematch":("/api/invoice-matching",),
-    "gateentry":   ("/api/gate-entry",),
 }
 
 # API paths always accessible regardless of module list (health + auth + settings)
@@ -243,20 +233,45 @@ except ImportError:
         return False
 
 
+_JWT_DEFAULT_KEY = "inveniq-dev-change-this-in-production-2026"
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     cfg = get_settings()
     logger.info("=" * 52)
     logger.info("  InvenIQ v3.1 — AI Inventory Intelligence Platform")
     logger.info("=" * 52)
+
+    # ── JWT secret validation ─────────────────────────────────────────────────
+    if cfg.jwt_secret_key == _JWT_DEFAULT_KEY:
+        logger.warning("  !! JWT_SECRET_KEY is the dev default — set a strong random key in .env before production !!")
+
+    pool = None
+    db_ok = False
     if _DB_AVAILABLE and cfg.mysql_host:
         pool = await get_pool()
         db_ok = pool is not None
         logger.info("  MySQL   : %s  (%s / %s)", "CONNECTED" if db_ok else "FAILED", cfg.mysql_host, cfg.mysql_db)
     else:
         logger.info("  MySQL   : DEMO MODE  (set MYSQL_HOST in .env for live data)")
+
+    # ── Run startup DB migrations ─────────────────────────────────────────────
+    if db_ok and pool:
+        try:
+            from app.services.startup_migrations import run_all as _run_migrations
+            mig = await _run_migrations(pool)
+            failed = mig.get("failed", [])
+            created = mig.get("created", [])
+            if failed:
+                logger.warning("  Migrations: %d table(s) failed — %s", len(failed), [f["table"] for f in failed])
+            else:
+                logger.info("  Migrations: %d table(s) verified OK", len(created))
+        except Exception as _mig_exc:
+            logger.warning("  Migrations: startup migration runner failed — %s", _mig_exc)
+
     logger.info("  OpenAI  : %s", "CONFIGURED" if cfg.openai_api_key else "NOT SET  (set OPENAI_API_KEY for AI features)")
-    logger.info("  Routers : 24  |  Endpoints : 136+")
+    logger.info("  Routers : 23  |  Endpoints : 130+")
     logger.info("  Docs    : http://127.0.0.1:8000/docs")
     logger.info("=" * 52)
     yield
@@ -307,10 +322,26 @@ async def request_logging_middleware(request: Request, call_next):
     response.headers["X-Response-Time"] = f"{elapsed:.1f}ms"
     # Security headers — applied to all responses
     response.headers["X-Content-Type-Options"]  = "nosniff"
-    response.headers["X-Frame-Options"]         = "SAMEORIGIN"
+    response.headers["X-Frame-Options"]         = "DENY"
     response.headers["X-XSS-Protection"]        = "1; mode=block"
     response.headers["Referrer-Policy"]         = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"]      = "camera=(), microphone=(), geolocation=()"
+    # Content-Security-Policy: applied to HTML responses only (SPA index.html).
+    # Docs (/docs, /redoc) use external CDN assets and inline scripts — excluded to
+    # keep the Swagger UI functional. API JSON responses don't need CSP.
+    _ct = response.headers.get("content-type", "")
+    if _ct.startswith("text/html") and request.url.path not in ("/docs", "/redoc", "/openapi.json"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self'; "
+            "font-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self';"
+        )
     # Prevent browser from caching index.html — ensures the browser always loads
     # the latest main.xxx.js with correct chunk hashes after every new build.
     # Hashed JS/CSS assets (e.g. main.abc123.js) are immutable and can be cached forever.
@@ -347,7 +378,6 @@ app.include_router(distributor_router,       prefix="/api")
 app.include_router(pr_router,                prefix="/api")
 app.include_router(qc_router,                prefix="/api")
 app.include_router(invoice_matching_router,  prefix="/api")
-app.include_router(gate_entry_router,        prefix="/api")
 
 
 @app.exception_handler(Exception)
@@ -435,7 +465,7 @@ async def get_settings_info():
             "scanner_model": "gpt-4o (vision)",
             "streaming": "SSE",
             "history_window": 16,
-            "tools_count": 27,
+            "tools_count": 26,
             "knowledge_topics": 34,
             "insight_types": 16,
             "rca_templates": 14,
@@ -446,9 +476,9 @@ async def get_settings_info():
             "freight", "sales", "claims", "discounts", "projects", "quotes",
             "finance", "credit", "pos", "schemes", "chatbot", "about", "settings", "tally",
             "salesreturn", "landingcost", "distributor", "damage",
-            "pr", "qc", "invoicematch", "gateentry",
+            "pr", "qc", "invoicematch",
         ],
-        "api_routers": 24,
+        "api_routers": 23,
         "total_endpoints": 136,
     }
 

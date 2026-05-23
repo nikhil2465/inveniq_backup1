@@ -508,6 +508,15 @@ export default function CounterPOS({ onGoChat, dbStatus }) {
 
       {/* Barcode Scanner Modal */}
       {showScanner && <BarcodeScannerModal onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} />}
+      {onGoChat && (
+        <div className="ai-cta-bar" style={{ marginTop: 20 }} onClick={() => onGoChat(
+          'Analyse my counter POS sales — what are the best-selling products, average basket size, and peak transaction hours? ' +
+          'What upsell or cross-sell opportunities am I missing at the counter?'
+        )}>
+          <span>✨</span>
+          <span>Ask AI: Counter POS insights — best sellers, basket analysis, and upsell opportunities</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -27,7 +27,7 @@ ROLE_MODULES: dict[str, str | list[str]] = {
     "warehouse_manager": [
         "overview", "inventory", "inward", "warehouse", "pogrn",
         "deadstock", "procurement", "catalog", "freight", "demand",
-        "landingcost", "damage", "gateentry", "pr", "qc", "chatbot", "about", "settings",
+        "landingcost", "damage", "pr", "qc", "chatbot", "about", "settings",
     ],
 
     "finance_manager": [
