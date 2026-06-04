@@ -41,7 +41,7 @@ export default function About({ onGoChat }) {
           A complete AI intelligence layer for dealers and distributors. Turn raw inventory, sales, and procurement data into clear decisions — instantly.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-          {[['34 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['AI-Powered Analysis','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
+          {[['37 Intelligence Modules','var(--b2)'],['AI Chat + WhatsApp Scanner','#10a37f'],['AI-Powered Analysis','#8b5cf6'],['Works Without Database','#f59e0b']].map(([t,c])=>(
             <span key={t} style={{ padding:'8px 16px', borderRadius:20, fontSize:12, fontWeight:700, background:c+'22', border:`1px solid ${c}55`, color:c }}>{t}</span>
           ))}
         </div>
@@ -50,11 +50,11 @@ export default function About({ onGoChat }) {
       {/* ── STATS ── */}
       <div className="card" style={{ marginBottom:16 }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', borderBottom:'1px solid var(--border)' }}>
-          <Stat value="34" label="Intelligence Modules" color="var(--b2)" />
-          <Stat value="26" label="AI Data Tools" color="#10b981" />
+          <Stat value="37" label="Intelligence Modules" color="var(--b2)" />
+          <Stat value="28" label="AI Data Tools" color="#10b981" />
           <Stat value="3" label="Chat Modes (Ask/Explain/Act)" color="#8b5cf6" />
-          <Stat value="130+" label="API Endpoints" color="#0ea5e9" />
-          <Stat value="34" label="Knowledge Base Topics" color="#f59e0b" />
+          <Stat value="140+" label="API Endpoints" color="#0ea5e9" />
+          <Stat value="36" label="Knowledge Base Topics" color="#f59e0b" />
           <Stat value="0 min" label="Setup Time" color="#10b981" />
         </div>
         <div style={{ padding:'12px 16px', textAlign:'center', fontSize:12, color:'var(--text3)' }}>
@@ -90,7 +90,7 @@ export default function About({ onGoChat }) {
 
       {/* ── FEATURES ── */}
       <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.8px', fontFamily:'var(--mono)', marginBottom:10 }}>
-        34 Intelligence Modules
+        35 Intelligence Modules
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:10, marginBottom:16 }}>
         {[
@@ -111,14 +111,14 @@ export default function About({ onGoChat }) {
           { icon:'🧾', title:'Claims & Rebates', desc:'Distributor claims lifecycle. Volume, accrual, and lumpsum rebate programs with real-time calculation.', color:'#22c55e' },
           { icon:'💲', title:'Discount Calculator', desc:'Margin-aware pricing with segment slabs, category overrides, and per-quote margin guardrails.', color:'#10b981' },
           { icon:'🗺️', title:'Project Tracker', desc:'Full inquiry-to-invoice pipeline with milestone tracking, stage updates, and win-rate analysis.', color:'#6366f1' },
-          { icon:'📝', title:'Quotation Builder', desc:'Professional quotes with AI win-probability, margin health analysis, and WhatsApp requirement scanner.', color:'#8b5cf6' },
+          { icon:'📝', title:'Quotation Builder', desc:'Professional hardware & sanitary quotes with AI win-probability, margin health, multi-image product search, smart HSN/category inference, and WhatsApp requirement scanner.', color:'#8b5cf6' },
           { icon:'💰', title:'Profitability & Cash', desc:'Owner-level view: gross margin, cash cycle (DIO+DSO-DPO), GST summary, overdue receivables.', color:'#22c55e' },
           { icon:'📈', title:'Credit Management',   desc:'Customer credit limits, utilisation, overdue ageing, post-dated cheque (PDC) tracker, and high-risk account flags.', color:'#6366f1' },
           { icon:'🛒', title:'Counter POS',         desc:'Walk-in customer billing — product search, cart, ₹ total, and printable receipt. Works offline with catalog data.', color:'#0ea5e9' },
           { icon:'⭐', title:'Scheme Management',   desc:'Supplier promotional schemes, volume targets, accrual tracking, and salesperson-wise target-vs-actual scorecards.', color:'#f59e0b' },
           { icon:'🏭', title:'Warehouse Management', desc:'Multi-warehouse capacity tracking, zone utilisation, GRN activity log, and stock distribution across locations.', color:'#14b8a6' },
           { icon:'📤', title:'Tally Prime Export',  desc:'One-click export of stock items, customer ledgers, supplier ledgers, sales vouchers, and purchase vouchers to Tally-compatible CSV.', color:'#6366f1' },
-          { icon:'🤖', title:'AI Assistant',        desc:'Intelligent AI chat with 3 modes (Ask/Explain/Act), 26 live data tools, 34-topic knowledge base, 24-insight proactive engine, RCA templates, WhatsApp scanner, and PO creation.', color:'#10a37f' },
+          { icon:'🤖', title:'AI Assistant',        desc:'Intelligent AI chat with 3 modes (Ask/Explain/Act), 28 live data tools, 36-topic knowledge base, 26-insight proactive engine, RCA templates, WhatsApp scanner, and PO creation.', color:'#10a37f' },
           { icon:'⚙️', title:'Settings & Status',  desc:'System health dashboard, connection status, module registry, keyboard shortcuts reference, and quick setup guide.', color:'#64748b' },
           { icon:'↩️', title:'Sales Returns',       desc:'Customer return processing with condition split (Good/Partial/Full), Box→Pcs UOM conversion, auto credit note generation, and split accounting entries per return condition.', color:'#dc2626' },
           { icon:'⚖️', title:'Landing Cost',        desc:'Capture freight, insurance, and handling charges at GRN to calculate accurate landed cost per unit for true margin analysis.', color:'#f59e0b' },
@@ -127,6 +127,7 @@ export default function About({ onGoChat }) {
           { icon:'📋', title:'Purchase Requisition',desc:'Internal PR workflow with multi-level approval, budget checks, and one-click conversion to approved purchase orders.', color:'#8b5cf6' },
           { icon:'🔬', title:'QC Inspection',       desc:'Post-GRN quality inspection with parameterised checklists, pass/accept/RTV decisions, and supplier quality scorecards.', color:'#14b8a6' },
           { icon:'🔗', title:'Invoice Matching',    desc:'Automated 3-way match (PO + GRN + Invoice) with 1% tolerance auto-approval, discrepancy flagging, and AP approval workflow.', color:'#6366f1' },
+          { icon:'🛁', title:'Design Quote Studio',  desc:'Hardware & sanitary fit-out BOQ with room-by-room builder, AI WhatsApp scanner, multi-image visual product search, architect fee proposals (6-phase billing), and QB↔DQB sync.', color:'#a855f7' },
         ].map(f => <Feature key={f.title} {...f} />)}
       </div>
 
@@ -169,9 +170,9 @@ export default function About({ onGoChat }) {
         <div className="ch"><div className="ctit">How It Works — 3 Simple Steps</div></div>
         <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'8px 0 8px' }}>
           <Step n={1} icon="⚙️" title="Connect Your Data"
-            desc="Point InvenIQ to your database or run it without any database in Demo Mode. All 34 modules show rich data immediately. No complex setup needed." />
+            desc="Point InvenIQ to your database or run it without any database in Demo Mode. All 37 modules show rich data immediately. No complex setup needed." />
           <Step n={2} icon="📊" title="See Everything at a Glance"
-            desc="34 intelligence modules cover every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, demand forecasts, quotations, and projects — all live." />
+            desc="37 intelligence modules cover every aspect of your business: stock health, sales trends, customer risk, supplier performance, cash position, demand forecasts, quotations, projects, hardware & sanitary fitout BOQ, and architect fee proposals — all live." />
           <Step n={3} icon="🤖" title="Ask AI for Answers and Plans"
             desc="Type any question in plain language. The AI reads your live data, finds the root cause of problems, and gives you a step-by-step action plan. No reports, no spreadsheets." />
         </div>
@@ -223,7 +224,7 @@ export default function About({ onGoChat }) {
         <div style={{ fontSize:28, marginBottom:10 }}>🎯</div>
         <div style={{ fontWeight:800, fontSize:18, marginBottom:8, color:'var(--green)' }}>Try It Right Now — No Setup Needed</div>
         <div style={{ fontSize:13, color:'var(--text2)', maxWidth:480, margin:'0 auto 16px', lineHeight:1.7 }}>
-          InvenIQ runs in Demo Mode out of the box. All 34 modules show realistic sample data for a Bangalore building materials dealer. Click any "Ask AI" button to try the chatbot.
+          InvenIQ runs in Demo Mode out of the box. All 37 modules show realistic sample data for a Bangalore building materials dealer. Click any "Ask AI" button to try the chatbot.
         </div>
         <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
           <button

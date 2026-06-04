@@ -813,17 +813,21 @@ function CreateGRNModal({ industry, onClose, onSuccess, prefillPo }) {
                         <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e40af' }}>{selPo.po_number}</strong></div>
                         <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>SUPPLIER</div><strong>{selPo.supplier_name || selPo.supplier || '—'}</strong></div>
                         <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>FREIGHT TYPE</div><strong>{selPo.freight_type || 'Supplier Own Operated'}</strong></div>
-                        <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11 }}>{selPo.sku_name || selPo.product_name || selPo.sku || '—'}</strong></div>
+                        <div style={{ gridColumn: 'span 3' }}><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11 }}>{selPo.sku_name || selPo.product_name || selPo.sku || '—'}</strong></div>
                         <div>
                           <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>QTY ORDERED</div>
-                          <strong style={{ fontFamily: 'var(--mono)' }}>{qtyOrdered != null ? qtyOrdered : '—'}</strong>
+                          <strong style={{ fontFamily: 'var(--mono)' }}>{qtyOrdered != null ? qtyOrdered : '—'} {selPo.unit || ''}</strong>
                         </div>
                         <div>
-                          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>
-                            {isPartial ? 'BALANCE QTY' : 'QTY RECEIVED'}
-                          </div>
-                          <strong style={{ fontFamily: 'var(--mono)', color: isPartial ? '#d97706' : '#059669' }}>
-                            {isPartial ? qtyPending : (selPo.qty_received ?? 0)} {selPo.unit || ''}
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>QTY RECEIVED</div>
+                          <strong style={{ fontFamily: 'var(--mono)', color: (selPo.qty_received ?? 0) > 0 ? '#059669' : 'var(--text3)' }}>
+                            {selPo.qty_received ?? 0} {selPo.unit || ''}
+                          </strong>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#d97706', marginBottom: 2, fontWeight: 700 }}>PENDING (BALANCE)</div>
+                          <strong style={{ fontFamily: 'var(--mono)', color: (qtyPending ?? 0) > 0 ? '#d97706' : '#059669', fontSize: 13 }}>
+                            {qtyPending ?? (qtyOrdered != null ? Math.max(0, qtyOrdered - (selPo.qty_received ?? 0)) : '—')} {selPo.unit || ''}
                           </strong>
                         </div>
                         <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>UOM</div><strong style={{ fontFamily: 'var(--mono)', color: '#059669' }}>{selPo.unit || '—'}</strong></div>
@@ -3091,10 +3095,11 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
                 {showClosedPOs ? '✓ Showing Closed' : 'Show Closed POs'}
               </button>
             )}
-            <ExportButton rows={openPOs} filename="open_purchase_orders" columns={[
-              { key: 'po_number', label: 'PO #' }, { key: 'supplier', label: 'Supplier' },
-              { key: 'sku', label: 'SKU' }, { key: 'qty_ordered', label: 'Qty Ordered' },
-              { key: 'qty_received', label: 'Qty Received' }, { key: 'fill_pct', label: 'Fill %' },
+            <ExportButton rows={openPOs.map(po => ({ ...po, qty_pending: po.qty_pending ?? Math.max(0, po.qty_ordered - po.qty_received) }))} filename="open_purchase_orders" columns={[
+              { key: 'po_number', label: 'PO #' }, { key: 'pr_number', label: 'PR #' },
+              { key: 'supplier', label: 'Supplier' }, { key: 'sku', label: 'SKU' },
+              { key: 'qty_ordered', label: 'Qty Ordered' }, { key: 'qty_received', label: 'Qty Received' },
+              { key: 'qty_pending', label: 'Qty Pending' }, { key: 'fill_pct', label: 'Fill %' },
               { key: 'value', label: 'Value' }, { key: 'eta', label: 'ETA' }, { key: 'status', label: 'Status' },
             ]} />
             <button onClick={() => setModal('po')}
@@ -3111,7 +3116,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
         ) : (
           <table className="tbl">
             <thead>
-              <tr><th>PO#</th><th>PR#</th><th>GRN#</th><th>Supplier</th><th>SKU / Product</th><th>Ordered</th><th>Received</th><th>Fill %</th><th>Value</th><th>ETA</th><th>Status</th><th>Action</th></tr>
+              <tr><th>PO#</th><th>PR#</th><th>GRN#</th><th>Supplier</th><th>SKU / Product</th><th>Ordered</th><th>Received</th><th>Pending</th><th>Fill %</th><th>Value</th><th>ETA</th><th>Status</th><th>Action</th></tr>
             </thead>
             <tbody>
               {displayPOs.map(po => {
@@ -3129,7 +3134,10 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
                     <td style={{ fontWeight: 600 }}>{po.supplier}</td>
                     <td style={{ fontSize: 11.5 }}>{po.sku}</td>
                     <td style={{ fontFamily: 'var(--mono)' }}>{po.qty_ordered}</td>
-                    <td style={{ fontFamily: 'var(--mono)' }}>{po.qty_received}</td>
+                    <td style={{ fontFamily: 'var(--mono)', color: po.qty_received > 0 ? 'var(--green)' : 'var(--text3)' }}>{po.qty_received}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: (po.qty_pending ?? Math.max(0, po.qty_ordered - po.qty_received)) > 0 ? 'var(--amber)' : 'var(--text3)' }}>
+                      {po.qty_pending ?? Math.max(0, po.qty_ordered - po.qty_received)}
+                    </td>
                     <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: fillColor(po.fill_pct) }}>{po.fill_pct}%</td>
                     <td style={{ fontFamily: 'var(--mono)' }}>{po.value}</td>
                     <td><span className={`bdg ${badge.cls}`}>{po.eta}</span></td>

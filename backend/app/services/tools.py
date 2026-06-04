@@ -1384,6 +1384,236 @@ async def invoice_matching_tool(query: Optional[str] = None) -> dict:
     }
 
 
+async def design_quote_tool(query: Optional[str] = None) -> dict:
+    """Design Quote Studio: interior quotations, architect fee proposals pipeline, status, and action items."""
+    _mock_quotes = [
+        {
+            "quote_id": "DQ-2026-001", "client": "Prestige Constructions Pvt Ltd",
+            "project": "Whitefield Residential Tower — Interior Fit-Out",
+            "status": "NEGOTIATING", "total_value": 485000,
+            "rooms": 4, "items_count": 18, "created": "2026-05-10",
+            "summary": "Master Bedroom + Living Room + Kitchen + 2 Bathrooms — full fit-out with premium ACP + HPL finishes",
+        },
+        {
+            "quote_id": "DQ-2026-002", "client": "Brigade Enterprises",
+            "project": "Office Campus Café & Lobby Renovation",
+            "status": "SENT", "total_value": 218000,
+            "rooms": 2, "items_count": 11, "created": "2026-05-14",
+            "summary": "Lobby feature wall (Alucobond ACP cladding) + Café counter (Greenlam HPL + SS trim)",
+        },
+        {
+            "quote_id": "DQ-2026-003", "client": "Nova Interior Solutions",
+            "project": "3BHK Residential — Complete Interior",
+            "status": "WON", "total_value": 324000,
+            "rooms": 5, "items_count": 24, "created": "2026-04-28",
+            "summary": "All 5 rooms — louver feature walls, HPL cabinetry, bathroom fittings package",
+        },
+    ]
+    _mock_proposals = [
+        {
+            "proposal_id": "FP-2026-001", "architect": "Ar. Meera Iyer, Studio Forma",
+            "project": "Koramangala Villa — Façade & Landscape Redesign",
+            "status": "APPROVED", "total_fee": 320000,
+            "project_value": 4800000, "fee_pct": 6.67,
+            "phase_split": {
+                "P1_Concept": 32000, "P2_SD": 48000, "P3_DD": 64000,
+                "P4_CD": 80000, "P5_Tender": 16000, "P6_CA": 80000,
+            },
+            "invoiced": 80000, "outstanding": 240000, "ai_boq_used": True,
+        },
+        {
+            "proposal_id": "FP-2026-002", "architect": "Ar. Rohan Desai, RD Studio",
+            "project": "Indiranagar Office-to-Studio Conversion",
+            "status": "SENT", "total_fee": 145000,
+            "project_value": 2200000, "fee_pct": 6.59,
+            "phase_split": {
+                "P1_Concept": 14500, "P2_SD": 21750, "P3_DD": 29000,
+                "P4_CD": 36250, "P5_Tender": 7250, "P6_CA": 36250,
+            },
+            "invoiced": 0, "outstanding": 145000, "ai_boq_used": False,
+        },
+    ]
+
+    total_val = sum(q["total_value"] for q in _mock_quotes)
+    won = [q for q in _mock_quotes if q["status"] == "WON"]
+    win_rate_pct = len(won) / len(_mock_quotes) * 100
+    total_fee = sum(p["total_fee"] for p in _mock_proposals)
+    total_fee_outstanding = sum(p["outstanding"] for p in _mock_proposals)
+
+    return {
+        "quote_summary": {
+            "total_quotes":        len(_mock_quotes),
+            "total_pipeline_value": f"₹{total_val / 100000:.1f}L",
+            "win_rate":            f"{win_rate_pct:.0f}%",
+            "status_breakdown":    {"WON": 1, "SENT": 1, "NEGOTIATING": 1},
+            "avg_quote_value":     f"₹{total_val / len(_mock_quotes) / 1000:.0f}K",
+            "negotiating_value":   "₹4.85L",
+        },
+        "recent_quotes": _mock_quotes,
+        "proposal_summary": {
+            "total_proposals":       len(_mock_proposals),
+            "total_fee_pipeline":    f"₹{total_fee / 100000:.1f}L",
+            "total_fee_outstanding": f"₹{total_fee_outstanding / 100000:.1f}L",
+            "status_breakdown":      {"APPROVED": 1, "SENT": 1},
+            "avg_fee_pct":           "6.6% of project value",
+        },
+        "recent_proposals": _mock_proposals,
+        "ai_features_available": [
+            "WhatsApp BOQ scan — paste/upload site brief → AI extracts room list + item quantities",
+            "AI parse brief — natural language description → structured room schedule",
+            "BOQ Generator (Packages A–J) — select spec level → full items list with catalog pricing",
+            "Area Calculator — input room dimensions → floor area, wall area, material quantities",
+            "Design Scan (AI Vision) — scan catalog image/PDF → products auto-added to quote",
+        ],
+        "benchmark": {
+            "interior_quote_win_rate":  "30-40% for new clients; 55-65% for repeat/referral clients",
+            "avg_quote_to_win_days":    "7-21 days (negotiation phase is the critical bottleneck)",
+            "architect_fee_benchmark":  "5-8% of project cost for residential; 3-5% for commercial",
+            "standard_phase_split":     "P1 Concept 10% | P2 SD 15% | P3 DD 20% | P4 CD 25% | P5 Tender 5% | P6 CA 25%",
+            "avg_interior_quote_size":  "₹1.5L–₹8L for residential; ₹5L–₹25L for commercial",
+        },
+        "action_items": [
+            "DQ-2026-001 NEGOTIATING — follow up with Prestige Constructions; ₹4.85L at stake. Protect margin floor (18%).",
+            "DQ-2026-002 SENT — Brigade Enterprises quote aging 12 days; call today or it will expire.",
+            "FP-2026-001 ₹2.4L outstanding — Studio Forma phases P2-P6 pending. Raise next milestone invoice.",
+        ],
+        "delivered_unpaid_orders": [],
+        "data_source": "mock",
+    }
+
+
+async def invoices_tool(query: Optional[str] = None) -> dict:
+    """Sales Invoice data: outstanding, overdue, GST payable, recent invoices."""
+    _mock = {
+        "summary": {
+            "total_invoices": 16,
+            "total_billed": 2550000,
+            "total_paid": 1665000,
+            "outstanding": 885000,
+            "overdue": 396600,
+            "draft_count": 2,
+        },
+        "status_breakdown": {
+            "DRAFT": 2, "SENT": 5, "PARTIALLY_PAID": 3,
+            "PAID": 4, "OVERDUE": 2, "CANCELLED": 0,
+        },
+        "gst_summary": {
+            "total_taxable": 2161017,
+            "cgst_collected": 171610,
+            "sgst_collected": 171610,
+            "igst_collected": 45763,
+            "total_tax_collected": 389983,
+        },
+        "overdue_invoices": [
+            {"invoice_number": "INV-2026-008", "customer": "John Holland High School",
+             "amount": 318600, "overdue_days": 48, "status": "OVERDUE"},
+            {"invoice_number": "INV-2026-005", "customer": "Maharashtra Corp",
+             "amount": 78000, "overdue_days": 91, "status": "OVERDUE"},
+        ],
+        "recent_invoices": [
+            {"invoice_number": "INV-2026-016", "customer": "Vigilant Solutions",
+             "date": "2026-06-01", "grand_total": 885000, "status": "SENT"},
+            {"invoice_number": "INV-2026-015", "customer": "Prestige Developers",
+             "date": "2026-05-28", "grand_total": 590000, "status": "PARTIALLY_PAID"},
+        ],
+        "action_items": [
+            "2 overdue invoices: ₹3.97L — send payment reminders today",
+            "3 SENT invoices aging: follow up with customers",
+            "2 DRAFT invoices pending — review and dispatch",
+            "GSTR-1: File by 11th — all sales invoices exported",
+        ],
+        "data_source": "mock",
+    }
+
+    pool = None
+    try:
+        from app.db.connection import get_pool
+        pool = await get_pool()
+    except Exception:
+        pass
+
+    if not pool:
+        return _mock
+
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    SELECT
+                        COUNT(*) AS total_invoices,
+                        SUM(grand_total) AS total_billed,
+                        SUM(paid_amount) AS total_paid,
+                        SUM(grand_total - paid_amount) AS outstanding,
+                        SUM(CASE WHEN status='OVERDUE' THEN grand_total - paid_amount ELSE 0 END) AS overdue,
+                        SUM(CASE WHEN status='DRAFT' THEN 1 ELSE 0 END) AS draft_count,
+                        SUM(taxable_amount) AS total_taxable,
+                        SUM(cgst_amount) AS cgst, SUM(sgst_amount) AS sgst, SUM(igst_amount) AS igst,
+                        SUM(total_tax) AS total_tax
+                    FROM sales_invoices
+                """)
+                row = await cur.fetchone()
+                if not row:
+                    return _mock
+                summary = {
+                    "total_invoices": int(row[0] or 0),
+                    "total_billed":   float(row[1] or 0),
+                    "total_paid":     float(row[2] or 0),
+                    "outstanding":    float(row[3] or 0),
+                    "overdue":        float(row[4] or 0),
+                    "draft_count":    int(row[5] or 0),
+                }
+                gst = {
+                    "total_taxable":       float(row[6] or 0),
+                    "cgst_collected":      float(row[7] or 0),
+                    "sgst_collected":      float(row[8] or 0),
+                    "igst_collected":      float(row[9] or 0),
+                    "total_tax_collected": float(row[10] or 0),
+                }
+
+                await cur.execute("""
+                    SELECT invoice_number, customer_name, grand_total - paid_amount AS amount,
+                           DATEDIFF(NOW(), due_date) AS overdue_days, status
+                    FROM sales_invoices
+                    WHERE status IN ('OVERDUE','SENT','PARTIALLY_PAID')
+                      AND due_date < NOW()
+                    ORDER BY overdue_days DESC LIMIT 5
+                """)
+                overdue = [
+                    {"invoice_number": r[0], "customer": r[1],
+                     "amount": float(r[2] or 0), "overdue_days": int(r[3] or 0), "status": r[4]}
+                    for r in await cur.fetchall()
+                ]
+
+                await cur.execute("""
+                    SELECT invoice_number, customer_name, invoice_date, grand_total, status
+                    FROM sales_invoices ORDER BY created_at DESC LIMIT 5
+                """)
+                recent = [
+                    {"invoice_number": r[0], "customer": r[1],
+                     "date": str(r[2]), "grand_total": float(r[3] or 0), "status": r[4]}
+                    for r in await cur.fetchall()
+                ]
+
+                action_items = []
+                if summary["overdue"] > 0:
+                    action_items.append(f"{len(overdue)} overdue invoice(s): ₹{summary['overdue']/100000:.1f}L — send reminders")
+                if summary["draft_count"] > 0:
+                    action_items.append(f"{summary['draft_count']} DRAFT invoices pending dispatch")
+
+                return {
+                    "summary": summary,
+                    "gst_summary": gst,
+                    "overdue_invoices": overdue,
+                    "recent_invoices": recent,
+                    "action_items": action_items,
+                    "data_source": "live",
+                }
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("invoices_tool DB failed: %s", exc)
+        return _mock
+
+
 TOOLS = {
     "stock":            stock_tool,
     "demand":           demand_tool,
@@ -1411,4 +1641,6 @@ TOOLS = {
     "pr":               pr_tool,
     "qc":               qc_tool,
     "invoice_matching": invoice_matching_tool,
+    "design_quote":     design_quote_tool,
+    "invoices":         invoices_tool,
 }

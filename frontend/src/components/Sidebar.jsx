@@ -130,6 +130,21 @@ const NAV_ITEMS = [
     id: 'credit', label: 'Credit Management', badge: 'NEW', badgeClass: 'nb-r',
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="9" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M1 7h14" stroke="white" strokeWidth="1.3" opacity=".7"/><circle cx="4.5" cy="10.5" r="1" fill="white" opacity=".8"/><path d="M8 10.5h4" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".7"/></svg>,
   },
+  {
+    id: 'invoices', label: 'Sales Invoices', badge: 'NEW', badgeClass: 'nb-g',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 4h6M5 7h4M5 10h3" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".7"/><path d="M9 10.5l1.5 1.5 3-3" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
+  },
+  {
+    id: 'reports', label: 'Reports & MIS', badge: 'NEW', badgeClass: 'nb-b',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M4 10V13M7 7V13M10 4V13M13 1V13" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".8"/></svg>,
+  },
+
+  // ── Design Studio ─────────────────────────────────────────────────────────
+  { section: 'Design Studio' },
+  {
+    id: 'designquote', label: 'Design Quote Studio', badge: 'NEW', badgeClass: 'nb-p',
+    icon: <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M5 4h6M5 7h4" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity=".7"/><path d="M5 10h2M9 9.5l1.5 1.5 3-3" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity=".9"/></svg>,
+  },
 
   // ── Projects ──────────────────────────────────────────────────────────────
   { section: 'Projects' },
@@ -332,7 +347,7 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
       {/* Footer */}
       <div className="sf">
         <SidebarFooter dbStatus={dbStatus} />
-        <div className="sf-version">InvenIQ v3.1 · May 2026</div>
+        <div className="sf-version">InvenIQ v3.2 · May 2026</div>
       </div>
     </nav>
   );

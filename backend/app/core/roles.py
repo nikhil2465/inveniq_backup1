@@ -1,6 +1,6 @@
 """
 Role definitions for InvenIQ — maps role names to allowed module lists.
-6 roles: admin, sales_manager, cfo, warehouse_manager, finance_manager, distributor.
+7 roles: admin, sales_manager, cfo, warehouse_manager, finance_manager, distributor, architect.
 Admin gets full access ("all"); all others get a curated module list.
 """
 
@@ -14,31 +14,40 @@ ROLE_MODULES: dict[str, str | list[str]] = {
         "overview", "analytics", "sales", "customers", "orders",
         "louvers", "claims", "quotes", "discounts", "pos",
         "projects", "demand", "catalog", "freight", "schemes",
-        "salesreturn", "damage", "chatbot", "about", "settings",
+        "salesreturn", "damage", "invoices", "reports",
+        "chatbot", "about", "settings",
     ],
 
     "cfo": [
         "overview", "analytics", "finance", "sales", "customers",
         "orders", "credit", "claims", "freight", "procurement",
         "pogrn", "demand", "schemes", "salesreturn", "landingcost",
-        "damage", "invoicematch", "chatbot", "about", "settings", "tally",
+        "damage", "invoicematch", "invoices", "reports",
+        "chatbot", "about", "settings", "tally",
     ],
 
     "warehouse_manager": [
         "overview", "inventory", "inward", "warehouse", "pogrn",
         "deadstock", "procurement", "catalog", "freight", "demand",
-        "landingcost", "damage", "pr", "qc", "chatbot", "about", "settings",
+        "landingcost", "damage", "pr", "qc", "reports",
+        "chatbot", "about", "settings",
     ],
 
     "finance_manager": [
         "overview", "analytics", "finance", "credit", "orders",
         "customers", "procurement", "pogrn", "claims", "tally",
-        "schemes", "salesreturn", "landingcost", "damage", "invoicematch", "chatbot", "about", "settings",
+        "schemes", "salesreturn", "landingcost", "damage", "invoicematch",
+        "invoices", "reports", "chatbot", "about", "settings",
     ],
 
     # Distributor role — read-only portal showing only their own allocated stock
     "distributor": [
         "distributor", "catalog", "about", "settings",
+    ],
+
+    # Architect / Interior Design Studio — only sees the Design Quote Studio
+    "architect": [
+        "designquote", "settings", "about",
     ],
 }
 
@@ -96,6 +105,14 @@ ROLE_DEMO_ACCOUNTS: list[dict] = [
         "email":          "south@inveniq.demo",
         "role":           "distributor",
         "distributor_id": 3,
+    },
+    # ── Architect / Interior Design Studio ────────────────────────────────────
+    {
+        "username":     "architect",
+        "password":     "arch@2026",
+        "display_name": "Architect Studio",
+        "email":        "architect@inveniq.demo",
+        "role":         "architect",
     },
 ]
 

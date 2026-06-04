@@ -14,7 +14,7 @@ import AIDockPanel from './components/AIDockPanel';
 // null = unrestricted (admin) → overview; restricted → first preferred module available.
 function getDefaultView(allowedModules) {
   if (!allowedModules) return 'overview';
-  const preferred = ['overview', 'quotes', 'customers', 'catalog', 'chatbot', 'settings', 'about'];
+  const preferred = ['designquote', 'overview', 'quotes', 'customers', 'catalog', 'chatbot', 'settings', 'about'];
   for (const v of preferred) {
     if (allowedModules.includes(v)) return v;
   }
@@ -57,6 +57,9 @@ const DamageRecording      = lazy(() => import('./views/DamageRecording'));
 const PurchaseRequisition  = lazy(() => import('./views/PurchaseRequisition'));
 const QCInspection         = lazy(() => import('./views/QCInspection'));
 const InvoiceMatching      = lazy(() => import('./views/InvoiceMatching'));
+const DesignQuoteBuilder   = lazy(() => import('./views/DesignQuoteBuilder'));
+const Invoices             = lazy(() => import('./views/Invoices'));
+const Reports              = lazy(() => import('./views/Reports'));
 const VIEW_TITLES = {
   credit:      'Credit Management — Limits · Overdue · PDC Tracking',
   pos:         'Counter POS — Walk-In Sales & Fast Billing',
@@ -92,6 +95,9 @@ const VIEW_TITLES = {
   pr:           'Purchase Requisition — Material Requests · Approval Workflow · PO Conversion',
   qc:           'QC Inspection — Post-GRN Quality Control · Accept to Inventory · RTV',
   invoicematch: 'Invoice Matching — 3-Way Match: PO · GRN · Invoice · AP Approval',
+  designquote:  'Design Quote Studio — Hardware & Sanitary Fit-Out BOQ · Architect Fee Proposals',
+  invoices:     'Sales Invoices — GST-Compliant Billing · IGST/CGST/SGST · Payments',
+  reports:      'Management Reports — Sales · GST Summary · AR Aging · Stock Valuation',
 };
 
 export default function App() {
@@ -209,7 +215,7 @@ export default function App() {
       b: 'catalog',   k: 'credit',    v: 'pos',         y: 'schemes',
       j: 'about',     g: 'warehouse', '1': 'tally',
       '2': 'salesreturn', '3': 'landingcost', '4': 'distributor', '5': 'damage',
-      '6': 'pr', '7': 'qc', '8': 'invoicematch',
+      '6': 'pr', '7': 'qc', '8': 'invoicematch', '9': 'invoices', '0': 'reports', '-': 'designquote',
     };
     let active = false;
     let goTimer = null;
@@ -342,7 +348,7 @@ export default function App() {
           animation: 'goModeIn .15s ease',
         }}>
           <span style={{ background: '#16a34a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#fff' }}>g</span>
-          Type a key · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally · 2=sales-ret · 3=landing · 4=dist · 5=damage · 6=pr · 7=qc · 8=invoice
+          Type a key · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally · 2=sales-ret · 3=landing · 4=dist · 5=damage · 6=pr · 7=qc · 8=invoice-match · 9=invoices · 0=reports · -=design-quote
           <span style={{ marginLeft: 8, opacity: .6, fontSize: 11 }}>· Press <strong>?</strong> for full shortcuts</span>
         </div>
       )}
@@ -389,6 +395,9 @@ export default function App() {
             {activeView === 'pr'            && <PurchaseRequisition  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'qc'            && <QCInspection         onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'invoicematch'  && <InvoiceMatching      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'designquote'  && <DesignQuoteBuilder   onGoChat={goChat} dbStatus={dbStatus} />}
+            {activeView === 'invoices'     && <Invoices             onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'reports'      && <Reports              onGoChat={goChat} dbStatus={dbStatus} period={period} />}
           </ErrorBoundary>
         </Suspense>
       </main>

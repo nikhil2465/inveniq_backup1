@@ -172,6 +172,69 @@ ALL_MIGRATIONS = [
     ("refresh_tokens",         REFRESH_TOKENS_DDL),
     ("landing_cost_sheets",    LANDING_COST_SHEETS_DDL),
     ("journal_entries",        JOURNAL_ENTRIES_DDL),
+    # v3.3 — production readiness
+    ("sales_invoices",         """CREATE TABLE IF NOT EXISTS sales_invoices (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    invoice_date DATE NOT NULL, due_date DATE NOT NULL, customer_name VARCHAR(255) NOT NULL,
+    customer_gstin VARCHAR(20) DEFAULT '', billing_address TEXT, shipping_address TEXT,
+    place_of_supply VARCHAR(100) DEFAULT '', is_igst TINYINT(1) DEFAULT 0,
+    subtotal DECIMAL(14,2) DEFAULT 0, discount_amount DECIMAL(12,2) DEFAULT 0,
+    taxable_amount DECIMAL(14,2) DEFAULT 0, cgst_amount DECIMAL(12,2) DEFAULT 0,
+    sgst_amount DECIMAL(12,2) DEFAULT 0, igst_amount DECIMAL(12,2) DEFAULT 0,
+    total_tax DECIMAL(12,2) DEFAULT 0, grand_total DECIMAL(14,2) DEFAULT 0,
+    paid_amount DECIMAL(14,2) DEFAULT 0,
+    status ENUM('DRAFT','SENT','PARTIALLY_PAID','PAID','OVERDUE','CANCELLED') DEFAULT 'DRAFT',
+    notes TEXT, terms TEXT, reference_so_number VARCHAR(50) DEFAULT '',
+    created_by VARCHAR(100) DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_status (status), INDEX idx_customer (customer_name(50)),
+    INDEX idx_inv_number (invoice_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"""),
+    ("invoice_line_items",     """CREATE TABLE IF NOT EXISTS invoice_line_items (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, invoice_id BIGINT UNSIGNED NOT NULL,
+    sl INT DEFAULT 1, description VARCHAR(500) NOT NULL, hsn_sac VARCHAR(20) DEFAULT '',
+    qty DECIMAL(12,3) DEFAULT 0, unit VARCHAR(20) DEFAULT '',
+    rate DECIMAL(12,2) DEFAULT 0, discount_pct DECIMAL(5,2) DEFAULT 0,
+    taxable_amount DECIMAL(14,2) DEFAULT 0, cgst_rate DECIMAL(5,2) DEFAULT 0,
+    sgst_rate DECIMAL(5,2) DEFAULT 0, igst_rate DECIMAL(5,2) DEFAULT 0,
+    tax_amount DECIMAL(12,2) DEFAULT 0, line_total DECIMAL(14,2) DEFAULT 0,
+    INDEX idx_invoice (invoice_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"""),
+    ("invoice_payments",       """CREATE TABLE IF NOT EXISTS invoice_payments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, invoice_id BIGINT UNSIGNED NOT NULL,
+    amount DECIMAL(14,2) NOT NULL, payment_date DATE NOT NULL,
+    payment_mode ENUM('NEFT','RTGS','IMPS','UPI','CHEQUE','CASH','OTHER') DEFAULT 'NEFT',
+    reference VARCHAR(100) DEFAULT '', notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_inv (invoice_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"""),
+    ("company_profile",        """CREATE TABLE IF NOT EXISTS company_profile (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    company_name VARCHAR(255) DEFAULT '', trade_name VARCHAR(255) DEFAULT '',
+    gstin VARCHAR(20) DEFAULT '', pan VARCHAR(15) DEFAULT '',
+    address TEXT DEFAULT '', state VARCHAR(100) DEFAULT '',
+    state_code VARCHAR(5) DEFAULT '', pin_code VARCHAR(10) DEFAULT '',
+    phone VARCHAR(30) DEFAULT '', email VARCHAR(150) DEFAULT '',
+    website VARCHAR(255) DEFAULT '', bank_name VARCHAR(200) DEFAULT '',
+    bank_account VARCHAR(50) DEFAULT '', ifsc_code VARCHAR(20) DEFAULT '',
+    account_holder VARCHAR(255) DEFAULT '', logo_url TEXT DEFAULT '',
+    fy_start VARCHAR(10) DEFAULT 'April', default_gst_rate DECIMAL(5,2) DEFAULT 18,
+    tax_regime VARCHAR(30) DEFAULT 'Regular', signature_name VARCHAR(255) DEFAULT '',
+    smtp_host VARCHAR(255) DEFAULT '', smtp_port INT DEFAULT 587,
+    smtp_user VARCHAR(255) DEFAULT '', smtp_password VARCHAR(255) DEFAULT '',
+    tds_rate_professional DECIMAL(5,2) DEFAULT 10, tds_rate_contract DECIMAL(5,2) DEFAULT 2,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"""),
+    ("user_accounts",          """CREATE TABLE IF NOT EXISTS user_accounts (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL, display_name VARCHAR(200) NOT NULL,
+    email VARCHAR(200) DEFAULT '', role VARCHAR(50) NOT NULL DEFAULT 'sales_manager',
+    password_hash VARCHAR(255) NOT NULL, allowed_modules TEXT DEFAULT 'all',
+    is_active TINYINT(1) DEFAULT 1, last_login DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"""),
 ]
 
 
@@ -213,4 +276,40 @@ async def run_all(pool) -> dict:
         "startup_migrations complete: %d tables created, %d failed",
         len(results["created"]), len(results["failed"]),
     )
+
+    # 3. Reconcile po_items.qty_received from grn_line_items for any rows where
+    #    the silent-exception bug left qty_received at 0 despite existing GRN records.
+    await _reconcile_po_qty_received(pool, results)
+
     return results
+
+
+async def _reconcile_po_qty_received(pool, results: dict) -> None:
+    """
+    One-time repair: re-sum qty_received from grn_line_items into po_items
+    for any PO line whose qty_received is still 0 but GRN records exist.
+    Safe to run on every startup — only touches rows where qty_received = 0.
+    """
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    UPDATE po_items pi
+                    JOIN purchase_orders po ON pi.po_id = po.po_id
+                    JOIN (
+                        SELECT po_number, SUM(qty_received) AS total_received
+                        FROM grn_line_items
+                        GROUP BY po_number
+                    ) agg ON agg.po_number = po.po_number
+                    SET pi.qty_received = GREATEST(pi.qty_received, agg.total_received)
+                    WHERE pi.qty_received = 0 AND agg.total_received > 0
+                """)
+                affected = cur.rowcount
+                if affected > 0:
+                    await conn.commit()
+                    logger.info(
+                        "startup_migrations: reconciled qty_received for %d po_items rows",
+                        affected,
+                    )
+    except Exception as exc:
+        logger.debug("startup_migrations: po_items reconciliation skipped — %s", exc)

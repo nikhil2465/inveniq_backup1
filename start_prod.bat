@@ -1,11 +1,11 @@
 @echo off
-title InvenIQ v3.1 - Production
+title InvenIQ v3.3 - Production
 color 0A
 setlocal enabledelayedexpansion
 
 echo.
 echo  ================================================================
-echo   InvenIQ v3.1 - Production Startup
+echo   InvenIQ v3.3 - Production Startup
 echo  ================================================================
 echo.
 

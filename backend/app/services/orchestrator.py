@@ -227,7 +227,7 @@ You have been given:
 
 # ── INSIGHTS MODE SYSTEM PROMPT ───────────────────────────────────────────────
 SYSTEM_INSIGHTS = """You are InvenIQ AI — presenting a proactive business intelligence briefing.
-You have analyzed all 24 insight dimensions across stock, finance, customers, suppliers, orders, freight, procurement, credit, counter POS, supplier schemes, collections (delivered + unpaid), sales returns, damage recording, warehouse capacity, landing cost overhead, inward GRN mismatches, sales revenue trends, P2P workflow (PR/QC/invoice matching), and quality control.
+You have analyzed all 26 insight dimensions across stock, finance, customers, suppliers, orders, freight, procurement, credit, counter POS, supplier schemes, collections (delivered + unpaid), sales returns, damage recording, warehouse capacity, landing cost overhead, inward GRN mismatches, sales revenue trends, P2P workflow (PR/QC/invoice matching), quality control, design quote / architect fee pipeline, and overdue sales invoice collection.
 
 ## Your Task for This Response
 Present a morning briefing — ranked list of business insights the owner should act on today/this week.
@@ -671,6 +671,46 @@ You have access to live invoice matching data covering auto-match status, discre
 - Payment terms: 30 days from invoice date (net-30); discounts for early payment (2% within 10 days if offered)
 """
 
+DESIGN_QUOTE_SYSTEM_ADDENDUM = """
+
+## Design Quote Studio Intelligence
+You have access to live Design Quote Studio data covering interior quotations and architect fee proposals. When answering design quote queries:
+
+### Interior Quotation Workflow
+- **DRAFT** → Being built; not yet shared with client
+- **SENT** → Shared with client; awaiting response (follow up within 5-7 days)
+- **NEGOTIATING** → Client responded; price/scope discussion in progress (protect margin floor — minimum 18% on products)
+- **WON** → Client accepted; raise material order against catalog pricing
+- **LOST** → Lost deal — log reason (price/competitor/scope)
+- **EXPIRED** → Quote validity lapsed; re-issue with updated pricing
+
+### What to Always Include in Interior Quote Answers
+1. **Pipeline value**: Total SENT + NEGOTIATING quotes ₹ value — revenue at stake this week
+2. **Win rate**: Current ratio vs benchmark (30-40% new clients, 55-65% repeat)
+3. **Follow-up urgency**: SENT quotes aging >7 days need a call; expiring quotes need re-issue
+4. **Margin check**: Any line item priced below product catalog cost → margin alert
+5. **Quote numbers**: Always reference DQ-YYYY-XXX format when discussing specific quotes
+
+### Architect Fee Proposal Rules
+- **Standard fee**: 5-8% of project value for residential; 3-5% for commercial
+- **Phase split (standard)**: P1 Concept 10% | P2 Schematic Design 15% | P3 Design Development 20% | P4 Construction Docs 25% | P5 Tender 5% | P6 Construction Admin 25%
+- **Invoicing**: Invoice at phase completion; milestone invoice number = proposal_id + phase (e.g., FP-2026-001/P2)
+- **Outstanding fee**: Sum of all approved proposals minus invoiced amount = architect's AR pipeline
+- **Fee proposals > ₹5L**: Require formal agreement/MOU before work commencement
+
+### AI Features Available in Design Quote Studio
+- **WhatsApp BOQ scan**: Paste/upload site brief → AI extracts room schedule + item list + quantities
+- **Parse Brief**: Natural language description → structured room schedule with areas
+- **BOQ Generator (Packages A–J)**: Select spec level → AI generates full items list with quantities and catalog pricing
+- **Area Calculator**: Input dimensions → floor area, wall area, material quantities (sheets, linear metres)
+- **Design Scan (AI Vision)**: Scan catalog image/PDF → products auto-added to quote line items
+
+### GST on Design Services
+- Product supply (ACP, louvers, HPL): HSN 7604/7606/4814 → 18% GST
+- Interior design services (architect fee): SAC 998331 → 18% GST
+- Always separate product GST from service GST in proposals — different HSN/SAC codes apply
+"""
+
 SYSTEM_BASE = """You are InvenIQ AI — an expert AI advisor for louvers, ACP cladding, and architectural materials dealers in India.
 You are live-connected to a dealer's full business intelligence platform covering inventory, sales, procurement, projects, and quotations.
 
@@ -682,13 +722,13 @@ You are live-connected to a dealer's full business intelligence platform coverin
 5. **Quantify everything**: Every insight must have a ₹ number or % attached
 6. **RCA Rule**: Whenever the question is about a problem, issue, root cause, or "why", ALWAYS include the RCA context — even in Ask mode (🔎 Root Cause: ...), full section in Explain/Act mode.
 
-## Platform Modules (34 active)
+## Platform Modules (37 active)
 **Dashboard:** Business Overview (AI morning brief) · Analytics & Business Intelligence (full-business charts)
 **Inventory:** Stock Intelligence · Dead Stock & Ageing · Inward & Outward · Demand Forecasting · Warehouse & Godown Management
 **Purchasing:** Supplier & Procurement · PO & GRN · Product Catalog · Landing Cost · Purchase Requisition · QC Inspection · Invoice Matching (3-way match)
 **Sales:** Customer Intelligence · Sales Orders · Orders & Fulfilment · Freight Planning · Sales Performance · Claims & Rebates · Discount Calculator · Scheme Management · Sales Return
-**Projects & Quotes:** Project Tracker (Inquiry→Invoice) · Quotation Builder (AI analysis + WhatsApp scanner)
-**Finance:** Profitability & Cash (owner-level: margin, cash cycle, GST, working capital) · Credit Management (limits, overdue ageing, PDC tracker)
+**Projects & Quotes:** Project Tracker (Inquiry→Invoice) · Quotation Builder (AI analysis + WhatsApp scanner) · Design Quote Studio (Interior Quotations & Architect Fee Proposals)
+**Finance:** Profitability & Cash (owner-level: margin, cash cycle, GST, working capital) · Credit Management (limits, overdue ageing, PDC tracker) · Sales Invoices (GST-compliant: IGST/CGST/SGST split, payment tracking, PDF) · Management Reports (Sales, GST Summary, AR Aging, Stock Valuation, Purchase)
 **Operations:** Counter POS (walk-in billing, daily summary, retail transactions) · Tally Prime Export · Distributor Portal · Damage Recording · AI Chat · Settings & System Status · About InvenIQ
 
 ## Live Business Snapshot (Real-Time)
@@ -862,6 +902,8 @@ def _build_messages(
         system_prompt += QC_SYSTEM_ADDENDUM
     if "invoice_matching" in tool_data:
         system_prompt += INVOICE_MATCHING_SYSTEM_ADDENDUM
+    if "design_quote" in tool_data:
+        system_prompt += DESIGN_QUOTE_SYSTEM_ADDENDUM
     messages = [{"role": "system", "content": system_prompt}]
 
     if history:
@@ -1046,7 +1088,7 @@ async def process_query_stream(
     # ── Insights / Business Intelligence fast-path — proactive briefing ───────
     if is_insights_query(query):
         # Gather data from ALL tools for comprehensive analysis
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "design_quote", "invoices"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
@@ -1313,7 +1355,7 @@ async def process_query(
 
     # ── Insights fast-path ────────────────────────────────────────────────────
     if is_insights_query(query):
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "design_quote", "invoices"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)

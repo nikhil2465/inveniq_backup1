@@ -314,24 +314,37 @@ def _compute_kpis(quotes):
 
 # ── WhatsApp Scanner helpers ───────────────────────────────────────────────────
 
-_EXTRACTION_SYSTEM = """You are an expert at extracting building material product requirements from ANY type of input — WhatsApp chats, voice note transcriptions, Material Requisition Forms, BOQ spreadsheets, architect briefs, typed notes, purchase indent forms, or any unstructured/informal text.
+_EXTRACTION_SYSTEM = """You are an expert estimator for the Indian hardware, sanitary fittings, CP (chrome plated) fittings, and building materials industry. Your job is to extract product requirements from ANY input type — WhatsApp chats, voice notes, BOQ spreadsheets, architect briefs, plumber indent forms, site requirement lists, images, or informal text.
 
-CRITICAL RULES — follow every one without exception:
-1. Extract EVERY item mentioned, no matter how vague, partial, abbreviated, or informally written. Never skip an item.
-2. For incomplete descriptions use your best inference — e.g. "5 white sheets" → description "White laminate sheets", specifications "white finish".
-3. Handle typos, abbreviations, mixed languages (English/Hindi/Kannada), shorthand (e.g. "HPL 1mm matt teak 80nos").
-4. Model numbers and product codes (e.g. "Model 111 Black", "Highway G PVD", "PHBL-HD") must go into description verbatim; any size/spec goes into specifications.
-5. For organized tables or forms: each row is a separate product item — extract every row including the last ones.
-6. Infer customer_type from context: "interior studio / designer / ID firm" → Interior Firm; "builder / developer / project" → Developer; "site engineer / contractor / execution" → Contractor; "architect / design firm" → Architect; default → Retailer.
-7. Extract company/org name from form headers, letterheads, or signatures as customer_name.
-8. If quantity appears anywhere near the item (column, inline, bracket) always capture it.
-9. For hardware items (handles, knobs, hinges, channels, profiles, locks) — keep full model name + finish (PVD, chrome, SS, gold, black) in description.
-10. "Nos" / "nos" / "pcs" / "pieces" are all valid units — use "Nos".
+INDUSTRY KNOWLEDGE — apply these rules every time:
+• CP FITTINGS (taps, mixers, showers, health faucets, stop cocks): Brands = Jaquar, Grohe, Kohler, Hindware, Parryware, Cera, American Standard, TOTO, Roca, Marc, Oleanna, Essco, Usha Shriram. Keep full model name + series + finish (CP Chrome, PVD Gold, PVD Black, Matt Black, Rose Gold, SS). HSN 8481, 18% GST.
+• SANITARY WARE (WC/EWC, wash basin, bathtub, urinal): Brands = Kohler, Hindware, Jaquar, Parryware, Cera, American Standard, TOTO, Roca. Keep type (one-piece, two-piece, wall-hung, pedestal, counter-top, free-standing). HSN 6910, 18% GST.
+• BATHROOM ACCESSORIES (towel bars, rings, soap dispensers, toilet roll holders, mirrors, floor drains, shower enclosures): Keep size (e.g. 24", 18"), finish (chrome, PVD gold, SS). HSN 3922, 18% GST.
+• HARDWARE — HINGES: Keep type (soft-close, clip-top, glass hinge, flap hinge) + brand (Hettich, Blum, Hafele, Ebco, Euro). HSN 8302.
+• HARDWARE — CHANNELS/SLIDES: Keep type (soft-close, tandem box, full-extension, undermount) + size (18", 24") + brand. HSN 8302.
+• HARDWARE — HANDLES & KNOBS: Keep finish (PVD, SS, chrome, gold, black, antique brass) + size (96mm, 128mm, 160mm, 320mm) + brand (Hafele, Hettich, Godrej, Dorset). HSN 8302.
+• HARDWARE — LOCKS & LATCHES: Keep type (mortise, cylindrical, deadbolt, cam lock) + brand (Godrej, Yale, Assa Abloy, Dorset, Ozone). HSN 8301.
+• PLUMBING (CPVC/PVC pipes, fittings, valves, stop cocks, ball valves): Keep size (15mm, 20mm, 25mm, 4") + brand (Astral, Supreme, Finolex, Wavin, Ashirvad). HSN 3917/8481.
+• TILES (ceramic, vitrified, PGVT, marble, granite): Keep size (300×300, 600×600, 800×800, 1200×600mm) + finish (matt, polished, rustic) + brand (Kajaria, Somany, Johnson, Asian Granito, RAK, Simpolo). HSN 6907/2515.
+• KITCHEN FITTINGS (sinks, mixers, pull-out taps): Brands = Franke, Kohler, Jaquar, Grohe, Hafele. HSN 8481/7324.
+• WATERPROOFING: Keep type (Dr. Fixit, Pidilite, STP, cementitious). HSN 3214.
+
+EXTRACTION RULES — follow every one without exception:
+1. Extract EVERY item mentioned, no matter how vague, abbreviated, or informally written. Never skip an item.
+2. Model numbers/series (e.g. "Jaquar Florentine 1-lever", "Grohe Eurosmart", "Hettich Sensys") must go into description verbatim.
+3. Handle typos, abbreviations, mixed languages (English/Hindi/Kannada), shorthand (e.g. "3 jaquar shower overhead", "hettich chanl 18 pr").
+4. For organized tables/forms: each row is a separate item — extract every row.
+5. Infer customer_type: "plumber / plumbing contractor" → Contractor; "builder / developer / project" → Builder / Developer; "interior designer / ID studio" → Interior Designer; "architect / design firm" → Architect; "hotel / resort / hospitality" → Hotel / Hospitality; "government / CPWD / tender" → Government / Institution; default → Contractor.
+6. Extract company/org name from letterheads, headers, or signatures.
+7. Capture quantity from anywhere — column, inline, bracket. Default 1 if not found.
+8. Unit defaults: CP fittings, sanitary ware, accessories = "Nos"; pipes, plumbing = "Mtr" or "Lot"; tiles = "SqFt" or "SqMtr"; channels/hinges = "Nos" or "Pair".
+9. Infer room from context if stated ("master bath", "kitchen", "guest toilet") → put in notes.
+10. If a brand is mentioned, always include it in the description.
 
 Return a JSON object with EXACTLY this structure:
 {
   "customer_name": "company or person name, or empty string",
-  "customer_type": "one of: Developer, Architect, Contractor, Interior Firm, Retailer",
+  "customer_type": "one of: Contractor, Plumber, Builder / Developer, Interior Designer, Architect, Dealer / Retailer, Hotel / Hospitality, Government / Institution, End Consumer",
   "contact_person": "person name if present, else empty string",
   "contact_phone": "phone number if present, else empty string",
   "contact_email": "email if present, else empty string",
@@ -339,16 +352,18 @@ Return a JSON object with EXACTLY this structure:
   "site_location": "delivery or site address, else empty string",
   "required_products": [
     {
-      "description": "full product description — model, type, color, finish — exactly as mentioned",
+      "description": "full product description — brand, model, series, type, finish — exactly as mentioned or inferred",
       "quantity": 0,
-      "unit": "Nos, sheet, RM, SQM, pcs, etc.",
-      "specifications": "all sizes (mm/cm/ft/inch), finish, color, grade, thickness, material type",
-      "notes": "delivery date, remarks, special instructions for this item"
+      "unit": "Nos, Set, Pair, Mtr, SqFt, SqMtr, Lot, KG, Box",
+      "specifications": "sizes (mm/inch/feet), finish, color, grade, material type, model number",
+      "notes": "room location, delivery date, remarks, special instructions for this item",
+      "inferred_category": "CP Fittings|Sanitary Ware|Bathroom Accessories|Hardware - Hinges|Hardware - Channels|Hardware - Handles|Hardware - Locks|Plumbing|Tiles|Kitchen Fittings|Waterproofing|Other",
+      "inferred_hsn": "8481|6910|3922|8302|8301|3917|6907|7324|3214|8302"
     }
   ],
-  "special_requirements": "urgency, IS certification needs, overall delivery conditions",
-  "delivery_notes": "timeline or delivery location details",
-  "budget_indication": "any budget or price range mentioned"
+  "special_requirements": "urgency, quality certification, IS standard needs, payment terms mentioned",
+  "delivery_notes": "timeline, delivery location, site contact details",
+  "budget_indication": "any budget, rate, or price range mentioned"
 }
 
 Empty string for missing text fields. 0 for missing quantities. Return ONLY valid JSON — no markdown fences, no extra keys."""
@@ -392,37 +407,97 @@ def _score_match(desc: str, specs: str, product: dict) -> int:
             score += 3
 
     keyword_map = {
-        "laminate":      ["laminate", "hpl", "compact", "laminates", "formica", "sunmica"],
-        "louver":        ["louver", "louvre", "louvers", "louvres", "jalousie", "blade"],
-        "pvc":           ["pvc", "plastic", "upvc"],
-        "aluminium":     ["aluminium", "aluminum", "alum", "alu"],
-        "acrylic":       ["acrylic", "glossy", "high gloss", "gloss"],
-        "cladding":      ["cladding", "facade", "exterior", "external", "wall panel"],
-        "acp":           ["acp", "composite", "aluminium composite"],
-        "toilet":        ["toilet", "cubicle", "partition", "washroom", "wc", "restroom"],
-        "kitchen":       ["kitchen", "modular", "cabinet", "wardrobe", "pull-out", "basket"],
-        "operable":      ["operable", "motorised", "motorized", "pergola", "automated"],
-        "drawer":        ["drawer", "drawer slide", "slide", "telescopic", "full extension",
-                          "soft close drawer", "under mount", "tandem"],
-        "hinge":         ["hinge", "hinges", "concealed hinge", "clip top", "soft close hinge",
-                          "glass hinge", "flap hinge", "piano hinge"],
+        # ── CP Fittings (HSN 8481) ──────────────────────────────────────────────
+        "tap":           ["tap", "taps", "faucet", "mixer", "basin mixer", "sink tap",
+                          "bath tap", "bib cock", "pillar tap", "mono block"],
+        "shower":        ["shower", "overhead shower", "rain shower", "hand shower",
+                          "shower set", "shower panel", "shower system", "shower head",
+                          "shower arm", "shower enclosure", "diverter"],
+        "cp":            ["cp", "chrome plated", "chrome", "pvd", "pvd gold", "pvd black",
+                          "matt black", "rose gold", "antique brass", "brushed nickel"],
+        "health faucet": ["health faucet", "health faucet set", "bidet spray", "jet spray",
+                          "toilet spray", "nozzle spray"],
+        "stop cock":     ["stop cock", "stop valve", "ball valve", "gate valve",
+                          "angle valve", "quarter turn"],
+        "bath spout":    ["bath spout", "bath filler", "tub filler", "bath mixer"],
+        "kitchen mixer": ["kitchen mixer", "kitchen tap", "sink mixer", "pull out",
+                          "pull-out tap", "flexible tap"],
+        # ── Sanitary Ware (HSN 6910) ────────────────────────────────────────────
+        "wc":            ["wc", "toilet", "closet", "ewc", "water closet", "toilet pot",
+                          "flush", "two piece", "one piece", "wall hung wc",
+                          "concealed cistern", "floor mount", "s-trap", "p-trap"],
+        "basin":         ["basin", "wash basin", "pedestal basin", "counter top basin",
+                          "wall hung basin", "table top basin", "vessel basin",
+                          "vanity basin", "lavatory"],
+        "bathtub":       ["bathtub", "bath tub", "jacuzzi", "whirlpool", "soaker",
+                          "freestanding bath", "built-in bath", "acrylic bath"],
+        "urinal":        ["urinal", "urinals", "urinal pot"],
+        # ── Bathroom Accessories (HSN 3922) ─────────────────────────────────────
+        "towel bar":     ["towel bar", "towel rail", "towel ring", "towel rod",
+                          "towel holder", "bath towel", "robe hook", "coat hook"],
+        "soap dish":     ["soap dish", "soap holder", "soap dispenser",
+                          "liquid soap", "shampoo holder", "bottle holder"],
+        "mirror":        ["mirror", "bathroom mirror", "vanity mirror",
+                          "led mirror", "fog free mirror", "medicine cabinet"],
+        "floor drain":   ["floor drain", "floor trap", "drain cover", "gully trap",
+                          "waste coupling", "floor grating"],
+        "shower cabin":  ["shower enclosure", "shower cabin", "shower glass",
+                          "shower screen", "shower partition"],
+        # ── Hardware — Hinges (HSN 8302) ────────────────────────────────────────
+        "hinge":         ["hinge", "hinges", "soft close hinge", "clip top",
+                          "sensys", "glass hinge", "flap hinge", "piano hinge",
+                          "concealed hinge", "european hinge", "inset hinge"],
+        # ── Hardware — Channels/Drawer Systems (HSN 8302) ───────────────────────
+        "channel":       ["channel", "drawer slide", "slide", "telescopic",
+                          "soft close channel", "under mount", "tandem box",
+                          "full extension", "push to open", "drawer system",
+                          "tandembox", "legrabox", "orga-line"],
+        # ── Hardware — Handles (HSN 8302) ────────────────────────────────────────
         "handle":        ["handle", "handles", "knob", "knobs", "pull", "push",
-                          "pvd", "chrome", "ss handle", "aluminium handle", "bar handle",
-                          "profile handle", "stainless", "brass", "gold", "black handle"],
-        "lock":          ["lock", "latch", "cam lock", "minifix", "furniture lock",
-                          "drawer lock", "wardrobe lock"],
-        "led":           ["led", "light", "lighting", "strip light", "cabinet light",
-                          "furniture light", "wardrobe light", "under cabinet"],
-        "profile":       ["profile", "section", "extrusion", "trim", "edge", "beading",
-                          "aluminium profile", "t-trim", "edge profile"],
-        "glass":         ["glass", "glazing", "tempered", "toughened", "frosted"],
-        "wood":          ["plywood", "mdf", "particle board", "block board", "timber"],
-        "flooring":      ["flooring", "floor", "tile", "tiles", "vinyl", "carpet"],
-        "ebco":          ["ebco"],
-        "hafele":        ["hafele", "häfele"],
-        "hettich":       ["hettich"],
-        "blum":          ["blum", "blumotion", "aventos", "tandem"],
-        "hardware":      ["hardware", "fitting", "fittings", "furniture fitting"],
+                          "bar handle", "profile handle", "cup handle",
+                          "aluminium handle", "ss handle", "gola profile",
+                          "boss", "stainless", "brass", "gold handle", "black handle"],
+        # ── Hardware — Locks (HSN 8301) ──────────────────────────────────────────
+        "lock":          ["lock", "latch", "mortise lock", "cylindrical lock",
+                          "cam lock", "deadbolt", "door lock", "drawer lock",
+                          "wardrobe lock", "multiplex", "espagnolette"],
+        # ── Plumbing (HSN 3917/8481) ─────────────────────────────────────────────
+        "cpvc":          ["cpvc", "cpvc pipe", "hot cold pipe", "astral", "finolex",
+                          "supreme cpvc", "flowguard", "wavin"],
+        "pvc":           ["pvc", "pvc pipe", "upvc", "drainage pipe", "soil pipe",
+                          "waste pipe", "pvcu", "prince pipe"],
+        "valve":         ["ball valve", "gate valve", "check valve", "pressure valve",
+                          "prv", "valve fitting"],
+        # ── Tiles (HSN 6907) ─────────────────────────────────────────────────────
+        "tile":          ["tile", "tiles", "vitrified", "ceramic", "pgvt", "gvt",
+                          "double charge", "polished", "matte tile", "rustic tile",
+                          "floor tile", "wall tile", "dado", "mosaic", "kajaria",
+                          "somany", "johnson tile", "simpolo", "orientbell"],
+        "marble":        ["marble", "granite", "natural stone", "kota stone",
+                          "italian marble", "makrana", "statuario", "calacatta"],
+        # ── Waterproofing (HSN 3214) ─────────────────────────────────────────────
+        "waterproofing": ["waterproofing", "waterproof", "dr fixit", "pidilite",
+                          "stp waterproofing", "bituminous", "cementitious"],
+        # ── Brand-based matching ─────────────────────────────────────────────────
+        "jaquar":        ["jaquar", "florentine", "artize", "kubix", "espelho", "essco"],
+        "grohe":         ["grohe", "eurosmart", "eurostyle", "bauloop", "allure",
+                          "start", "concetto", "grohtherm"],
+        "kohler":        ["kohler", "july", "singulier", "coutere", "forte",
+                          "vice versa", "karing"],
+        "hindware":      ["hindware", "queo", "flora", "neo"],
+        "parryware":     ["parryware", "calla", "galaxy", "coral"],
+        "hettich":       ["hettich", "sensys", "innofit", "actro", "arcitech",
+                          "intivo", "quadro"],
+        "blum":          ["blum", "blumotion", "aventos", "tandembox", "legrabox",
+                          "clip top", "orga-line", "servo-drive"],
+        "hafele":        ["hafele", "häfele", "magic corner", "kessebohmer"],
+        "ebco":          ["ebco", "ebco hinge", "ebco channel"],
+        "astral":        ["astral", "astral pipes", "astral cpvc"],
+        "kajaria":       ["kajaria"],
+        "hardware":      ["hardware", "fitting", "fittings", "furniture fitting",
+                          "cabinet hardware", "bathroom hardware"],
+        "installation":  ["installation", "labour", "plumber", "plumbing work",
+                          "fitting charges", "amc", "maintenance"],
     }
     for p_word, synonyms in keyword_map.items():
         if p_word in product["name"].lower() or p_word in product["category"].lower():
@@ -508,21 +583,53 @@ def _build_suggested_lines(matched: list) -> list:
 
 def _demo_scan_result(note: str = "") -> dict:
     extracted = {
-        "customer_name":      "Prestige Grand Heights",
-        "customer_type":      "Developer",
-        "contact_person":     "Ramesh Kumar",
+        "customer_name":      "Suresh Building Solutions",
+        "customer_type":      "Contractor",
+        "contact_person":     "Suresh Nair",
         "contact_phone":      "+91 98450 12345",
-        "contact_email":      "",
-        "project_name":       "Block C — 3rd Floor Clubhouse",
-        "site_location":      "Whitefield, Bangalore",
+        "contact_email":      "suresh@sbsolutions.in",
+        "project_name":       "Prestige Skyrise — 24 Units (3BHK), Batch 1",
+        "site_location":      "Whitefield, Bangalore — 560066",
         "required_products":  [
-            {"description": "HPL 1mm laminate sheets for kitchen cabinets", "quantity": 80,  "unit": "sheet", "specifications": "Matte finish, Teak wood grain",   "notes": "Need colour samples first"},
-            {"description": "Aluminium Z profile louvers for car park",      "quantity": 500, "unit": "RM",    "specifications": "100mm blade, anodized silver",     "notes": "Delivery in 2 batches"},
-            {"description": "Compact laminate 6mm for toilet partitions",    "quantity": 30,  "unit": "sheet", "specifications": "White or light grey",              "notes": ""},
+            {
+                "description": "Jaquar Florentine Single Lever Basin Mixer — Chrome",
+                "quantity": 48, "unit": "Nos",
+                "specifications": "Hot & Cold, 35mm cartridge, wall-mounted",
+                "notes": "Master bathroom × 24 + Guest bathroom × 24",
+                "inferred_category": "CP Fittings", "inferred_hsn": "8481",
+            },
+            {
+                "description": "Jaquar Overhead Shower 6\" Round with Arm — Chrome",
+                "quantity": 24, "unit": "Set",
+                "specifications": "Stainless steel arm, ABS shower head with anti-calcium nozzles",
+                "notes": "Master bathroom only, ceiling mount",
+                "inferred_category": "CP Fittings", "inferred_hsn": "8481",
+            },
+            {
+                "description": "Hindware Queo One-Piece EWC with Soft-Close Seat Cover",
+                "quantity": 72, "unit": "Set",
+                "specifications": "S-trap, 300mm/400mm outlet, dual flush 3/6L",
+                "notes": "3 bathrooms per unit × 24 units",
+                "inferred_category": "Sanitary Ware", "inferred_hsn": "6910",
+            },
+            {
+                "description": "Hettich Sensys Soft-Close Hinge",
+                "quantity": 480, "unit": "Nos",
+                "specifications": "clip-top, 110° opening, full overlay",
+                "notes": "Modular kitchen cabinets — 20 hinges per unit",
+                "inferred_category": "Hardware - Hinges", "inferred_hsn": "8302",
+            },
+            {
+                "description": "Health Faucet Set with Holder and Flexible Hose",
+                "quantity": 72, "unit": "Set",
+                "specifications": "ABS body, chrome finish, 1.2m hose",
+                "notes": "All 3 bathrooms per unit",
+                "inferred_category": "CP Fittings", "inferred_hsn": "8481",
+            },
         ],
-        "special_requirements": "Urgent — site ready in 3 weeks. All materials IS certified.",
-        "delivery_notes":       "Door delivery required, Whitefield",
-        "budget_indication":    "",
+        "special_requirements": "Contractor pricing required. Delivery in 3 batches — 8 units per batch.",
+        "delivery_notes":       "Site delivery with unloading — Whitefield, Gate 3 contact: Suresh 98450 12345",
+        "budget_indication":    "Target: under ₹28,000 per unit for CP + sanitary",
     }
     matched = _match_to_catalog(extracted["required_products"])
     return {
@@ -928,15 +1035,14 @@ def _extract_file_content(file_bytes: bytes, content_type: str, filename: str):
 
 @router.post("/quotes/scan-whatsapp")
 async def scan_whatsapp_requirement(
-    file: Optional[UploadFile] = File(None),
+    file: List[UploadFile] = File(default=[]),
     text_input: str = Form(""),
 ):
     """
-    Universal requirement scanner: accepts any file type + optional typed/pasted text.
+    Universal requirement scanner: accepts multiple files + optional typed/pasted text.
     Supports images (Vision API), PDF, DOCX, XLSX, CSV, TXT and any text-decodable file.
     Always returns top catalog matches even for unrecognized/partial items.
     """
-    # Demo trigger — sent by the "Try Demo" button, no real input needed
     if text_input.strip() == "__demo__":
         return _demo_scan_result()
 
@@ -944,55 +1050,51 @@ async def scan_whatsapp_requirement(
     if not api_key:
         return _demo_scan_result("No OPENAI_API_KEY configured — showing demo extraction.")
 
-    has_file  = file is not None and file.filename
-    has_text  = bool(text_input.strip())
-    if not has_file and not has_text:
+    files = [f for f in (file or []) if f and f.filename]
+    has_text = bool(text_input.strip())
+    if not files and not has_text:
         return _demo_scan_result("No input provided — showing demo extraction.")
 
     try:
         from openai import AsyncOpenAI
 
-        file_bytes, content_type, filename = b"", "", ""
-        if has_file:
-            file_bytes   = await file.read()
-            content_type = file.content_type or ""
-            filename     = (file.filename or "").lower()
-            if len(file_bytes) > 20 * 1024 * 1024:
-                return _demo_scan_result("File is too large (max 20 MB) — try a compressed JPG or paste the text instead.")
+        combined_text = text_input.strip()
+        image_parts: List[dict] = []  # list of {b64, ct} dicts
 
-        text_content, is_image, image_b64, image_ct = _extract_file_content(
-            file_bytes, content_type, filename
-        ) if has_file else ("", False, "", "")
+        for f in files:
+            raw = await f.read()
+            if len(raw) > 20 * 1024 * 1024:
+                continue  # skip oversized files silently
+            ct = f.content_type or ""
+            fn = (f.filename or "").lower()
 
-        # Scanned PDF guard — pypdf returned sentinel, no text layer present
-        if text_content == "__scanned_pdf__":
-            return {
-                "extracted":        {"customer_name": "", "customer_type": "Retailer", "contact_person": "", "contact_phone": "", "contact_email": "", "project_name": "", "site_location": "", "required_products": [], "special_requirements": "", "delivery_notes": "", "budget_indication": ""},
-                "matched_products": [],
-                "suggested_lines":  [],
-                "data_source":      "error",
-                "demo_note":        "This PDF appears to be scanned (image-based) — no text layer found. Please take a screenshot of the page and upload the image instead.",
-            }
+            file_text, is_image, image_b64, image_ct = _extract_file_content(raw, ct, fn)
 
-        # Merge typed text with extracted file text
-        combined_text = "\n\n".join(filter(None, [text_input.strip(), text_content]))
+            if file_text == "__scanned_pdf__":
+                return {
+                    "extracted": {"customer_name": "", "customer_type": "Retailer", "contact_person": "", "contact_phone": "", "contact_email": "", "project_name": "", "site_location": "", "required_products": [], "special_requirements": "", "delivery_notes": "", "budget_indication": ""},
+                    "matched_products": [], "suggested_lines": [], "data_source": "error",
+                    "demo_note": "One of the uploaded PDFs appears to be scanned (image-based) — no text layer found. Please upload a screenshot instead.",
+                }
+
+            if is_image:
+                image_parts.append({"b64": image_b64, "ct": image_ct})
+            elif file_text.strip():
+                combined_text = "\n\n---\n".join(filter(None, [combined_text, file_text]))
+
+        if not combined_text.strip() and not image_parts:
+            return _demo_scan_result("No readable content in the uploaded files.")
 
         client = AsyncOpenAI(api_key=api_key, timeout=60.0)
 
-        if is_image and not has_text:
-            # Pure image — use Vision only
-            user_content = [
-                {"type": "image_url", "image_url": {"url": f"data:{image_ct};base64,{image_b64}", "detail": "high"}},
-                {"type": "text", "text": "Extract ALL product requirements from this image. Return ONLY valid JSON as specified."},
-            ]
-        elif is_image and has_text:
-            # Image + typed context text — send both
-            user_content = [
-                {"type": "image_url", "image_url": {"url": f"data:{image_ct};base64,{image_b64}", "detail": "high"}},
-                {"type": "text", "text": f"Extract ALL product requirements from this image AND the following typed context:\n\n{text_input.strip()}\n\nReturn ONLY valid JSON as specified."},
-            ]
+        if image_parts:
+            # Vision: send all images + any text context
+            user_content: list = []
+            for img in image_parts:
+                user_content.append({"type": "image_url", "image_url": {"url": f"data:{img['ct']};base64,{img['b64']}", "detail": "high"}})
+            context = f"Also consider this typed context:\n\n{combined_text}\n\n" if combined_text.strip() else ""
+            user_content.append({"type": "text", "text": f"{context}Extract ALL product requirements from these images. Return ONLY valid JSON as specified."})
         else:
-            # Text only (file text + optional typed text)
             user_content = (
                 f"Extract ALL product requirements from the following input. "
                 f"It may be a WhatsApp message, typed note, requisition form, or any requirement document. "
@@ -1009,9 +1111,7 @@ async def scan_whatsapp_requirement(
             response_format={"type": "json_object"},
         )
 
-        raw = response.choices[0].message.content
-        extracted = json.loads(raw)
-
+        extracted = json.loads(response.choices[0].message.content)
         required_products = extracted.get("required_products", [])
         matched = _match_to_catalog(required_products)
 
@@ -1295,6 +1395,166 @@ async def convert_quote_to_order(quote_id: int):
     _converted_orders[quote_id] = result
     logger.info("Demo convert: %s → %s for %s", qnum, order_number, customer)
     return result
+
+
+# ── /quotes/merge ─────────────────────────────────────────────────────────────
+
+@router.post("/quotes/merge")
+async def merge_quotes(body: dict):
+    """
+    Merge 2+ quotations into one new DRAFT quote.
+    Client details from the first selected quote are used as the base.
+    All line items from every selected quote are combined into one flat list.
+    """
+    quote_ids = [int(i) for i in (body.get("quote_ids") or []) if i]
+    if len(quote_ids) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 quotes required to merge")
+
+    selected: list = []
+    try:
+        from app.db.connection import get_pool
+        from app.db import quote_queries
+        pool = await get_pool()
+        if pool:
+            await quote_queries.ensure_tables(pool)
+            for qid in quote_ids:
+                q = await quote_queries.get_quote_db(pool, qid)
+                if q:
+                    selected.append(q)
+    except Exception as exc:
+        logger.warning("quotes/merge DB fetch failed: %s", exc)
+
+    if not selected:
+        # Demo fallback — fetch from mock
+        all_mock = {q["quote_id"]: q for q in _mock_quotes()}
+        for qid in quote_ids:
+            q = all_mock.get(qid)
+            if q:
+                selected.append(q)
+
+    if not selected:
+        raise HTTPException(status_code=404, detail="None of the selected quotes were found")
+
+    base = selected[0]
+    merged_items = []
+    for q in selected:
+        for li in (q.get("line_items") or []):
+            # Coerce all numeric Decimal values from MySQL to float to prevent
+            # TypeError when mixing Decimal + float in arithmetic below
+            merged_items.append({
+                k: (float(v) if hasattr(v, '__float__') and not isinstance(v, (str, bool)) else v)
+                for k, v in li.items() if k != "sl"
+            })
+
+    # Re-number sl
+    for i, li in enumerate(merged_items, 1):
+        li["sl"] = i
+
+    today = datetime.date.today()
+    source_nums = ", ".join(q.get("quote_number", "") for q in selected)
+    subtotal    = sum(float(li.get("line_total") or 0) for li in merged_items)
+    gst_rate    = float(base.get("gst_rate") or 18)
+    gst_amount  = round(subtotal * gst_rate / 100, 2)
+    grand_total = round(subtotal + gst_amount, 2)
+
+    merged_payload = {
+        "customer_name":    str(base.get("customer_name") or ""),
+        "customer_type":    str(base.get("customer_type") or ""),
+        "contact_person":   str(base.get("contact_person") or ""),
+        "contact_phone":    str(base.get("contact_phone") or ""),
+        "contact_email":    str(base.get("contact_email") or ""),
+        "project_name":     f"[Merged] {base.get('project_name') or ''}",
+        "site_location":    str(base.get("site_location") or ""),
+        "payment_terms":    str(base.get("payment_terms") or ""),
+        "delivery_terms":   str(base.get("delivery_terms") or ""),
+        "gst_number":       str(base.get("gst_number") or ""),
+        "billing_address":  str(base.get("billing_address") or ""),
+        "validity_days":    int(base.get("validity_days") or 30),
+        "gst_rate":         gst_rate,
+        "include_freight":  False,
+        "freight_amount":   0.0,
+        "avg_margin_pct":   0.0,
+        "notes":            f"Merged from: {source_nums}",
+        "status":           "DRAFT",
+        "subtotal":         round(subtotal, 2),
+        "gst_amount":       gst_amount,
+        "grand_total":      grand_total,
+        "line_items":       merged_items,
+    }
+
+    try:
+        from app.db.connection import get_pool
+        from app.db import quote_queries
+        pool = await get_pool()
+        if pool:
+            await quote_queries.ensure_tables(pool)
+            quote_number = await quote_queries.next_quote_number(pool)
+            payload_for_db = {
+                **merged_payload,
+                "quote_number": quote_number,
+                "created_at": today.isoformat(),
+                "valid_till": (today + datetime.timedelta(days=merged_payload["validity_days"])).isoformat(),
+            }
+            new_id = await quote_queries.insert_quote(pool, payload_for_db)
+            return {**payload_for_db, "quote_id": new_id, "data_source": "mysql"}
+    except Exception as exc:
+        logger.warning("quotes/merge DB save failed: %s", exc)
+
+    # Demo fallback
+    new_id = 100 + len(quote_ids)
+    quote_number = f"QT-{today.year}-{new_id:04d}"
+    return {
+        **merged_payload,
+        "quote_id": new_id,
+        "quote_number": quote_number,
+        "created_at": today.isoformat(),
+        "valid_till": (today + datetime.timedelta(days=merged_payload["validity_days"])).isoformat(),
+        "data_source": "demo",
+    }
+
+
+# ── /quotes/{quote_id}/clone ──────────────────────────────────────────────────
+
+@router.post("/quotes/{quote_id}/clone")
+async def clone_quote(quote_id: int):
+    """
+    Return a clone-ready payload of an existing quote.
+    Strips quote_id, quote_number, created_at, valid_till.
+    Status reset to DRAFT, project_name prefixed [Copy].
+    No DB write — frontend opens NewQuoteForm pre-populated and saves explicitly.
+    """
+    quote: dict = {}
+    try:
+        from app.db.connection import get_pool
+        from app.db import quote_queries
+        pool = await get_pool()
+        if pool:
+            await quote_queries.ensure_tables(pool)
+            q = await quote_queries.get_quote_db(pool, quote_id)
+            if q:
+                quote = q
+    except Exception as exc:
+        logger.warning("clone DB fetch failed: %s", exc)
+
+    if not quote:
+        all_mock = {q["quote_id"]: q for q in _mock_quotes()}
+        quote = all_mock.get(quote_id, {})
+
+    if not quote:
+        raise HTTPException(status_code=404, detail=f"Quote {quote_id} not found")
+
+    proj = str(quote.get("project_name") or "")
+    prefix = "[Copy] "
+    return {
+        **{k: v for k, v in quote.items() if k not in ("quote_id", "quote_number", "created_at", "valid_till", "updated_at", "total", "margin_pct")},
+        "project_name": proj if proj.startswith(prefix) else prefix + proj,
+        "status": "DRAFT",
+        "line_items": [
+            {k2: (float(v2) if hasattr(v2, "__float__") and not isinstance(v2, (str, bool)) else v2)
+             for k2, v2 in li.items() if k2 not in ("item_id",)}
+            for li in (quote.get("line_items") or [])
+        ],
+    }
 
 
 # ── /quotes/{quote_id}/send-email ─────────────────────────────────────────────

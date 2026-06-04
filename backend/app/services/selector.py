@@ -337,6 +337,34 @@ KEYWORD_MAP = {
         "invoice reconcile", "payment approval", "invoice to pay",
         "im-", "inv-", "matching status", "3-way reconciliation",
     ],
+    "invoices": [
+        "invoice", "invoices", "sales invoice", "billing", "bill to",
+        "tax invoice", "gst invoice", "proforma", "gst billing",
+        "cgst sgst igst", "output tax", "invoice outstanding", "invoice overdue",
+        "payment due", "invoice payment", "send invoice", "invoice status",
+        "invoice total", "invoice draft", "how much is owed", "invoice paid",
+        "invoice collection", "invoice aging", "receivable invoice",
+        "invoice number", "inv-", "gstr-1", "gstr1 filing", "tax collected",
+        "who owes us", "invoice list", "pending invoices", "invoicing",
+    ],
+    "design_quote": [
+        "design quote", "design quotation", "interior quote", "interior quotation",
+        "architect fee", "architect proposal", "fee proposal", "architect invoice",
+        "design studio", "design quote studio", "interior design quote",
+        "room schedule", "boq interior", "bill of quantities interior",
+        "site brief", "parse brief", "scan boq interior", "interior boq",
+        "area calculator", "room area", "floor area calculation",
+        "interior package", "fit-out quote", "fit out quotation",
+        "interior fit-out", "interior fitout", "residential interior",
+        "dq-", "fp-", "fee percentage architect", "phase payment architect",
+        "milestone invoice architect", "p1 concept fee", "p2 schematic",
+        "p4 construction document", "p6 construction admin",
+        "interior win rate", "interior pipeline", "interior quote status",
+        "architect fee percentage", "how much to charge architect",
+        "standard architect fee", "fee split architect",
+        "boq generator", "generate boq interior", "interior boq generator",
+        "design scan", "interior materials quote",
+    ],
 }
 
 # ── Additional keyword expansions (merged into KEYWORD_MAP on import) ──────────
@@ -437,6 +465,13 @@ def select_tools(query: str, mode: str = "ask") -> List[str]:
     # Landing cost queries also pull stock for margin impact context
     if "landing_cost" in tools and "stock" not in tools:
         tools.append("stock")
+
+    # Design quote queries pull catalog + quotes for product/pricing context
+    if "design_quote" in tools:
+        if "catalog" not in tools:
+            tools.append("catalog")
+        if "quotes" not in tools:
+            tools.append("quotes")
 
     # Default fallback — stock + demand + finance covers 85% of dealer questions
     if not tools:

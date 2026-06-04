@@ -240,23 +240,30 @@ async def get_po_grn_dashboard(pool: aiomysql.Pool) -> dict:
             partial_row = await cur.fetchone()
 
             # Open POs list with item details + GRN number (if received) + unit_price
+            # grn joined via subquery (one row per po_id) to prevent fan-out that
+            # would multiply SUM(qty_ordered/qty_received) by the number of GRNs.
             await cur.execute("""
                 SELECT po.po_id, po.po_number, s.supplier_name,
                        GROUP_CONCAT(DISTINCT p.sku_name ORDER BY pi.po_item_id SEPARATOR ', ') AS sku_list,
-                       COALESCE(SUM(pi.qty_ordered), 0) AS qty_ordered,
+                       COALESCE(SUM(pi.qty_ordered), 0)  AS qty_ordered,
                        COALESCE(SUM(pi.qty_received), 0) AS qty_received,
-                       COALESCE(AVG(pi.unit_price), 0) AS unit_price,
-                       COALESCE(MIN(p.unit), 'Units') AS unit,
+                       COALESCE(AVG(pi.unit_price), 0)   AS unit_price,
+                       COALESCE(MIN(p.unit), 'Units')    AS unit,
                        po.total_value, po.expected_date, po.status, po.pr_number,
                        GREATEST(DATEDIFF(CURDATE(), po.expected_date), 0) AS overdue_days,
-                       MAX(g.grn_number) AS grn_number
+                       g.grn_number
                 FROM purchase_orders po
                 JOIN suppliers s ON po.supplier_id = s.supplier_id
                 LEFT JOIN po_items pi ON po.po_id = pi.po_id
-                LEFT JOIN products p ON pi.product_id = p.product_id
-                LEFT JOIN grn g ON g.po_id = po.po_id
+                LEFT JOIN products p  ON pi.product_id = p.product_id
+                LEFT JOIN (
+                    SELECT po_id, MAX(grn_number) AS grn_number
+                    FROM grn
+                    WHERE po_id IS NOT NULL
+                    GROUP BY po_id
+                ) g ON g.po_id = po.po_id
                 WHERE po.status IN ('OPEN', 'PARTIAL', 'OVERDUE')
-                GROUP BY po.po_id
+                GROUP BY po.po_id, g.grn_number
                 ORDER BY
                     FIELD(po.status, 'OVERDUE', 'PARTIAL', 'OPEN'),
                     po.expected_date ASC
@@ -700,10 +707,10 @@ async def create_grn(pool: aiomysql.Pool, grn_data: dict) -> dict:
                 other_charges, total_landed_cost, landing_cost_per_unit,
             ))
 
-            # ── Per-line tracking + PO status auto-update (best-effort) ───────
+            # ── Per-line tracking + PO status auto-update ────────────────────
             if po_item_id and po_id:
+                # Step A: grn_line_items audit record — non-fatal if table missing
                 try:
-                    # grn_line_items record
                     await cur.execute("""
                         INSERT INTO grn_line_items
                             (grn_number, po_number, sku_code, sku_name, po_qty,
@@ -721,21 +728,30 @@ async def create_grn(pool: aiomysql.Pool, grn_data: dict) -> dict:
                         po_unit_price,
                         notes[:1000],
                     ))
+                except Exception as _line_exc:
+                    _logger.warning("grn_line_items insert skipped (non-fatal): %s", _line_exc)
 
-                    # Update cumulative received qty on the PO line
-                    new_total = round(prev_received + qty_received_num, 3)
+                # Step B: Update cumulative received qty — ALWAYS runs independently.
+                # Kept in its own try so a grn_line_items schema failure never
+                # silently suppresses the qty_received update on the PO line.
+                new_total = round(prev_received + qty_received_num, 3)
+                try:
                     await cur.execute(
                         "UPDATE po_items SET qty_received = %s WHERE po_item_id = %s",
                         (new_total, po_item_id),
                     )
-
-                    # Also update qc_pending_qty: received qty not yet inspected
+                    # qc_pending_qty tracks received not yet inspected
                     await cur.execute(
-                        "UPDATE po_items SET qc_pending_qty = qc_pending_qty + %s WHERE po_item_id = %s",
+                        "UPDATE po_items SET qc_pending_qty = qc_pending_qty + %s "
+                        "WHERE po_item_id = %s",
                         (qty_received_num, po_item_id),
                     )
+                except Exception as _upd_exc:
+                    _logger.error("po_items qty_received update FAILED for item %s: %s",
+                                  po_item_id, _upd_exc)
 
-                    # Determine new PO status — use FULLY_RECEIVED for complete receipt
+                # Step C: Promote PO status to PARTIAL / FULLY_RECEIVED
+                try:
                     await cur.execute("""
                         SELECT COALESCE(SUM(qty_ordered), 0)  AS total_ord,
                                COALESCE(SUM(qty_received), 0) AS total_rec
@@ -751,9 +767,8 @@ async def create_grn(pool: aiomysql.Pool, grn_data: dict) -> dict:
                         "AND status IN ('OPEN','PARTIAL','OVERDUE','APPROVED','RECEIVED')",
                         (new_po_status, po_id),
                     )
-                except Exception as _line_exc:
-                    # Non-fatal: GRN header still committed; line-item tracking skipped
-                    _logger.warning("GRN line-item tracking skipped (table may not exist yet): %s", _line_exc)
+                except Exception as _sts_exc:
+                    _logger.warning("PO status promotion skipped: %s", _sts_exc)
 
             await conn.commit()
 

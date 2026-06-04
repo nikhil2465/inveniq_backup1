@@ -23,6 +23,8 @@ const MODULE_LIST = [
   { icon: '💰', id: 'finance',     label: 'Profitability & Cash',   section: 'Finance' },
   { icon: '💳', id: 'credit',     label: 'Credit Management',      section: 'Finance' },
   { icon: '🛒', id: 'pos',        label: 'Counter POS',            section: 'Finance' },
+  { icon: '🧾', id: 'invoices',   label: 'Sales Invoices',         section: 'Finance' },
+  { icon: '📊', id: 'reports',    label: 'Reports & MIS',          section: 'Finance' },
   { icon: '⭐', id: 'schemes',    label: 'Scheme Management',      section: 'Sales' },
   { icon: '🏭', id: 'warehouse',    label: 'Warehouse Management',   section: 'Inventory' },
   { icon: '🔄', id: 'salesreturn', label: 'Sales Return',           section: 'Sales' },
@@ -162,6 +164,9 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
     { keys: ['g', '6'], desc: 'Purchase Requisition',   module: 'pr'           },
     { keys: ['g', '7'], desc: 'QC Inspection',          module: 'qc'           },
     { keys: ['g', '8'], desc: 'Invoice Matching',       module: 'invoicematch' },
+    { keys: ['g', '9'], desc: 'Sales Invoices',         module: 'invoices'     },
+    { keys: ['g', '0'], desc: 'Reports & MIS',          module: 'reports'      },
+    { keys: ['g', '-'], desc: 'Design Quote Studio',    module: 'designquote'  },
     { keys: ['g', 'j'], desc: 'About InvenIQ',          module: 'about'        },
   ].filter(s => isUnrestricted || (allowedModules ?? []).includes(s.module));
 
@@ -280,7 +285,7 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
           { cls: dbOk ? 'sg' : 'sr',  l: 'Database',  v: dbOk ? 'Live Data'        : 'Demo Mode',      s: dbOk ? 'Connected — real-time data active' : 'Running on sample data' },
           { cls: aiOk ? 'sg' : 'sb',  l: 'AI Engine', v: aiOk ? 'Active'           : 'Not Configured', s: aiOk ? 'AI features fully operational'     : 'AI features unavailable' },
           { cls: 'sg',                 l: 'Modules',   v: `${moduleCount} Active`,                       s: isUnrestricted ? 'All modules operational' : `${moduleCount} modules accessible` },
-          { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.1',                                s: `May 2026 · Checked ${checkedAt || '…'}` },
+          { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.3',                                s: `June 2026 · Checked ${checkedAt || '…'}` },
         ].map(k => (
           <div key={k.l} className={`kc ${k.cls}`}>
             <div className="kt"><div className="kl">{k.l}</div></div>
@@ -316,7 +321,7 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
                   <Check ok={true}
                     label="Application Server"
                     value="Running"
-                    sub={`Server healthy — ${MODULE_LIST.length} modules operational`} />
+                    sub={`Server healthy — ${MODULE_LIST.length} modules operational`} />  {/* auto-counts from MODULE_LIST */}
                   <Check ok={true}
                     label="User Interface"
                     value="Production Build"
@@ -360,10 +365,10 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
               <InfoRow label="Analysis"          value="Deep data analysis & root cause engine"     />
               <InfoRow label="Scanner"           value="WhatsApp screenshot processing"             />
               <InfoRow label="Context Window"    value="Last 16 messages retained"                  />
-              <InfoRow label="Knowledge Base"    value="34 topics — inventory, finance, P2P, operations" />
-              <InfoRow label="Insights Engine"   value="16 proactive insight types"                    />
+              <InfoRow label="Knowledge Base"    value="36 topics — inventory, finance, P2P, invoices, design quotes" />
+              <InfoRow label="Insights Engine"   value="26 proactive insight types"                    />
               <InfoRow label="RCA Engine"        value="14 structured analysis templates"               />
-              <InfoRow label="Data Tools"        value="26 live business data tools"                    />
+              <InfoRow label="Data Tools"        value="28 live business data tools"                    />
             </div>
           </div>
         </div>
@@ -446,7 +451,7 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
               items: [
                 `Database badge is ${dbOk ? '🟢 LIVE — all modules showing real-time data' : '🟡 DEMO — all modules showing sample data'}`,
                 'Contact your system administrator to connect to your MySQL database',
-                'Once connected, all 34 modules automatically switch to live business data',
+                'Once connected, all 37 modules automatically switch to live business data',
                 'No data is lost when switching between Demo and Live mode',
               ] },
             { step: '2', title: 'AI Features', color: '#8b5cf6',
@@ -458,7 +463,7 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
               ] },
             { step: '3', title: 'Role & Access Management', color: 'var(--b2)',
               items: [
-                '6 roles: Admin (full access), Sales Manager, CFO, Warehouse Manager, Finance Manager, Distributor',
+                '7 roles: Admin (full access), Sales Manager, CFO, Warehouse Manager, Finance Manager, Distributor, Architect',
                 'Each role has a curated module list — users only see their permitted modules',
                 'Contact your administrator to add or modify user accounts and role assignments',
                 'Distributor accounts access only their personalised stock and order portal',

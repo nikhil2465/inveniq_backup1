@@ -128,6 +128,20 @@ _KNOWLEDGE_KEYWORDS = [
     "volume rebate", "trade rebate", "rebate management", "how to track schemes",
     "accrual accounting", "scheme accounting", "incentive tracking",
     "loyalty program management", "dealer incentive program",
+    # Design Quote Studio / Architect Fee
+    "design quote", "interior quote", "interior quotation", "architect fee",
+    "fee proposal", "architect proposal", "design quotation", "interior design quote",
+    "boq interior", "bill of quantities interior", "interior boq",
+    "architect fee percentage", "standard architect fee", "architect fee india",
+    "phase split architect", "p1 concept fee", "p2 schematic fee",
+    "p3 design development", "p4 construction documents", "p5 tender fee",
+    "p6 construction admin", "architect milestone", "interior quote workflow",
+    "design studio", "design quote studio", "interior fit-out quote",
+    "how to price interior design", "interior design pricing", "quote win rate interior",
+    "interior quote benchmark", "architect fee benchmark",
+    "what is architect fee", "how to calculate architect fee",
+    "whatsapp site brief", "parse interior brief", "boq generator",
+    "area calculator interior", "floor area room", "interior package",
 ]
 
 _KNOWLEDGE_STARTS = (
@@ -207,6 +221,12 @@ _KNOWLEDGE_CONCEPTS = {
     # Landing cost
     "how to calculate landing cost", "landed cost components",
     "what is landing cost", "landing cost accounting",
+    # Design Quote / Architect Fee Proposal concepts
+    "design quote", "interior quote", "architect fee", "fee proposal",
+    "architect proposal", "interior quotation", "boq interior",
+    "architect fee percentage", "fee split architect", "phase payment",
+    "interior fit-out", "interior package", "design studio",
+    "whatsapp brief", "parse brief", "area calculator",
 }
 
 
@@ -1426,6 +1446,107 @@ KNOWLEDGE_BASE = {
         "indian_context": "In Indian hardware/sanitary trade, gate entry is often informal — stock is accepted without proper PO verification, leading to inventory discrepancies, unauthorized purchases, and audit trail gaps. A formal gate entry process with PO cross-check prevents these issues and is mandatory for GST-compliant inward supply records.",
         "inveniq_implementation": "In InvenIQ, gate entry fields (vehicle number, driver name, DC verified flag, seal intact flag, entry time) are captured inside the 'Record GRN' modal in the PO/GRN module. This integrates gate entry with the GRN workflow — no separate navigation step required. Gate entry data is stored in the GRN notes field and is visible on the GRN detail view.",
     },
+
+    "design_quote_studio": {
+        "title": "Design Quote Studio — Interior Quotations & Architect Fee Proposals",
+        "purpose": "The Design Quote Studio is a dedicated module for interior designers, architects, and specification contractors to create detailed project quotations and professional fee proposals. It combines product-level BOQ (Bill of Quantities) generation with AI-assisted area calculations, WhatsApp brief scanning, and multi-phase fee scheduling.",
+        "two_modules": {
+            "interior_quotations": "Create room-by-room quotations with item-level pricing (louvers, ACP, HPL, hardware). AI can scan a WhatsApp brief or PDF to extract room schedule and quantities automatically. Each quote can be in DRAFT / SENT / NEGOTIATING / WON / LOST / EXPIRED status.",
+            "architect_fee_proposals": "Professional fee proposals for architects and design studios. Define total fee as % of project cost, then split across 6 standard phases: P1 Concept (10%), P2 Schematic Design (15%), P3 Design Development (20%), P4 Construction Documents (25%), P5 Tender Assistance (5%), P6 Construction Admin (25%).",
+        },
+        "ai_features": {
+            "whatsapp_scan":    "Paste or upload a WhatsApp site brief → AI parses it into a structured room schedule with item types, estimated quantities, and dimensions. Reduces data entry time by 70%.",
+            "parse_brief":      "Natural language description (e.g., '3BHK with master bedroom feature wall, laminate kitchen, and two bathrooms') → AI returns a structured room list with suggested item types and areas.",
+            "boq_generator":    "Select a package (A–J from basic to premium) and AI generates a full BOQ with product specifications, quantities, and estimated pricing for each room.",
+            "area_calculator":  "Input room dimensions (length × width × height) and AI computes: floor area, wall area, ceiling area, and derived material quantities (sheets, linear metres, pieces).",
+            "design_scan":      "Scan a catalog image, PDF price list, or WhatsApp photo to extract product names, codes, and prices directly into the quote line items.",
+        },
+        "quote_workflow": {
+            "step_1": "Create new quote: enter client name, project name, and select room template or start from scratch",
+            "step_2": "Add sections (rooms) and line items: product, quantity, unit, unit price, and discount %",
+            "step_3": "AI BOQ Generator or WhatsApp scan can auto-populate items and quantities from brief",
+            "step_4": "Review totals: line total = (unit_price × (1 - discount/100)) × quantity",
+            "step_5": "Apply GST (18% for all building materials — ACP, louvers, laminates, hardware)",
+            "step_6": "Send quote to client; track status (SENT → NEGOTIATING → WON/LOST)",
+        },
+        "fee_proposal_workflow": {
+            "step_1": "Create fee proposal: enter architect/studio name, project name, project value, and services scope",
+            "step_2": "Set fee percentage (industry standard: 5-8% for residential, 3-5% for commercial)",
+            "step_3": "Phase split is auto-calculated: P1 10% + P2 15% + P3 20% + P4 25% + P5 5% + P6 25% = 100%",
+            "step_4": "As project progresses, mark phases as invoiced and track outstanding fee balance",
+            "step_5": "Fee invoices reference the proposal phase (e.g., 'Invoice for P2 Schematic Design')",
+        },
+        "pricing_benchmarks": {
+            "residential_fit_out":   "₹1.5L–₹8L for 2BHK/3BHK; ₹8L–₹25L for villas and penthouses",
+            "commercial_interior":   "₹5L–₹50L depending on area, fit-out category, and specification level",
+            "architect_fee":         "5-8% of project cost for residential; 3-5% for commercial; 2-3% for industrial",
+            "win_rate_benchmark":    "30-40% for new clients; 55-65% for repeat/referral clients",
+            "avg_quote_to_win_days": "7-21 days (negotiation phase is typically 5-14 days)",
+        },
+        "item_types": {
+            "louver_feature_wall":   "Aluminium louvers — Z-blade or Aerofoil; vertical or horizontal pattern; anodised or powder-coated finish",
+            "acp_cladding":          "Alucobond or Viva Composite ACP panels — feature walls, columns, reception counters",
+            "hpl_laminate":          "Greenlam or Merino HPL — cabinetry, table tops, wall cladding",
+            "operable_systems":      "Motorised operable louvre systems — premium specifications requiring installation coordination",
+            "bathroom_fittings":     "Complete bathroom package — shower area, vanity, WC area with product selection and quantities",
+        },
+        "gst_reference": {
+            "acp_panels":             "HSN 7606 — Aluminium composite panels → 18% GST",
+            "aluminium_louvers":      "HSN 7604 — Aluminium extrusions/profiles/louvers → 18% GST",
+            "hpl_laminates":          "HSN 4814 — High pressure / decorative laminates → 18% GST",
+            "hardware_fittings":      "HSN 8302 — Door/window hardware, handles, hinges → 18% GST",
+            "architect_services":     "SAC 998331 — Architectural / interior design services → 18% GST on fees",
+        },
+        "indian_context": "In India, interior designers and architects typically produce manual Excel-based quotations — a slow, error-prone process. The Design Quote Studio automates this with AI-assisted BOQ generation, consistent pricing from the live product catalog, and phase-based fee tracking. Particularly valuable for louver/ACP/HPL dealers who also provide specification and supply services to interior architects.",
+    },
+
+    "invoices_gst_compliance": {
+        "title": "Sales Invoice & GST Compliance — CGST/SGST/IGST, Filing, ITC",
+        "purpose": "Complete framework for GST-compliant sales invoicing in India covering intra-state (CGST+SGST) and inter-state (IGST) supplies, invoice format requirements, ITC eligibility, and GSTR filing obligations.",
+        "gst_charge_rules": {
+            "intra_state_supply": "Supplier and buyer in the same state → charge CGST + SGST (each = 50% of applicable rate). E.g., 18% rate → CGST 9% + SGST 9%.",
+            "inter_state_supply": "Supplier and buyer in different states → charge IGST only at full rate. E.g., 18% rate → IGST 18%.",
+            "how_to_determine": "Compare first 2 digits of supplier GSTIN with first 2 digits of buyer GSTIN (state codes). Same code → intra-state → CGST+SGST. Different codes → inter-state → IGST.",
+            "place_of_supply":  "Determines whether CGST+SGST or IGST applies. For goods: place of supply = destination state (where goods are delivered). For services: place of supply = location of service recipient.",
+        },
+        "invoice_format_requirements": {
+            "mandatory_fields":     "Invoice number (unique sequential), invoice date, supplier GSTIN, buyer GSTIN (if registered), buyer name & address, place of supply, HSN/SAC code, item description, quantity, unit, taxable value, GST rate, CGST/SGST or IGST amount, total amount payable.",
+            "invoice_series":       "Must be sequential within a financial year. Can restart on 1 April. Cannot have gaps.",
+            "digital_invoice":      "Electronic invoices are valid — no requirement to print. QR code mandatory for B2B invoices (auto-generated).",
+            "time_limit_issuance":  "Goods: invoice must be issued at or before time of removal. Services: within 30 days of service completion (within 45 days for banking).",
+            "credit_note":          "Issue credit note (not debit note to buyer) to reverse sales. Must reference original invoice number. File as negative entry in GSTR-1.",
+        },
+        "hsn_sac_codes": {
+            "aluminium_extrusions": "HSN 7604 — 18% GST",
+            "acp_panels":           "HSN 7606 — 18% GST",
+            "hpl_laminates":        "HSN 4814 — 18% GST",
+            "hardware_fittings":    "HSN 8302 — 18% GST",
+            "cement_boards":        "HSN 6811 — 18% GST",
+            "glass_products":       "HSN 7007 — 18% GST",
+            "design_services":      "SAC 998331 — Architectural/Interior design → 18% GST",
+            "freight_services":     "SAC 9965 — Goods Transport → 5% GST (GTA, no ITC) or 12% (with ITC)",
+            "installation_services":"SAC 9954 — Construction/installation works → 18% GST",
+        },
+        "gstr_filing": {
+            "gstr1":        "Monthly (11th of next month) or quarterly (13th of month after quarter end for QRMP filers). Reports all outward supplies. B2B: invoice-level; B2C: consolidated.",
+            "gstr3b":       "Monthly self-assessment return (20th of next month for general; 22nd/24th for QRMP). Pay GST due (output tax – ITC). Penalty: ₹50/day late fee (₹20 for nil return).",
+            "gstr9":        "Annual return — due 31 December after FY end. Reconciles all monthly GSTR-1 and GSTR-3B data.",
+            "e_invoicing":  "Mandatory for turnover >₹5 Cr (IRN + QR code). System auto-generates IRN via IRP portal. Exempted categories: SEZ, banks, insurance, passenger transport.",
+        },
+        "itc_rules": {
+            "eligibility":      "ITC available on purchases used for taxable supply. Not available on: personal consumption, food/beverages, works contract (building construction), motor vehicles for personal use.",
+            "time_limit":       "ITC must be claimed by 30 November of the following financial year or date of filing annual return, whichever is earlier.",
+            "reversal_triggers":"ITC must be reversed if: invoice unpaid after 180 days, goods/services used for exempt supply, goods written off as bad debt.",
+            "blocked_credits":  "ITC blocked on: motor vehicles (except commercial), food and beverages, beauty treatment, health services, club membership, personal travel.",
+        },
+        "payment_terms": {
+            "standard_credit":  "30–60 days credit for established B2B customers. 7–15 days for new customers. Immediate payment for cash/counter sales.",
+            "late_payment":     "Charge interest at 18% p.a. on overdue amounts (as per contract). GST not chargeable on interest if it is a finance charge (not a separate supply).",
+            "advance_receipt":  "GST on advance: must pay GST at time of advance receipt for services. For goods, GST is payable at time of invoice (not advance). Issue receipt voucher for advance.",
+            "tds_on_payment":   "Section 194C: TDS 2% on contractor/sub-contractor payments >₹30K single or >₹1L p.a. (1% for individual/HUF). Section 194J: TDS 10% on professional/technical services.",
+        },
+        "indian_context": "Indian B2B dealers in building materials typically sell to: contractors (large project orders, net 60 terms), retailers/distributors (regular orders, net 30), and direct clients (occasional, often advance). GST compliance is critical — penalties for late GSTR-1 filing, ITC mismatches flagged in GSTR-2A reconciliation. Always match buyer GSTIN before issuing invoice to ensure correct CGST+SGST vs IGST treatment.",
+    },
 }
 
 
@@ -1630,6 +1751,40 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
     ]):
         relevant_keys.append("gate_entry_management")
 
+    if any(w in q for w in [
+        "design quote", "interior quote", "interior quotation", "design quotation",
+        "architect fee", "fee proposal", "architect proposal", "interior design quote",
+        "design studio", "design quote studio", "interior fit-out quote",
+        "boq interior", "interior boq", "bill of quantities interior",
+        "room schedule", "area calculator interior", "floor area room",
+        "whatsapp brief", "parse brief interior", "scan interior brief",
+        "boq generator", "interior package", "fit-out package",
+        "phase split architect", "architect fee percentage", "fee split phases",
+        "p1 concept", "p2 schematic", "p3 design development", "p4 construction documents",
+        "p5 tender", "p6 construction admin", "architect milestone invoice",
+        "interior win rate", "interior pipeline", "design quote win rate",
+        "how much to charge architect", "standard architect fee india",
+        "residential interior cost", "commercial interior cost",
+        "interior design pricing", "quotation for interior", "interior quote process",
+    ]):
+        relevant_keys.append("design_quote_studio")
+
+    if any(w in q for w in [
+        "tax invoice", "gst invoice", "sales invoice", "invoice format",
+        "cgst sgst igst", "cgst", "sgst", "igst", "output tax", "input tax credit",
+        "itc", "gstr-1", "gstr1", "gstr-3b", "gstr3b", "gstr 3b",
+        "invoice compliance", "gst compliance", "gst filing", "tax return gst",
+        "invoice mandatory fields", "hsn code invoice", "sac code invoice",
+        "e-invoice", "e invoicing", "irn", "invoice registration number",
+        "credit note gst", "debit note gst", "gst reversal",
+        "tds on payment", "tds invoice", "194c", "194j",
+        "place of supply", "intra-state", "inter-state", "igst vs cgst sgst",
+        "how to charge gst", "which gst to charge", "gst on sales",
+        "invoice payment terms", "late payment interest gst",
+        "advance receipt gst", "gst on advance",
+    ]):
+        relevant_keys.append("invoices_gst_compliance")
+
     # ── Fallback: general best practices ─────────────────────────────────────
     if not relevant_keys:
         relevant_keys = ["industry_benchmarks"]
@@ -1712,6 +1867,11 @@ def get_tools_for_knowledge_query(query: str) -> list:
 
     if any(w in q for w in ["3 way match", "invoice matching", "ap approval", "invoice discrepancy"]):
         tools.append("invoice_matching")
+
+    if any(w in q for w in ["tax invoice", "gst invoice", "sales invoice", "cgst", "sgst", "igst",
+                             "output tax", "itc", "gstr-1", "gstr-3b", "invoice compliance",
+                             "invoice overdue", "overdue invoice", "billing", "invoicing"]):
+        tools.append("invoices")
 
     # Default: stock + finance are always useful for context
     if not tools:

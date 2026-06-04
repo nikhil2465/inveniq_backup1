@@ -737,6 +737,65 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             "rupee_impact": sr_val,
         })
 
+    # ── 25. Design Quote Pipeline — Negotiating & Follow-up Alerts ───────────
+    dq_data = tool_data.get("design_quote", {})
+    dq_quotes = dq_data.get("recent_quotes", [])
+    action_items = dq_data.get("action_items", [])
+    negotiating = [q for q in dq_quotes if q.get("status") == "NEGOTIATING"]
+    sent_quotes  = [q for q in dq_quotes if q.get("status") == "SENT"]
+    if (negotiating or sent_quotes) and action_items:
+        neg_val = sum(q.get("total_value", 0) for q in negotiating)
+        sent_val = sum(q.get("total_value", 0) for q in sent_quotes)
+        pipeline_val = neg_val + sent_val
+        dq_summary = dq_data.get("quote_summary", {})
+        insights.append({
+            "id": "design_quote_pipeline_alert",
+            "category": "🎨 Design Quotes",
+            "severity": "MEDIUM",
+            "title": f"Design Quote Pipeline: ₹{_format_lakh(pipeline_val)} Needs Follow-up",
+            "finding": (
+                f"{len(negotiating)} quote(s) in NEGOTIATING + {len(sent_quotes)} SENT. "
+                f"Win rate: {dq_summary.get('win_rate', '?')} (benchmark: 35-45%). "
+                f"Pipeline: {dq_summary.get('total_pipeline_value', '?')} total. "
+                + (f"Action: {action_items[0]}" if action_items else "")
+            ),
+            "impact": f"₹{_format_lakh(pipeline_val)} in active design quote pipeline — follow-up converts this to revenue",
+            "action": (
+                "Follow up on NEGOTIATING quotes immediately — protect margin floor (18% minimum). "
+                "Call clients on SENT quotes aging >5 days. Re-issue any expired quotes with updated catalog pricing."
+            ),
+            "urgency": "THIS WEEK",
+            "rupee_impact": pipeline_val,
+        })
+
+    # ── 26. Overdue Sales Invoice Collection Alert ────────────────────────────
+    inv_data    = tool_data.get("invoices", {})
+    inv_summary = inv_data.get("summary", {})
+    overdue_inv = inv_data.get("overdue_invoices", [])
+    inv_overdue_val = inv_summary.get("overdue", 0)
+    if isinstance(inv_overdue_val, (int, float)) and inv_overdue_val > 0:
+        oldest_days = max((i.get("overdue_days", 0) for i in overdue_inv), default=0)
+        insights.append({
+            "id": "invoice_overdue_collection",
+            "category": "🧾 Invoice Collection",
+            "severity": "HIGH" if inv_overdue_val > 200000 else "MEDIUM",
+            "title": f"₹{_format_lakh(int(inv_overdue_val))} in Overdue Sales Invoices — {len(overdue_inv)} Invoice(s)",
+            "finding": (
+                f"{len(overdue_inv)} invoice(s) overdue totalling ₹{_format_lakh(int(inv_overdue_val))}. "
+                f"Oldest overdue: {oldest_days} days. "
+                + (f"Highest risk: {overdue_inv[0]['customer']} — ₹{_format_lakh(int(overdue_inv[0]['amount']))} ({overdue_inv[0]['overdue_days']}d overdue)." if overdue_inv else "")
+            ),
+            "impact": f"₹{_format_lakh(int(inv_overdue_val))} in receivables at collection risk — interest clock running at 18% p.a.",
+            "action": (
+                "1. Send formal payment reminder for all overdue invoices today. "
+                "2. Call customers > 60 days overdue — escalate to MD if > 90 days. "
+                "3. Put overdue accounts on cash-only terms for next order. "
+                "4. Evaluate reversing ITC if invoices unpaid > 180 days (GST rule)."
+            ),
+            "urgency": "TODAY" if oldest_days > 60 else "THIS WEEK",
+            "rupee_impact": int(inv_overdue_val),
+        })
+
     # ── Sort: ₹ impact descending, then severity ──────────────────────────────
     _sev = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
     insights.sort(key=lambda x: (-x["rupee_impact"], _sev.get(x["severity"], 3)))

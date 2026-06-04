@@ -38,6 +38,10 @@ from app.api.distributor import router as distributor_router
 from app.api.purchase_requisition import router as pr_router
 from app.api.qc_inspection import router as qc_router
 from app.api.invoice_matching import router as invoice_matching_router
+from app.api.design_quotes import router as design_quotes_router
+from app.api.invoices import router as invoices_router
+from app.api.reports import router as reports_router
+from app.api.company_profile import router as company_profile_router
 from app.core.config import get_settings
 
 load_dotenv()
@@ -82,12 +86,15 @@ _MODULE_API_PREFIXES: dict[str, tuple[str, ...]] = {
     "credit":      ("/api/credit",),
     "projects":    ("/api/projects",),
     "chatbot":     ("/api/chat",),
-    "settings":    ("/api/settings",),
+    "settings":    ("/api/settings", "/api/company-profile", "/api/auth/users"),
     "about":       (),  # About has no API calls
     "tally":       ("/api/tally",),
     "pr":          ("/api/pr",),
     "qc":          ("/api/qc",),
     "invoicematch":("/api/invoice-matching",),
+    "designquote": ("/api/design-quotes",),
+    "invoices":    ("/api/invoices",),
+    "reports":     ("/api/reports",),
 }
 
 # API paths always accessible regardless of module list (health + auth + settings)
@@ -240,7 +247,7 @@ _JWT_DEFAULT_KEY = "inveniq-dev-change-this-in-production-2026"
 async def lifespan(_app: FastAPI):
     cfg = get_settings()
     logger.info("=" * 52)
-    logger.info("  InvenIQ v3.1 — AI Inventory Intelligence Platform")
+    logger.info("  InvenIQ v3.3 — AI Inventory Intelligence Platform")
     logger.info("=" * 52)
 
     # ── JWT secret validation ─────────────────────────────────────────────────
@@ -271,7 +278,7 @@ async def lifespan(_app: FastAPI):
             logger.warning("  Migrations: startup migration runner failed — %s", _mig_exc)
 
     logger.info("  OpenAI  : %s", "CONFIGURED" if cfg.openai_api_key else "NOT SET  (set OPENAI_API_KEY for AI features)")
-    logger.info("  Routers : 23  |  Endpoints : 130+")
+    logger.info("  Routers : 27  |  Endpoints : 175+")
     logger.info("  Docs    : http://127.0.0.1:8000/docs")
     logger.info("=" * 52)
     yield
@@ -283,7 +290,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="InvenIQ API",
     description="Inventory Intelligence Platform — AI-powered insights for dealers & distributors",
-    version="3.1.0",
+    version="3.3.0",
     lifespan=lifespan,
 )
 
@@ -378,6 +385,10 @@ app.include_router(distributor_router,       prefix="/api")
 app.include_router(pr_router,                prefix="/api")
 app.include_router(qc_router,                prefix="/api")
 app.include_router(invoice_matching_router,  prefix="/api")
+app.include_router(design_quotes_router,     prefix="/api")
+app.include_router(invoices_router,          prefix="/api")
+app.include_router(reports_router,           prefix="/api")
+app.include_router(company_profile_router,   prefix="/api")
 
 
 @app.exception_handler(Exception)
@@ -391,7 +402,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/version", tags=["Health"])
 def api_root():
-    return {"service": "InvenIQ API", "version": "3.1.0", "docs": "/docs"}
+    return {"service": "InvenIQ API", "version": "3.3.0", "docs": "/docs"}
 
 
 @app.get("/api/health", tags=["Health"])
@@ -449,7 +460,7 @@ async def get_settings_info():
     db_ok = await is_db_available() if _DB_AVAILABLE else False
     openai_ok = bool(cfg.openai_api_key)
     return {
-        "version": "3.1.0",
+        "version": "3.3.0",
         "build": "May 2026",
         "edition": "Enterprise",
         "database": {
@@ -465,9 +476,9 @@ async def get_settings_info():
             "scanner_model": "gpt-4o (vision)",
             "streaming": "SSE",
             "history_window": 16,
-            "tools_count": 26,
-            "knowledge_topics": 34,
-            "insight_types": 16,
+            "tools_count": 27,
+            "knowledge_topics": 36,
+            "insight_types": 26,
             "rca_templates": 14,
         },
         "modules": [
@@ -476,10 +487,10 @@ async def get_settings_info():
             "freight", "sales", "claims", "discounts", "projects", "quotes",
             "finance", "credit", "pos", "schemes", "chatbot", "about", "settings", "tally",
             "salesreturn", "landingcost", "distributor", "damage",
-            "pr", "qc", "invoicematch",
+            "pr", "qc", "invoicematch", "designquote", "invoices", "reports",
         ],
-        "api_routers": 23,
-        "total_endpoints": 136,
+        "api_routers": 27,
+        "total_endpoints": 175,
     }
 
 
