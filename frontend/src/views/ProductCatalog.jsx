@@ -850,11 +850,17 @@ function ProductDetail({ product, onClose, onGoChat }) {
             <div className="pc-detail-section">
               <div className="pc-detail-sec-title">Specifications</div>
               <div className="pc-spec-table">
-                {product.size      && <div className="pc-spec-item"><span>Size</span><strong>{product.size}</strong></div>}
-                {product.thickness && <div className="pc-spec-item"><span>Thickness</span><strong>{product.thickness}</strong></div>}
-                {product.finish    && <div className="pc-spec-item"><span>Finish</span><strong>{product.finish}</strong></div>}
-                {product.weight_kg && <div className="pc-spec-item"><span>Weight</span><strong>{product.weight_kg} kg/sheet</strong></div>}
-                {product.colors    && <div className="pc-spec-item"><span>Colours</span><strong>{product.colors}</strong></div>}
+                {(product.item_code || product.sku_code) && <div className="pc-spec-item"><span>Item Code</span><strong style={{ fontFamily: 'monospace' }}>{product.item_code || product.sku_code}</strong></div>}
+                {product.item_name  && product.item_name !== product.name && <div className="pc-spec-item"><span>Item Name</span><strong>{product.item_name}</strong></div>}
+                {product.size       && <div className="pc-spec-item"><span>Size</span><strong>{product.size}</strong></div>}
+                {product.thickness  && <div className="pc-spec-item"><span>Thickness</span><strong>{product.thickness}</strong></div>}
+                {product.finish     && <div className="pc-spec-item"><span>Finish</span><strong>{product.finish}</strong></div>}
+                {product.pcs_per_set && <div className="pc-spec-item"><span>PCS / Set</span><strong>{product.pcs_per_set}</strong></div>}
+                {product.spu > 0    && <div className="pc-spec-item"><span>SPU</span><strong>{product.spu}</strong></div>}
+                {product.mrp > 0 && product.mrp !== product.sell_price && <div className="pc-spec-item"><span>MRP</span><strong>₹{Number(product.mrp).toLocaleString('en-IN')}</strong></div>}
+                {product.supplier   && <div className="pc-spec-item"><span>Supplier</span><strong>{product.supplier}</strong></div>}
+                {product.weight_kg  && <div className="pc-spec-item"><span>Weight</span><strong>{product.weight_kg} kg/sheet</strong></div>}
+                {product.colors     && <div className="pc-spec-item"><span>Colours</span><strong>{product.colors}</strong></div>}
               </div>
             </div>
 
@@ -1107,10 +1113,13 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
                 <tr key={p.product_id} style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>
                   <td>
                     <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{p.brand}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{p.brand}</div>
+                      {(p.item_code || p.sku_code) && <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--brand)', background: 'rgba(37,99,235,0.08)', padding: '0 5px', borderRadius: 4 }}>{p.item_code || p.sku_code}</div>}
+                    </div>
                   </td>
                   <td style={{ fontSize: 12 }}>{CATEGORY_ICONS[p.category]} {p.category}</td>
-                  <td style={{ fontSize: 12 }}>{p.thickness || '—'} · {p.size?.split('(')[0]?.trim() || '—'}</td>
+                  <td style={{ fontSize: 12 }}>{p.thickness || p.size?.split('|')[0]?.trim() || '—'}</td>
                   <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{fmt(p.buy_price)}</td>
                   <td style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600 }}>{fmt(p.sell_price)}/{p.unit}</td>
                   <td>

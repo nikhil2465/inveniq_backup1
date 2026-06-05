@@ -865,6 +865,304 @@ function PipelineKanbanView({ quotes, onView, onClone }) {
   );
 }
 
+// ── Product File Lookup Modal ──────────────────────────────────────────────────
+function ProductFileLookupModal({ onClose, onAddLines }) {
+  const [files,       setFiles]       = useState([]);
+  const [selFile,     setSelFile]     = useState('');
+  const [categories,  setCats]        = useState([]);
+  const [selCat,      setSelCat]      = useState('');
+  const [query,       setQuery]       = useState('');
+  const [results,     setResults]     = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [selected,    setSelected]    = useState({});
+  const [reqText,     setReqText]     = useState('');
+  const [reqLoading,  setReqLoading]  = useState(false);
+  const [uploadFile,  setUploadFile]  = useState(null);
+  const [uploading,   setUploading]   = useState(false);
+  const [uploadMsg,   setUploadMsg]   = useState('');
+  const [mode,        setMode]        = useState('search');
+  const [smartFields, setSmartFields] = useState({ item_code:'', category:'', size:'', finish:'', mrp_min:'', mrp_max:'' });
+  const fileRef = React.useRef();
+
+  React.useEffect(() => {
+    fetch('/api/product-files').then(r => r.json()).then(d => {
+      const loaded = (d.files || []).filter(f => f.count > 0);
+      setFiles(loaded);
+      if (loaded.length) setSelFile(loaded[0].filename);
+    }).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (!selFile) return;
+    fetch('/api/product-files/categories?file=' + encodeURIComponent(selFile)).then(r => r.json()).then(d => {
+      setCats(d.categories || []); setSelCat('');
+    }).catch(() => {});
+  }, [selFile]);
+
+  const doSearch = async () => {
+    setLoading(true); setResults([]); setSelected({});
+    try {
+      const p = new URLSearchParams({ q: query, limit: 60 });
+      if (selFile) p.set('file', selFile);
+      if (selCat)  p.set('category', selCat);
+      const d = await fetch('/api/product-files/search?' + p).then(r => r.json());
+      setResults(d.results || []);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  const doSmartMatch = async () => {
+    setLoading(true); setResults([]); setSelected({});
+    try {
+      const body = { ...smartFields, query, limit: 60, ai: true };
+      const d = await fetch('/api/product-files/smart-match', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => r.json());
+      const TIER = { exact: 'Exact Match', strong: 'Strong Match', near: 'Near Match' };
+      const combined = Object.entries(TIER).flatMap(([key, label]) =>
+        (d[key] || []).map(r => ({ ...r, _tier: label }))
+      );
+      setResults(combined);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  const buildFromReq = async () => {
+    if (!reqText.trim()) return;
+    setReqLoading(true); setResults([]); setSelected({});
+    try {
+      const d = await fetch('/api/product-files/ai-build-quote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requirement: reqText }),
+      }).then(r => r.json());
+      const items = d.line_items || [];
+      setResults(items);
+      const auto = {}; items.forEach((_, i) => { auto[i] = items[i].quantity || 1; });
+      setSelected(auto);
+    } catch {}
+    finally { setReqLoading(false); }
+  };
+
+  const doUpload = async () => {
+    if (!uploadFile) return;
+    setUploading(true); setUploadMsg('');
+    try {
+      const fd = new FormData(); fd.append('file', uploadFile);
+      const d = await fetch('/api/product-files/upload', { method: 'POST', body: fd }).then(r => r.json());
+      setUploadMsg('Loaded ' + d.count + ' products from ' + d.filename);
+      setFiles(prev => [...prev.filter(x => x.filename !== d.filename), { filename: d.filename, count: d.count }]);
+      setSelFile(d.filename); setUploadFile(null);
+    } catch { setUploadMsg('Upload failed'); }
+    finally { setUploading(false); }
+  };
+
+  const toggleRow = (i) => setSelected(s => ({ ...s, [i]: s[i] !== undefined ? undefined : (results[i]?.quantity || 1) }));
+  const allSel    = results.length > 0 && results.every((_, i) => selected[i] !== undefined);
+  const toggleAll = () => { if (allSel) setSelected({}); else { const a = {}; results.forEach((_, i) => { a[i] = results[i]?.quantity || 1; }); setSelected(a); } };
+  const selCount  = Object.values(selected).filter(v => v !== undefined).length;
+
+  const addSelected = () => {
+    const lines = Object.entries(selected).filter(([, qty]) => qty !== undefined).map(([i, qty]) => {
+      const r = results[Number(i)];
+      return {
+        product_id:     r.item_code || '',
+        product_name:   r.item_name || r.product_name || '',
+        category:       r.category || '',
+        brand:          r.brand || '',
+        unit:           r.unit || 'Nos',
+        quantity:       Number(qty) || 1,
+        unit_price:     parseFloat(String(r.mrp || r.unit_price || 0).replace(/[^0-9.]/g, '')) || 0,
+        buy_price:      0,
+        discount_pct:   0,
+        hsn_code:       r.hsn_code || '',
+        specifications: [r.size, r.finish].filter(Boolean).join(' / '),
+      };
+    });
+    if (lines.length) onAddLines(lines);
+    onClose();
+  };
+
+  const S = { background: 'var(--input, var(--bg))', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', width: '100%', boxSizing: 'border-box' };
+  const TIER_COLOR = { 'Exact Match': '#16a34a', 'Strong Match': '#2563eb', 'Near Match': '#d97706' };
+
+  return (
+    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1100,display:'flex',alignItems:'center',justifyContent:'center',padding:16 }} onClick={onClose}>
+      <div style={{ background:'var(--card)',borderRadius:12,boxShadow:'0 20px 60px rgba(0,0,0,.4)',width:'100%',maxWidth:960,maxHeight:'93vh',display:'flex',flexDirection:'column' }} onClick={e => e.stopPropagation()}>
+
+        <div style={{ padding:'14px 20px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0 }}>
+          <div>
+            <div style={{ fontWeight:800,fontSize:15 }}>Product File Lookup</div>
+            <div style={{ fontSize:11,color:'var(--text2)',marginTop:2 }}>
+              Search Ebco ({files.find(f=>f.filename.includes('Ebco'))?.count||0} products), Sanjay Hardware and any uploaded files — match by code, name, size, finish, MRP or describe in plain text.
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:'rgba(220,38,38,0.1)',border:'1px solid rgba(220,38,38,0.3)',color:'#dc2626',borderRadius:7,padding:'5px 12px',cursor:'pointer',fontWeight:700 }}>Close</button>
+        </div>
+
+        <div style={{ flex:1,overflowY:'auto',padding:18 }}>
+          <div style={{ display:'flex',gap:6,marginBottom:16,flexWrap:'wrap' }}>
+            {[['search','Search by Name / Code'],['smart','Smart Match (any field)'],['ai','AI: Describe Requirement'],['upload','Upload New File']].map(([m,lbl]) => (
+              <button key={m} onClick={() => setMode(m)} style={{ fontSize:11,fontWeight:700,padding:'5px 14px',borderRadius:20,cursor:'pointer',border:'1.5px solid var(--border)',background:mode===m?'rgba(37,99,235,0.1)':'transparent',color:mode===m?'#2563eb':'var(--text2)' }}>{lbl}</button>
+            ))}
+          </div>
+
+          {mode === 'search' && (
+            <>
+              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:10,marginBottom:10 }}>
+                <div>
+                  <div style={{ fontSize:10,color:'var(--text2)',fontWeight:600,marginBottom:4 }}>FILE</div>
+                  <select style={S} value={selFile} onChange={e => setSelFile(e.target.value)}>
+                    <option value="">All files ({files.reduce((s,f)=>s+f.count,0)} products)</option>
+                    {files.map(f => <option key={f.filename} value={f.filename}>{f.filename} ({f.count})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:10,color:'var(--text2)',fontWeight:600,marginBottom:4 }}>CATEGORY</div>
+                  <select style={S} value={selCat} onChange={e => setSelCat(e.target.value)}>
+                    <option value="">All categories</option>
+                    {categories.map(c => <option key={c.name} value={c.name}>{c.name} ({c.count})</option>)}
+                  </select>
+                </div>
+                <div style={{ display:'flex',alignItems:'flex-end' }}>
+                  <button onClick={doSearch} disabled={loading} style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',border:'none',borderRadius:8,padding:'7px 18px',fontSize:12,cursor:'pointer',fontWeight:700,opacity:loading?0.6:1 }}>
+                    {loading ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+              </div>
+              <input style={{ ...S, marginBottom:12 }} placeholder="Item code (e.g. BMDS40), item name, or keyword..."
+                value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key==='Enter' && doSearch()} />
+            </>
+          )}
+
+          {mode === 'smart' && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11,color:'var(--text2)',marginBottom:8 }}>
+                Fill any fields you know — item code, size, finish, MRP range. AI finds exact and nearest matches even without the product name.
+              </div>
+              <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:10 }}>
+                {[['item_code','Item Code'],['category','Category'],['size','Size (e.g. 400mm)'],['finish','Finish (e.g. Chrome)'],['mrp_min','Min MRP (Rs.)'],['mrp_max','Max MRP (Rs.)']].map(([k,ph]) => (
+                  <div key={k}>
+                    <div style={{ fontSize:10,color:'var(--text2)',fontWeight:600,marginBottom:4 }}>{ph.toUpperCase()}</div>
+                    <input style={S} placeholder={ph} value={smartFields[k]||''} onChange={e => setSmartFields(f => ({...f,[k]:e.target.value}))} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:'flex',gap:8 }}>
+                <input style={{ ...S,flex:1 }} placeholder="Optional: describe in plain text too..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key==='Enter' && doSmartMatch()} />
+                <button onClick={doSmartMatch} disabled={loading} style={{ background:'linear-gradient(135deg,#7c3aed,#6d28d9)',color:'#fff',border:'none',borderRadius:8,padding:'8px 20px',fontSize:12,cursor:'pointer',fontWeight:700,opacity:loading?0.6:1,whiteSpace:'nowrap' }}>
+                  {loading ? 'Matching...' : 'Smart Match'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'ai' && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11,color:'var(--text2)',marginBottom:6 }}>Describe what you need in plain language. AI extracts items and finds matches automatically.</div>
+              <textarea style={{ ...S, height:90, resize:'vertical' }}
+                placeholder={'Examples:\n"Soft-close hinges for 10-door kitchen, full overlay"\n"Jaquar CP fittings for 3 bathrooms, standard range"\n"Drawer slides 400mm and 500mm, 20 pairs each"'}
+                value={reqText} onChange={e => setReqText(e.target.value)} />
+              <button onClick={buildFromReq} disabled={reqLoading || !reqText.trim()}
+                style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',border:'none',borderRadius:8,padding:'8px 20px',fontSize:12,cursor:'pointer',fontWeight:700,marginTop:8,opacity:(reqLoading||!reqText.trim())?0.5:1 }}>
+                {reqLoading ? 'AI Working...' : 'Build Product List with AI'}
+              </button>
+            </div>
+          )}
+
+          {mode === 'upload' && (
+            <div style={{ marginBottom:14,background:'var(--bg)',border:'1px dashed var(--border)',borderRadius:10,padding:16 }}>
+              <div style={{ fontWeight:700,marginBottom:6 }}>Upload Product File (CSV or XLSX)</div>
+              <div style={{ fontSize:11,color:'var(--text2)',marginBottom:10 }}>Auto-detected columns: Item Code, Item Name, Category, Size, Finish, PCS/Set, SPU, MRP, HSN Code, Brand, Unit</div>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{ display:'none' }} onChange={e => setUploadFile(e.target.files[0])} />
+              <div style={{ display:'flex',gap:8,alignItems:'center' }}>
+                <button onClick={() => fileRef.current.click()} style={{ background:'rgba(37,99,235,0.1)',color:'#2563eb',border:'1px solid rgba(37,99,235,0.3)',borderRadius:8,padding:'7px 16px',fontSize:12,cursor:'pointer',fontWeight:700 }}>Choose File</button>
+                {uploadFile && <span style={{ fontSize:12,color:'var(--text2)' }}>{uploadFile.name}</span>}
+                {uploadFile && <button onClick={doUpload} disabled={uploading} style={{ background:'linear-gradient(135deg,#059669,#10b981)',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,cursor:'pointer',fontWeight:700 }}>{uploading?'Uploading...':'Upload'}</button>}
+              </div>
+              {uploadMsg && <div style={{ marginTop:8,fontSize:12,color:uploadMsg.startsWith('Loaded')?'#16a34a':'#dc2626',fontWeight:600 }}>{uploadMsg}</div>}
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <>
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10 }}>
+                <div style={{ fontSize:12,fontWeight:700 }}>{results.length} product{results.length!==1?'s':''} found</div>
+                <div style={{ display:'flex',gap:8 }}>
+                  <button onClick={toggleAll} style={{ fontSize:11,padding:'4px 12px',borderRadius:20,border:'1px solid var(--border)',background:'transparent',cursor:'pointer',fontWeight:600 }}>
+                    {allSel ? 'Deselect All' : 'Select All'}
+                  </button>
+                  {selCount > 0 && (
+                    <button onClick={addSelected} style={{ background:'linear-gradient(135deg,#059669,#16a34a)',color:'#fff',border:'none',borderRadius:8,padding:'6px 18px',fontSize:12,cursor:'pointer',fontWeight:800 }}>
+                      Add {selCount} to Quotation
+                    </button>
+                  )}
+                </div>
+              </div>
+              <table style={{ width:'100%',borderCollapse:'collapse',fontSize:12 }}>
+                <thead>
+                  <tr style={{ background:'var(--bg)',borderBottom:'2px solid var(--border)' }}>
+                    <th style={{ padding:'7px 8px',width:30 }}><input type="checkbox" checked={allSel} onChange={toggleAll} /></th>
+                    <th style={{ padding:'7px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600,width:90 }}>Match</th>
+                    <th style={{ padding:'7px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600 }}>Item Code</th>
+                    <th style={{ padding:'7px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600 }}>Item Name</th>
+                    <th style={{ padding:'7px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600 }}>Category</th>
+                    <th style={{ padding:'7px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600 }}>Size</th>
+                    <th style={{ padding:'7px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600 }}>Finish</th>
+                    <th style={{ padding:'7px 8px',textAlign:'center',color:'var(--text2)',fontWeight:600 }}>PCS/Set</th>
+                    <th style={{ padding:'7px 8px',textAlign:'right',color:'var(--text2)',fontWeight:600 }}>MRP</th>
+                    <th style={{ padding:'7px 8px',textAlign:'center',color:'var(--text2)',fontWeight:600 }}>Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((r, i) => (
+                    <tr key={i} onClick={() => toggleRow(i)} style={{ borderBottom:'1px solid var(--border)',cursor:'pointer',background:selected[i]!==undefined?'rgba(37,99,235,0.05)':'transparent' }}>
+                      <td style={{ padding:'7px 8px' }}><input type="checkbox" checked={selected[i]!==undefined} onChange={()=>toggleRow(i)} onClick={e=>e.stopPropagation()} /></td>
+                      <td style={{ padding:'7px 8px' }}>
+                        {r._tier && <span style={{ fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:10,background:(TIER_COLOR[r._tier]||'#6b7280')+'18',color:TIER_COLOR[r._tier]||'#6b7280',border:'1px solid '+(TIER_COLOR[r._tier]||'#6b7280')+'30',whiteSpace:'nowrap' }}>{r._tier}</span>}
+                      </td>
+                      <td style={{ padding:'7px 8px',fontWeight:700,color:'#2563eb',fontFamily:'monospace',fontSize:11 }}>{r.item_code||'—'}</td>
+                      <td style={{ padding:'7px 8px',fontWeight:600,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{r.item_name||r.product_name||'—'}</td>
+                      <td style={{ padding:'7px 8px',color:'var(--text2)',fontSize:11 }}>{r.category||'—'}</td>
+                      <td style={{ padding:'7px 8px',color:'var(--text2)',fontSize:11,maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{r.size||'—'}</td>
+                      <td style={{ padding:'7px 8px',color:'var(--text2)',fontSize:11 }}>{r.finish||'—'}</td>
+                      <td style={{ padding:'7px 8px',textAlign:'center',color:'var(--text2)',fontSize:11 }}>{r['pcs_/_set']||r['pcs / set']||r.unit||'—'}</td>
+                      <td style={{ padding:'7px 8px',textAlign:'right',fontWeight:700 }}>
+                        {(r.mrp||r.unit_price) ? 'Rs.' + Number(String(r.mrp||r.unit_price||0).replace(/[^0-9.]/g,'')).toLocaleString('en-IN') : '—'}
+                      </td>
+                      <td style={{ padding:'7px 8px',textAlign:'center' }} onClick={e => e.stopPropagation()}>
+                        {selected[i] !== undefined && (
+                          <input type="number" min="1" value={selected[i]} onChange={e => setSelected(s => ({...s,[i]:Math.max(1,+e.target.value)}))}
+                            style={{ width:50,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,fontSize:12,textAlign:'center',background:'var(--bg)' }} />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {selCount > 0 && (
+                <div style={{ position:'sticky',bottom:0,padding:'10px 0',borderTop:'1px solid var(--border)',background:'var(--card)',display:'flex',justifyContent:'flex-end',gap:10,marginTop:12 }}>
+                  <span style={{ fontSize:12,color:'var(--text2)',alignSelf:'center' }}>{selCount} item{selCount!==1?'s':''} selected</span>
+                  <button onClick={addSelected} style={{ background:'linear-gradient(135deg,#059669,#16a34a)',color:'#fff',border:'none',borderRadius:9,padding:'10px 24px',fontSize:13,cursor:'pointer',fontWeight:800,boxShadow:'0 4px 12px rgba(5,150,105,0.4)' }}>
+                    Add {selCount} Item{selCount!==1?'s':''} to Quotation
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {results.length === 0 && !loading && !reqLoading && (mode === 'search' || mode === 'smart') && (
+            <div style={{ textAlign:'center',padding:'28px 20px',color:'var(--text2)' }}>
+              <div style={{ fontWeight:700,marginBottom:4 }}>{mode==='smart' ? 'Fill any field above and click Smart Match' : 'Enter a keyword or code and click Search'}</div>
+              <div style={{ fontSize:12 }}>Files loaded: {files.map(f => f.filename + ' (' + f.count + ')').join(' / ') || 'None'}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Image Product Search Modal ─────────────────────────────────────────────────
 function ImageSearchModal({ onClose, onAddProduct }) {
   const [images,    setImages]   = useState([]); // [{file, preview, result, searching, error}]
@@ -2605,7 +2903,8 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [savedQuoteId, setSavedQuoteId]         = useState(null);
   const [showEmailDialog, setShowEmailDialog]   = useState(false);
-  const [showImageSearch, setShowImageSearch]   = useState(false);
+  const [showImageSearch,   setShowImageSearch]   = useState(false);
+  const [showProductLookup, setShowProductLookup] = useState(false);
 
   // Variant / tier pricing
   const [activeVariant, setActiveVariant] = useState('standard');
@@ -3359,7 +3658,23 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
                 style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', borderColor: 'transparent' }}>
                 📷 Search by Photo
               </button>
+
+              <button
+                className="qb-add-line-btn"
+                onClick={() => setShowProductLookup(true)}
+                title="Search Ebco, Sanjay Hardware and other product files by code, name, size, finish or MRP"
+                style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', borderColor: 'transparent' }}>
+                Product File Lookup
+              </button>
             </div>
+
+            {/* ── Product File Lookup Modal ── */}
+            {showProductLookup && (
+              <ProductFileLookupModal
+                onClose={() => setShowProductLookup(false)}
+                onAddLines={(lines) => lines.forEach(l => addLineFromProduct(l))}
+              />
+            )}
 
             {/* ── Image Search Modal ── */}
             {showImageSearch && (

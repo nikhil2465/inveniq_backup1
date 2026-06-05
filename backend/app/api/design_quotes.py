@@ -643,12 +643,34 @@ async def _ai_scan(text: str, images: Optional[List[dict]] = None) -> dict:
         return _demo_scan_result()
     try:
         from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=60.0)
+        client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=90.0)
         if images:
             user_content: list = []
             for img in images:
-                user_content.append({"type": "image_url", "image_url": {"url": f"data:{img['ct']};base64,{img['b64']}"}})
-            user_content.append({"type": "text", "text": text or "Extract all hardware, sanitary fittings, CP fittings, plumbing, tiles, and bathroom fitout requirements from these images. List every product visible — brand, model, finish, quantity."})
+                # Warn if individual image base64 is very large (>4 MB decoded ≈ 5.4 MB b64)
+                if len(img["b64"]) > 5_400_000:
+                    logger.warning("design_quotes: image too large (%d chars b64), skipping", len(img["b64"]))
+                    continue
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{img['ct']};base64,{img['b64']}", "detail": "high"},
+                })
+            if not user_content:
+                return {
+                    "scan_error": "Image(s) are too large for AI processing. Please use photos under 4 MB (reduce resolution or compress before uploading).",
+                    "extracted": _demo_scan_result()["extracted"],
+                    "data_source": "error",
+                }
+            user_content.append({
+                "type": "text",
+                "text": (text.strip() + "\n\n" if text and text.strip() else "") +
+                        "You are an expert estimator for the Indian interior design, architecture, hardware, sanitary, and CP fittings industry. "
+                        "Examine every detail in these images. Extract EVERY product, material, fitting, and component visible — "
+                        "including CP fittings, sanitary ware, tiles, bathroom accessories, hardware (hinges, channels, handles, locks), "
+                        "plumbing, doors, windows, flooring, false ceiling, wall paneling, furniture, and any other interior elements. "
+                        "For each item give full brand+model name, type, unit, quantity (per unit and total if project scale is given), "
+                        "HSN code, and specifications. Do not omit anything visible.",
+            })
             messages = [
                 {"role": "system", "content": _INTERIOR_SCAN_PROMPT},
                 {"role": "user", "content": user_content},
@@ -656,18 +678,30 @@ async def _ai_scan(text: str, images: Optional[List[dict]] = None) -> dict:
         else:
             messages = [
                 {"role": "system", "content": _INTERIOR_SCAN_PROMPT},
-                {"role": "user", "content": text or "Extract all hardware, sanitary, CP fittings, plumbing, and bathroom fitout requirements."},
+                {"role": "user", "content":
+                    (text.strip() if text and text.strip() else
+                     "Extract all hardware, sanitary fittings, CP fittings, plumbing, tiles, and interior fitout requirements. "
+                     "Be thorough — list every product mentioned including brand, model, finish, quantity, and HSN code.")
+                },
             ]
         resp = await client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            max_tokens=2500,
+            max_tokens=4000,
             response_format={"type": "json_object"},
         )
-        return {"extracted": json.loads(resp.choices[0].message.content), "data_source": "ai"}
+        raw = resp.choices[0].message.content
+        extracted = json.loads(raw)
+        return {"extracted": extracted, "data_source": "ai"}
     except Exception as exc:
-        logger.warning("design_quotes: AI scan failed — %s", exc)
-        return _demo_scan_result()
+        logger.error("design_quotes: AI scan failed — %s", exc)
+        # Key exists but API call failed — return demo data WITHOUT the misleading
+        # "configure OPENAI_API_KEY" message; surface the real error instead.
+        demo = _demo_scan_result()
+        demo["data_source"] = "error"
+        demo["demo_note"] = None
+        demo["scan_error"] = f"AI scan failed: {str(exc)[:200]}"
+        return demo
 
 
 async def _ai_parse_architect(text: str) -> dict:
@@ -1296,6 +1330,7 @@ async def scan_requirements(
     images: List[dict] = []
     IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 
+    MAX_IMAGE_BYTES = 4 * 1024 * 1024  # 4 MB per image
     for f in (file or []):
         if not f or not f.filename:
             continue
@@ -1303,6 +1338,12 @@ async def scan_requirements(
         ct = (f.content_type or "").lower()
         fn = (f.filename or "").lower()
         if ct.startswith("image/") or fn.endswith(IMAGE_EXTS):
+            if len(raw) > MAX_IMAGE_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Image '{f.filename}' is {len(raw)//1024}KB — maximum is 4 MB. "
+                           "Please reduce the image resolution or compress it before uploading.",
+                )
             b64 = base64.b64encode(raw).decode()
             images.append({"b64": b64, "ct": ct if ct.startswith("image/") else "image/jpeg"})
         else:

@@ -806,7 +806,64 @@ async def create_quote(req: CreateQuoteRequest):
         "line_items":  _line_items_expanded(req.line_items),
     }
     logger.info("Created demo quote %s for %s", quote["quote_number"], req.customer_name)
+    # Auto-notify via WhatsApp (non-blocking, best-effort)
+    if req.contact_phone:
+        try:
+            from app.services.whatsapp_notify import send_quotation_whatsapp
+            asyncio.create_task(send_quotation_whatsapp(
+                customer_phone = req.contact_phone,
+                customer_name  = req.customer_name,
+                quote_number   = quote["quote_number"],
+                grand_total    = quote["grand_total"],
+                items_count    = len(req.line_items),
+                valid_till     = quote["valid_till"],
+                project_name   = req.project_name or "",
+            ))
+        except Exception:
+            pass
     return {"quote": quote, "message": "Quote created (demo mode — not persisted)", "data_source": "demo"}
+
+
+@router.post("/quotes/{quote_id}/send-whatsapp")
+async def send_whatsapp_notification(quote_id: int, payload: dict = {}):
+    """Manually trigger a WhatsApp notification for any existing quote."""
+    from app.services.whatsapp_notify import send_quotation_whatsapp
+
+    # Try to fetch the quote from DB first, fallback to payload fields
+    quote_data = {}
+    try:
+        from app.db.connection import get_pool
+        from app.db import quote_queries
+        pool = await get_pool()
+        if pool:
+            quote_data = await quote_queries.get_quote_by_id(pool, quote_id) or {}
+    except Exception:
+        pass
+
+    # Merge explicit payload overrides
+    phone      = payload.get("contact_phone") or quote_data.get("contact_phone", "")
+    name       = payload.get("customer_name") or quote_data.get("customer_name", "Customer")
+    qnum       = payload.get("quote_number")  or quote_data.get("quote_number", f"QT-{quote_id}")
+    total      = payload.get("grand_total")   or quote_data.get("grand_total", 0)
+    items      = payload.get("items_count")   or len(quote_data.get("line_items", []))
+    valid_till = payload.get("valid_till")    or quote_data.get("valid_till", "")
+    project    = payload.get("project_name")  or quote_data.get("project_name", "")
+    extra_msg  = payload.get("message", "")
+
+    if not phone:
+        raise HTTPException(status_code=422, detail="contact_phone is required (provide in request body if quote not in DB)")
+
+    result = await send_quotation_whatsapp(
+        customer_phone = phone,
+        customer_name  = name,
+        quote_number   = qnum,
+        grand_total    = total,
+        items_count    = items,
+        valid_till     = valid_till,
+        project_name   = project,
+        extra_msg      = extra_msg,
+    )
+    return result
 
 
 @router.put("/quotes/{quote_id}/status")

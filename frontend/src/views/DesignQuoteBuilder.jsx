@@ -668,75 +668,141 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
     });
   };
 
+  // Check image sizes before scan
+  const oversized = files.filter(f => f.size > 4 * 1024 * 1024);
+
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 760, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontWeight: 900, fontSize: 15 }}>📱 WhatsApp / Image Scanner</span>
+      <div style={{ ...MODAL_BOX, maxWidth: 800, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'linear-gradient(135deg,rgba(8,145,178,0.08),transparent)' }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 15 }}>📱 WhatsApp / Image Scanner</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Scan photos or paste requirements — AI extracts every item for the architect & interior industry</div>
+          </div>
           <button onClick={onClose} style={CLOSE_BTN}>✕</button>
         </div>
+
         <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
 
           {/* Mode tabs */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
-            {[['text','💬 Text / Message'], ['image','📷 Photos']].map(([m, l]) => (
-              <button key={m} onClick={() => setMode(m)} style={{ ...SEC_BTN, background: mode === m ? 'rgba(8,145,178,0.12)' : 'transparent', color: mode === m ? '#0891b2' : 'var(--muted)', borderColor: mode === m ? '#0891b2' : 'var(--border)' }}>{l}</button>
+            {[['text','💬 Text / WhatsApp Message'], ['image','📷 Photos / Site Images']].map(([m, l]) => (
+              <button key={m} onClick={() => { setMode(m); }} style={{ ...SEC_BTN, background: mode === m ? 'rgba(8,145,178,0.12)' : 'transparent', color: mode === m ? '#0891b2' : 'var(--muted)', borderColor: mode === m ? '#0891b2' : 'var(--border)', fontWeight: mode === m ? 700 : 600 }}>{l}</button>
             ))}
           </div>
 
           {mode === 'text' && (
-            <textarea style={{ ...INP, height: 130, resize: 'vertical' }} placeholder="Paste WhatsApp message, requirements list, or project brief…" value={text} onChange={e => setText(e.target.value)} />
+            <textarea style={{ ...INP, height: 140, resize: 'vertical', fontSize: 13 }}
+              placeholder={`Paste WhatsApp messages, BOQ requirements, or project brief here…\n\nExamples:\n• "Need Jaquar CP fittings for 24 units, 3 bathrooms each — premium range"\n• "Master bath: EWC, basin mixer, shower set. Common bath: basic set. Kitchen: SS sink + mixer"`}
+              value={text} onChange={e => setText(e.target.value)} />
           )}
+
           {mode === 'image' && (
             <div>
-              <input ref={fileRef} type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
-              <button onClick={() => fileRef.current.click()} style={{ ...SEC_BTN, marginBottom: 10 }}>📎 Add Photos ({files.length})</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <input ref={fileRef} type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
+                <button onClick={() => fileRef.current.click()} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', padding: '8px 16px', fontSize: 12 }}>
+                  📷 Add Photos ({files.length})
+                </button>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>Max 4 MB per image · JPEG/PNG/WebP</span>
+              </div>
+
+              {/* Oversized warning */}
+              {oversized.length > 0 && (
+                <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 10 }}>
+                  ⚠ {oversized.map(f => f.name).join(', ')} {oversized.length === 1 ? 'is' : 'are'} over 4 MB. Please compress or reduce resolution before uploading.
+                </div>
+              )}
+
               {files.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                   {files.map((f, i) => (
                     <div key={i} style={{ position: 'relative' }}>
-                      <img src={URL.createObjectURL(f)} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
-                      <button onClick={() => setFiles(fs => fs.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: '50%', background: '#dc2626', color: '#fff', border: 'none', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                      <img src={URL.createObjectURL(f)} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: `2px solid ${f.size > 4*1024*1024 ? '#dc2626' : 'var(--border)'}` }} />
+                      <div style={{ position: 'absolute', bottom: 2, left: 2, right: 2, background: 'rgba(0,0,0,0.6)', borderRadius: 4, fontSize: 9, color: '#fff', padding: '1px 3px', textAlign: 'center' }}>{(f.size/1024).toFixed(0)}KB</div>
+                      <button onClick={() => setFiles(fs => fs.filter((_, j) => j !== i))} style={{ position:'absolute',top:-5,right:-5,width:18,height:18,borderRadius:'50%',background:'#dc2626',color:'#fff',border:'none',fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>✕</button>
                     </div>
                   ))}
                 </div>
               )}
-              <textarea style={{ ...INP, height: 70 }} placeholder="Optional: add text context for images…" value={text} onChange={e => setText(e.target.value)} />
+              <textarea style={{ ...INP, height: 70, fontSize: 12 }} placeholder="Optional: add context — project name, client, location, no. of units, budget tier…" value={text} onChange={e => setText(e.target.value)} />
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={scan} disabled={scanning} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: scanning ? 0.6 : 1 }}>
-              {scanning ? '⏳ Scanning…' : '⚡ Scan & Extract'}
+          {/* Scan buttons */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <button onClick={scan} disabled={scanning || oversized.length > 0}
+              style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: (scanning || oversized.length > 0) ? 0.5 : 1, fontSize: 13, padding: '10px 22px' }}>
+              {scanning ? '⏳ AI Extracting…' : '⚡ Scan & Extract'}
             </button>
-            {result && <button onClick={useResult} style={{ ...PRI_BTN }}>✅ Create Quote from Results</button>}
+            {scanning && <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>GPT-4o is analysing your requirements…</span>}
           </div>
 
-          {/* Results */}
+          {/* Results area */}
           {result?.extracted && (
-            <div style={{ marginTop: 18 }}>
-              {result.demo_note && <div style={{ background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.3)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#d97706', marginBottom: 12 }}>{result.demo_note}</div>}
-              <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 10 }}>Extracted: {result.extracted.project_name || 'Requirements'}</div>
+            <div style={{ marginTop: 20 }}>
+
+              {/* Error banner — shown when AI call failed (key exists but call errored) */}
+              {result.scan_error && (
+                <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#dc2626', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: 3 }}>⚠ AI scan error — showing sample data below</div>
+                    <div style={{ color: '#9ca3af', fontSize: 11 }}>{result.scan_error}</div>
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#6b7280' }}>Tip: Check that your OpenAI API key has GPT-4o access and the image is under 4 MB. You can still create a quotation from the sample data and edit it.</div>
+                  </div>
+                  <button onClick={scan} style={{ ...SEC_BTN, fontSize: 11, padding: '4px 10px', flexShrink: 0, color: '#dc2626', borderColor: 'rgba(220,38,38,0.3)' }}>🔄 Retry</button>
+                </div>
+              )}
+
+              {/* Demo note — shown only when NO API key is configured */}
+              {result.demo_note && !result.scan_error && (
+                <div style={{ background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#d97706', marginBottom: 12 }}>
+                  <strong>Demo mode:</strong> {result.demo_note}
+                </div>
+              )}
+
+              {/* AI source badge */}
+              {result.data_source === 'ai' && (
+                <div style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#16a34a', marginBottom: 12, fontWeight: 700 }}>
+                  ✅ Live AI extraction — {(result.extracted.rooms || []).reduce((s, r) => s + (r.items||[]).length, 0)} items extracted from your {result.extracted.rooms?.length || 0} room(s)
+                </div>
+              )}
+
+              {/* Result header + summary */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>{result.extracted.project_name || 'Extracted Requirements'}</div>
+                  {result.extracted.client_name && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Client: {result.extracted.client_name}{result.extracted.no_of_units ? ` · ${result.extracted.no_of_units} units` : ''}{result.extracted.no_of_bathrooms_per_unit ? ` · ${result.extracted.no_of_bathrooms_per_unit} baths/unit` : ''}</div>}
+                </div>
+                {/* ALWAYS shown — primary CTA */}
+                <button onClick={useResult} style={{ ...PRI_BTN, fontSize: 13, padding: '10px 22px', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', boxShadow: '0 4px 14px rgba(124,58,237,0.4)' }}>
+                  ✅ Create Quotation →
+                </button>
+              </div>
+
               {(result.extracted.rooms || []).map((room, ri) => (
                 <div key={ri} style={{ background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 10, overflow: 'hidden' }}>
-                  <div style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'var(--card)' }} onClick={() => setCollapsed(c => ({ ...c, [ri]: !c[ri] }))}>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>{room.room_name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({(room.items || []).length} items)</span></span>
-                    <span style={{ color: 'var(--muted)' }}>{collapsed[ri] ? '▶' : '▼'}</span>
+                  <div style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'var(--card)', borderBottom: collapsed[ri] ? 'none' : '1px solid var(--border)' }} onClick={() => setCollapsed(c => ({ ...c, [ri]: !c[ri] }))}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>{room.room_name} <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>· {(room.items || []).length} items</span></span>
+                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>{collapsed[ri] ? '▶ Expand' : '▼ Collapse'}</span>
                   </div>
                   {!collapsed[ri] && (
                     <div style={{ padding: '8px 14px' }}>
                       {(room.items || []).map((it, ii) => (
-                        <div key={ii} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div key={ii} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 12, fontWeight: 600 }}>{it.item_name}</div>
-                            <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{it.item_name}</div>
+                            <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                               <ItemTypeBadge type={it.item_type} />
-                              {it.qty && <span style={{ fontSize: 10, color: '#0891b2', background: 'rgba(8,145,178,0.1)', borderRadius: 10, padding: '1px 7px' }}>Qty: {it.qty} {it.unit}</span>}
-                              {it.inferred_hsn && <span style={{ fontSize: 10, color: '#6b7280', background: 'rgba(107,114,128,0.1)', borderRadius: 10, padding: '1px 7px' }}>HSN {it.inferred_hsn}</span>}
+                              {it.qty && <span style={{ fontSize: 10, color: '#0891b2', background: 'rgba(8,145,178,0.1)', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>Qty: {it.qty} {it.unit}</span>}
+                              {it.inferred_hsn && <span style={{ fontSize: 10, color: '#6b7280', background: 'rgba(107,114,128,0.1)', borderRadius: 10, padding: '2px 8px' }}>HSN {it.inferred_hsn}</span>}
+                              {it.material_preference && <span style={{ fontSize: 10, color: '#7c3aed', background: 'rgba(124,58,237,0.08)', borderRadius: 10, padding: '2px 8px' }}>{it.material_preference}</span>}
                             </div>
-                            {it.specifications && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{it.specifications}</div>}
+                            {it.specifications && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>{it.specifications}</div>}
                           </div>
-                          <button onClick={() => saveToCatalog(it)} style={{ ...SEC_BTN, fontSize: 11, padding: '3px 9px', color: '#16a34a', borderColor: 'rgba(22,163,74,0.3)', flexShrink: 0, marginLeft: 10 }}>💾 Catalog</button>
+                          <button onClick={() => saveToCatalog(it)} style={{ ...SEC_BTN, fontSize: 11, padding: '4px 10px', color: '#16a34a', borderColor: 'rgba(22,163,74,0.3)', flexShrink: 0, marginLeft: 12 }}>💾 Catalog</button>
                         </div>
                       ))}
                     </div>

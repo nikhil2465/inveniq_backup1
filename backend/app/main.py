@@ -1,4 +1,4 @@
-"""InvenIQ — Inventory Intelligence Platform — FastAPI Application Entry Point."""
+﻿"""InvenIQ â€” Inventory Intelligence Platform â€” FastAPI Application Entry Point."""
 import logging
 import sys
 import time
@@ -24,6 +24,7 @@ from app.api.louvers_laminates import router as louvers_router
 from app.api.customer_claims import router as claims_router
 from app.api.analytics import router as analytics_router
 from app.api.catalog import router as catalog_router
+from app.api.product_import import router as product_import_router
 from app.api.projects import router as projects_router
 from app.api.quotes import router as quotes_router
 from app.api.credit import router as credit_router
@@ -48,14 +49,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 logger = logging.getLogger(__name__)
 
-# ── JWT Auth Middleware ────────────────────────────────────────────────────────
-# Pure ASGI middleware — zero impact on streaming responses (no BaseHTTPMiddleware buffering)
+# â”€â”€ JWT Auth Middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Pure ASGI middleware â€” zero impact on streaming responses (no BaseHTTPMiddleware buffering)
 _AUTH_PUBLIC = frozenset({
     "/api/health", "/api/ready", "/api/db/status",
     "/", "/docs", "/openapi.json", "/redoc",
 })
 
-# ── Module Access Middleware — maps module IDs → API route prefixes ───────────
+# â”€â”€ Module Access Middleware â€” maps module IDs â†’ API route prefixes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # API paths allowed for each module. Prefixes are matched with startswith().
 _MODULE_API_PREFIXES: dict[str, tuple[str, ...]] = {
     "overview":    ("/api/overview", "/api/alerts", "/api/data-status", "/api/validate"),
@@ -164,8 +165,8 @@ class ModuleAccessMiddleware:
     """
     Enforces module-level API access based on `allowed_modules` claim in the JWT.
     Runs AFTER AuthMiddleware (which sets scope["user"]).
-    - role="admin" or allowed_modules="all" → unrestricted.
-    - Otherwise → only API prefixes matching the allowed module list are permitted.
+    - role="admin" or allowed_modules="all" â†’ unrestricted.
+    - Otherwise â†’ only API prefixes matching the allowed module list are permitted.
     Returns 403 for blocked paths; non-API paths always pass through.
     """
 
@@ -213,7 +214,7 @@ class ModuleAccessMiddleware:
                 await self.app(scope, receive, send)
                 return
 
-        # Path not covered by any allowed module — deny
+        # Path not covered by any allowed module â€” deny
         response = JSONResponse(
             {
                 "error": "Access denied. This feature is not available in your plan.",
@@ -247,12 +248,12 @@ _JWT_DEFAULT_KEY = "inveniq-dev-change-this-in-production-2026"
 async def lifespan(_app: FastAPI):
     cfg = get_settings()
     logger.info("=" * 52)
-    logger.info("  InvenIQ v3.3 — AI Inventory Intelligence Platform")
+    logger.info("  InvenIQ v3.3 â€” AI Inventory Intelligence Platform")
     logger.info("=" * 52)
 
-    # ── JWT secret validation ─────────────────────────────────────────────────
+    # â”€â”€ JWT secret validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if cfg.jwt_secret_key == _JWT_DEFAULT_KEY:
-        logger.warning("  !! JWT_SECRET_KEY is the dev default — set a strong random key in .env before production !!")
+        logger.warning("  !! JWT_SECRET_KEY is the dev default â€” set a strong random key in .env before production !!")
 
     pool = None
     db_ok = False
@@ -263,7 +264,7 @@ async def lifespan(_app: FastAPI):
     else:
         logger.info("  MySQL   : DEMO MODE  (set MYSQL_HOST in .env for live data)")
 
-    # ── Run startup DB migrations ─────────────────────────────────────────────
+    # â”€â”€ Run startup DB migrations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if db_ok and pool:
         try:
             from app.services.startup_migrations import run_all as _run_migrations
@@ -271,11 +272,11 @@ async def lifespan(_app: FastAPI):
             failed = mig.get("failed", [])
             created = mig.get("created", [])
             if failed:
-                logger.warning("  Migrations: %d table(s) failed — %s", len(failed), [f["table"] for f in failed])
+                logger.warning("  Migrations: %d table(s) failed â€” %s", len(failed), [f["table"] for f in failed])
             else:
                 logger.info("  Migrations: %d table(s) verified OK", len(created))
         except Exception as _mig_exc:
-            logger.warning("  Migrations: startup migration runner failed — %s", _mig_exc)
+            logger.warning("  Migrations: startup migration runner failed â€” %s", _mig_exc)
 
     logger.info("  OpenAI  : %s", "CONFIGURED" if cfg.openai_api_key else "NOT SET  (set OPENAI_API_KEY for AI features)")
     logger.info("  Routers : 27  |  Endpoints : 175+")
@@ -289,7 +290,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="InvenIQ API",
-    description="Inventory Intelligence Platform — AI-powered insights for dealers & distributors",
+    description="Inventory Intelligence Platform â€” AI-powered insights for dealers & distributors",
     version="3.3.0",
     lifespan=lifespan,
 )
@@ -305,7 +306,7 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(ModuleAccessMiddleware)  # enforces module access (runs after AuthMiddleware sets scope["user"])
-app.add_middleware(AuthMiddleware)  # outermost — validates JWT before any route executes
+app.add_middleware(AuthMiddleware)  # outermost â€” validates JWT before any route executes
 
 if _RATE_LIMIT_AVAILABLE and limiter:
     app.state.limiter = limiter
@@ -322,19 +323,19 @@ async def request_logging_middleware(request: Request, call_next):
     # Only log non-health-check calls to keep logs clean
     if request.url.path not in ("/api/health", "/api/db/status"):
         logger.info(
-            "[%s] %s %s → %d  %.1fms",
+            "[%s] %s %s â†’ %d  %.1fms",
             req_id, request.method, request.url.path, response.status_code, elapsed,
         )
     response.headers["X-Request-ID"]    = req_id
     response.headers["X-Response-Time"] = f"{elapsed:.1f}ms"
-    # Security headers — applied to all responses
+    # Security headers â€” applied to all responses
     response.headers["X-Content-Type-Options"]  = "nosniff"
     response.headers["X-Frame-Options"]         = "DENY"
     response.headers["X-XSS-Protection"]        = "1; mode=block"
     response.headers["Referrer-Policy"]         = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"]      = "camera=(), microphone=(), geolocation=()"
     # Content-Security-Policy: applied to HTML responses only (SPA index.html).
-    # Docs (/docs, /redoc) use external CDN assets and inline scripts — excluded to
+    # Docs (/docs, /redoc) use external CDN assets and inline scripts â€” excluded to
     # keep the Swagger UI functional. API JSON responses don't need CSP.
     _ct = response.headers.get("content-type", "")
     if _ct.startswith("text/html") and request.url.path not in ("/docs", "/redoc", "/openapi.json"):
@@ -349,7 +350,7 @@ async def request_logging_middleware(request: Request, call_next):
             "base-uri 'self'; "
             "form-action 'self';"
         )
-    # Prevent browser from caching index.html — ensures the browser always loads
+    # Prevent browser from caching index.html â€” ensures the browser always loads
     # the latest main.xxx.js with correct chunk hashes after every new build.
     # Hashed JS/CSS assets (e.g. main.abc123.js) are immutable and can be cached forever.
     if request.url.path in ("/", "/index.html") or (
@@ -370,7 +371,8 @@ app.include_router(discounts_router, prefix="/api")
 app.include_router(louvers_router,   prefix="/api")
 app.include_router(claims_router,    prefix="/api")
 app.include_router(analytics_router, prefix="/api")
-app.include_router(catalog_router,   prefix="/api")
+app.include_router(catalog_router,        prefix="/api")
+app.include_router(product_import_router,  prefix="/api")
 app.include_router(projects_router,  prefix="/api")
 app.include_router(quotes_router,    prefix="/api")
 app.include_router(credit_router,    prefix="/api")
@@ -419,15 +421,15 @@ async def health():
 
 @app.get("/api/ready", tags=["Health"])
 async def readiness():
-    """Readiness probe — returns 503 if critical services are not available."""
+    """Readiness probe â€” returns 503 if critical services are not available."""
     cfg = get_settings()
     issues = []
     if not cfg.openai_api_key:
-        issues.append("OPENAI_API_KEY not configured — AI chat will not work")
+        issues.append("OPENAI_API_KEY not configured â€” AI chat will not work")
     if _DB_AVAILABLE and cfg.mysql_host:
         db_ok = await is_db_available()
         if not db_ok:
-            issues.append(f"MySQL unreachable at {cfg.mysql_host} — running in demo mode")
+            issues.append(f"MySQL unreachable at {cfg.mysql_host} â€” running in demo mode")
     if issues:
         return JSONResponse(
             status_code=503,
@@ -449,13 +451,13 @@ async def db_status():
         "host": cfg.mysql_host,
         "database": cfg.mysql_db,
         "data_source": "mysql" if ok else "demo",
-        "reason": "Connected" if ok else "Connection failed — check credentials",
+        "reason": "Connected" if ok else "Connection failed â€” check credentials",
     }
 
 
 @app.get("/api/settings", tags=["Health"])
 async def get_settings_info():
-    """System configuration summary — consumed by the Settings view."""
+    """System configuration summary â€” consumed by the Settings view."""
     cfg = get_settings()
     db_ok = await is_db_available() if _DB_AVAILABLE else False
     openai_ok = bool(cfg.openai_api_key)
@@ -494,9 +496,9 @@ async def get_settings_info():
     }
 
 
-# ── Production static file serving ─────────────────────────────────────────
+# â”€â”€ Production static file serving â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # When the React build exists (npm run build was run), FastAPI serves the SPA
-# on the same port as the API — no nginx needed for single-machine installs.
+# on the same port as the API â€” no nginx needed for single-machine installs.
 # Dev mode: React runs on :3000 with its own dev server (build dir absent).
 # Docker mode: nginx serves static files; build dir is absent in the container.
 _FRONTEND_BUILD = (
@@ -508,3 +510,5 @@ if _FRONTEND_BUILD.is_dir():
     from fastapi.staticfiles import StaticFiles
     app.mount("/", StaticFiles(directory=str(_FRONTEND_BUILD), html=True), name="static")
     logger.info("  Static : React SPA served from %s", _FRONTEND_BUILD)
+
+
