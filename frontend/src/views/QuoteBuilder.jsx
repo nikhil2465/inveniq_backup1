@@ -7,8 +7,13 @@ import PageLoader from '../components/PageLoader';
 import { useDraggable } from '../components/DraggableModal';
 
 // ── GST Utilities — Indian GST split logic (CGST+SGST intrastate / IGST interstate) ──
-// Company GSTIN state code — update this in Company Profile → used for all tax determination
-const _COMPANY_STATE_CODE = '29'; // 29 = Karnataka (update via Company Profile API)
+// Company GSTIN state code — fetched from Company Profile API at module load.
+// Falls back to '29' (Karnataka) if the API is unavailable or GSTIN is not set.
+let _COMPANY_STATE_CODE = '29';
+fetch('/api/company-profile')
+  .then(r => r.ok ? r.json() : null)
+  .then(d => { if (d?.gstin?.length >= 2) _COMPANY_STATE_CODE = d.gstin.slice(0, 2); })
+  .catch(() => {});
 const _gstStateCode = (gstin) => (gstin || '').slice(0, 2);
 const _isIgst = (customerGstin) => {
   if (!customerGstin || customerGstin.length < 15) return false; // no GSTIN → assume intrastate
@@ -491,6 +496,25 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
                 <span className="scan-count">{(result.matched_products || []).length - skippedItems.size} active · {(result.matched_products || []).length} total</span>
               </div>
 
+              {/* Match quality summary — quick overview before scrolling through items */}
+              {(result.matched_products || []).length > 0 && (() => {
+                const mps = result.matched_products;
+                const exact  = mps.filter(mp => mp.confidence === 'exact').length;
+                const high   = mps.filter(mp => mp.confidence === 'high').length;
+                const medium = mps.filter(mp => mp.confidence === 'medium').length;
+                const none   = mps.filter(mp => mp.confidence === 'none').length;
+                const active = mps.length - skippedItems.size;
+                return (
+                  <div style={{ display: 'flex', gap: 5, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {exact  > 0 && <span style={{ fontSize: 10, background: 'rgba(124,58,237,0.08)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 5, padding: '2px 8px', fontWeight: 800 }}>⚡ {exact} Exact SKU</span>}
+                    {high   > 0 && <span style={{ fontSize: 10, background: 'rgba(22,163,74,0.07)', color: 'var(--green)', border: '1px solid rgba(22,163,74,0.2)', borderRadius: 5, padding: '2px 8px', fontWeight: 700 }}>✓ {high} High match</span>}
+                    {medium > 0 && <span style={{ fontSize: 10, background: 'rgba(146,64,14,0.07)', color: 'var(--amber)', border: '1px solid var(--a4)', borderRadius: 5, padding: '2px 8px', fontWeight: 700 }}>~ {medium} Medium</span>}
+                    {none   > 0 && <span style={{ fontSize: 10, background: 'var(--a5)', color: 'var(--a2)', border: '1px solid var(--a4)', borderRadius: 5, padding: '2px 8px', fontWeight: 700 }}>⚠ {none} Not in catalog</span>}
+                    <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>{active} item{active !== 1 ? 's' : ''} → quote</span>
+                  </div>
+                );
+              })()}
+
               {/* Accept-All-Exact shortcut */}
               {(result.matched_products || []).some(mp => mp.confidence === 'exact') && (
                 <button
@@ -690,21 +714,23 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
                 onClick={() => {
                   // Save to localStorage for DQB to pick up
                   const items = (result?.matched_products || []).map((mp, i) => {
+                    if (skippedItems.has(i)) return null;
                     const pid = selectedProducts[i];
                     const prod = (mp.matches || []).find(p => String(p.product_id) === String(pid)) || mp.best_match;
                     const req = mp.required || {};
+                    const inferredCat = req.inferred_category || prod?.category || '';
                     return {
-                      item_name:   req.description || (prod?.name || ''),
+                      item_name:   mp.catalog_name || req.description || prod?.name || '',
                       description: req.specifications || '',
-                      item_type:   'cp_fittings',
-                      unit:        req.unit || 'Nos',
-                      qty:         req.quantity || 1,
+                      item_type:   _QB_TO_DQB_TYPE[inferredCat] || 'cp_fittings',
+                      unit:        req.unit || prod?.unit || 'Nos',
+                      qty:         itemQty[i] !== undefined ? itemQty[i] : (req.quantity || 1),
                       specifications: req.specifications || '',
                       material_preference: prod?.brand || '',
-                      inferred_hsn: req.inferred_hsn || '8302',
-                      inferred_category: req.inferred_category || '',
+                      inferred_hsn: req.inferred_hsn || prod?.hsn_code || '8302',
+                      inferred_category: inferredCat,
                     };
-                  }).filter(x => x.item_name);
+                  }).filter(Boolean).filter(x => x.item_name);
                   const ext = result?.extracted || {};
                   localStorage.setItem('inveniq_qb_to_dqb', JSON.stringify({
                     timestamp: new Date().toISOString(),
@@ -1645,6 +1671,30 @@ function ImageSearchModal({ onClose, onAddProduct }) {
   );
 }
 
+// Maps scan inferred_category → DQB item_type (used when sending QB scan results to DQB)
+const _QB_TO_DQB_TYPE = {
+  'CP Fittings — Taps & Mixers':       'cp_fittings',
+  'CP Fittings — Showers & Overhead':  'cp_fittings',
+  'CP Fittings — Accessories':         'cp_fittings',
+  'Sanitary Ware — WC / EWC':          'sanitary_ware',
+  'Sanitary Ware — Wash Basin':        'sanitary_ware',
+  'Sanitary Ware — Bathtub / Jacuzzi': 'sanitary_ware',
+  'Sanitary Ware — Urinal':            'sanitary_ware',
+  'Bathroom Accessories':              'bathroom_accessories',
+  'Kitchen Fittings — Sink & Mixer':   'cp_fittings',
+  'Hardware — Hinges & Channels':      'hardware_hinges',
+  'Hardware — Drawer Systems':         'hardware_channels',
+  'Hardware — Handles & Knobs':        'hardware_handles',
+  'Hardware — Locks & Latches':        'hardware_locks',
+  'Plumbing — CPVC / PVC Pipes':       'plumbing',
+  'Plumbing — GI / MS Pipes':          'plumbing',
+  'Plumbing — Valves & Stop Cocks':    'plumbing',
+  'Tiles & Stone':                     'tiles',
+  'Waterproofing':                     'waterproofing',
+  'Installation & Labour':             'installation',
+  'AMC / Maintenance Services':        'installation',
+};
+
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt    = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 const fmtL   = (n) => { const v = Number(n); return v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : fmt(v); };
@@ -1724,11 +1774,11 @@ const HSN_MAP = {
   'Hardware — Handles & Knobs':        { hsn: '8302', gst: 18 },
   'Hardware — Locks & Latches':        { hsn: '8301', gst: 18 },
   'Hardware — Drawer Systems':         { hsn: '8302', gst: 18 },
-  'Plumbing — CPVC / PVC Pipes':       { hsn: '3917', gst: 18 },
+  'Plumbing — CPVC / PVC Pipes':       { hsn: '3917', gst: 12 }, // GST reduced to 12% (pipes/fittings)
   'Plumbing — GI / MS Pipes':          { hsn: '7306', gst: 18 },
   'Plumbing — Valves & Stop Cocks':    { hsn: '8481', gst: 18 },
   'Floor Drains & Floor Traps':        { hsn: '3922', gst: 18 },
-  'Tiles & Stone':                     { hsn: '6907', gst: 18 },
+  'Tiles & Stone':                     { hsn: '6907', gst: 12 }, // GST 12% on vitrified/ceramic tiles
   'Waterproofing':                     { hsn: '3214', gst: 18 },
   'Installation & Labour':             { hsn: '9954', gst: 18 },
   'AMC / Maintenance Services':        { hsn: '9987', gst: 18 },
@@ -3154,6 +3204,32 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
   const [marginMode, setMarginMode]           = useState('line');
   const [targetMarginPct, setTargetMarginPct] = useState(20);
 
+  // Auto-suggest T&C template when customer_type changes (only fires on actual change)
+  const _prevCustType = useRef(f.customer_type);
+  useEffect(() => {
+    if (f.customer_type === _prevCustType.current) return;
+    _prevCustType.current = f.customer_type;
+    const _TC_SUGGESTION = {
+      'Builder / Developer':    'builder',
+      'Contractor':             'contractor',
+      'Plumber':                'contractor',
+      'End Consumer':           'endconsumer',
+      'Hotel / Hospitality':    'hospitality',
+      'Government / Institution': 'builder',
+    };
+    const sugKey = _TC_SUGGESTION[f.customer_type] || 'standard';
+    if (sugKey === tcKey) return; // already on the right template
+    const tpl = TC_TEMPLATES[sugKey];
+    if (!tpl) return;
+    setTcKey(sugKey);
+    // Only overwrite if user hasn't modified the defaults
+    setF(prev => ({
+      ...prev,
+      payment_terms:  prev.payment_terms  === PAYMENT_TERMS[0] || !prev.payment_terms  ? (sugKey === 'builder' ? PAYMENT_TERMS[0] : sugKey === 'contractor' ? PAYMENT_TERMS[1] : sugKey === 'endconsumer' ? PAYMENT_TERMS[2] : prev.payment_terms) : prev.payment_terms,
+      warranty_clause: prev.warranty_clause === WARRANTY_CLAUSES[2] || !prev.warranty_clause ? WARRANTY_CLAUSES[2] : prev.warranty_clause,
+    }));
+  }, [f.customer_type]);
+
   // Add a full product bundle as line items
   const addBundle = (bundle) => {
     const newItems = bundle.items.map(item => ({
@@ -3174,17 +3250,38 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
   const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
   const addLineFromProduct = (product) => setLines(prev => [...prev, { ...BLANK_LINE, ...product }]);
 
-  // Auto-apply target margin to all lines whenever targetMarginPct changes (in bottom mode)
+  // Ctrl+S / Cmd+S to save from anywhere inside the form
+  const _handleSaveRef = useRef(null);
+  useEffect(() => {
+    _handleSaveRef.current = handleSave;
+  });
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && !e.shiftKey) {
+        e.preventDefault();
+        _handleSaveRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []); // empty deps — always uses latest handleSave via ref
+
+  // Auto-apply target margin to all lines after user stops typing (600ms debounce)
+  const _marginTimer = useRef(null);
   useEffect(() => {
     if (marginMode !== 'bottom') return;
-    const m = Number(targetMarginPct);
-    if (isNaN(m) || m <= 0 || m >= 100) return;
-    setLines(prev => prev.map(l => {
-      if (l.buy_price <= 0 || l.unit_price <= 0) return l;
-      const netTarget = l.buy_price / (1 - m / 100);
-      const disc = Math.max(0, Math.min(50, (1 - netTarget / l.unit_price) * 100));
-      return { ...l, discount_pct: Math.round(disc * 10) / 10 };
-    }));
+    if (_marginTimer.current) clearTimeout(_marginTimer.current);
+    _marginTimer.current = setTimeout(() => {
+      const m = Number(targetMarginPct);
+      if (isNaN(m) || m <= 0 || m >= 100) return;
+      setLines(prev => prev.map(l => {
+        if (l.buy_price <= 0 || l.unit_price <= 0) return l;
+        const netTarget = l.buy_price / (1 - m / 100);
+        const disc = Math.max(0, Math.min(50, (1 - netTarget / l.unit_price) * 100));
+        return { ...l, discount_pct: Math.round(disc * 10) / 10 };
+      }));
+    }, 600);
+    return () => { if (_marginTimer.current) clearTimeout(_marginTimer.current); };
   }, [targetMarginPct, marginMode]);
 
   const subtotal   = lines.reduce((s, l) => {
@@ -3211,10 +3308,25 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
   })();
 
   const fetchAIRec = async () => {
-    if (!lines[0]?.product_id || !f.customer_type) return;
+    const productLines = lines.filter(l => l.product_id || l.product_name?.trim());
+    if (!productLines.length || !f.customer_type) return;
     setAiLoading(true);
     try {
-      const r = await fetch(`/api/quotes/ai-price?product_id=${lines[0].product_id}&quantity=${lines[0].quantity}&customer_type=${encodeURIComponent(f.customer_type)}`);
+      // Total quantity across all product lines
+      const totalQty = productLines.reduce((s, l) => s + Number(l.quantity || 1), 0);
+      // Dominant category (most frequent)
+      const catCounts = {};
+      productLines.forEach(l => { const c = l.category || 'Other'; catCounts[c] = (catCounts[c] || 0) + 1; });
+      const dominantCat = Object.entries(catCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || '';
+      const firstWithId = productLines.find(l => l.product_id);
+      const params = new URLSearchParams({
+        quantity:        String(totalQty),
+        customer_type:   f.customer_type,
+        category:        dominantCat,
+        current_margin:  String(Math.round(avgMargin * 10) / 10 || 20),
+      });
+      if (firstWithId) params.set('product_id', firstWithId.product_id);
+      const r = await fetch(`/api/quotes/ai-price?${params}`);
       const d = await r.json();
       setAiRec(d);
     } catch { setAiRec(null); }
@@ -3294,8 +3406,9 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
 
   const handleSave = async () => {
     if (!f.customer_name) { setSaveError('Customer name is required.'); return; }
-    const validLines = lines.filter(l => l.product_id && Number(l.quantity) > 0);
-    if (validLines.length === 0) { setSaveError('Add at least one line item with a product and quantity > 0.'); return; }
+    // Accept lines that have either a catalog product_id OR a product_name (e.g. scanner items not in catalog)
+    const validLines = lines.filter(l => (l.product_id || l.product_name?.trim()) && Number(l.quantity) > 0);
+    if (validLines.length === 0) { setSaveError('Add at least one line item with a product name and quantity > 0.'); return; }
     setSaving(true); setSaveError('');
     try {
       const d = editQuote ? await _putQuote(editQuote.quote_id) : await _postQuote();
