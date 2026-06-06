@@ -40,6 +40,9 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
   const [textInput,        setTextInput]       = useState('');
   const [contactPhone,     setContactPhone]    = useState('');
   const [contactEmail,     setContactEmail]    = useState('');
+  // Per-item overrides: qty edits + skip flags (reset on every new scan)
+  const [itemQty,          setItemQty]         = useState({});
+  const [skippedItems,     setSkippedItems]    = useState(new Set());
   const fileRef = useRef();
 
   const canScan = !scanning && (files.length > 0 || textInput.trim());
@@ -83,6 +86,8 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
       if (!r.ok) throw new Error(`Server error ${r.status}`);
       const d = await r.json();
       setResult(d);
+      setItemQty({});
+      setSkippedItems(new Set());
       const init = {};
       (d.matched_products || []).forEach((mp, i) => {
         if (mp.best_match) init[i] = mp.best_match.product_id;
@@ -104,6 +109,8 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
       const r = await fetch('/api/quotes/scan-whatsapp', { method: 'POST', body: form });
       const d = await r.json();
       setResult(d);
+      setItemQty({});
+      setSkippedItems(new Set());
       const init = {};
       (d.matched_products || []).forEach((mp, i) => {
         if (mp.best_match) init[i] = mp.best_match.product_id;
@@ -127,40 +134,46 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
       contact_email:  contactEmail || ext.contact_email  || '',
       project_name:   ext.project_name   || '',
       site_location:  ext.site_location  || '',
-      notes: [ext.special_requirements, ext.delivery_notes].filter(Boolean).join(' · '),
+      notes: [ext.special_requirements, ext.delivery_notes, ext.budget_indication]
+        .filter(Boolean).join(' · '),
     };
-    const initialLines = (result.matched_products || []).map((mp, i) => {
+    const initialLines = [];
+    (result.matched_products || []).forEach((mp, i) => {
+      // Honour explicit skip — item excluded from quote
+      if (skippedItems.has(i)) return;
       const pid  = selectedProducts[i];
       const prod = (mp.matches || []).find(p => String(p.product_id) === String(pid)) || mp.best_match;
+      // Quantity: respect inline edit override, then AI-extracted qty
+      const qty = itemQty[i] !== undefined ? itemQty[i] : (mp.required?.quantity || 1);
       if (prod) {
-        return {
+        initialLines.push({
           product_id:     String(prod.product_id),
-          product_name:   prod.name,
-          category:       prod.category,
-          quantity:       mp.required?.quantity || 1,
-          unit:           prod.unit,
-          unit_price:     prod.sell_price,
-          buy_price:      prod.buy_price,
+          product_name:   prod.name || prod.item_name || '',
+          category:       prod.category || '',
+          quantity:       qty,
+          unit:           prod.unit || mp.required?.unit || 'Nos',
+          unit_price:     prod.sell_price || prod.mrp || 0,
+          buy_price:      prod.buy_price || 0,
           discount_pct:   0,
           specifications: mp.required?.specifications || '',
-        };
+        });
+        return;
       }
-      // No catalog match — add a placeholder so the item still appears in the quote
+      // No catalog match — placeholder so the item still appears in the quote for manual pricing
       if (mp.required?.description) {
-        return {
+        initialLines.push({
           product_id:     '',
-          product_name:   mp.required.description,
-          category:       '',
-          quantity:       mp.required?.quantity || 1,
+          product_name:   mp.catalog_name || mp.required.description,
+          category:       mp.required?.inferred_category || '',
+          quantity:       qty,
           unit:           mp.required?.unit || 'Nos',
           unit_price:     0,
           buy_price:      0,
           discount_pct:   0,
           specifications: mp.required?.specifications || '',
-        };
+        });
       }
-      return null;
-    }).filter(Boolean);
+    });
     onBuildQuote(initialData, initialLines.length > 0 ? initialLines : [{ ...BLANK_LINE }]);
   };
 
@@ -256,17 +269,24 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
       moq:          1,
     };
     try {
-      await fetch('/api/catalog/add-product', {
+      const r = await fetch('/api/catalog/add-product', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(product),
       });
-      setSavedToCatalog(s => new Set([...s, i]));
-    } catch { /* silent */ }
+      if (r.ok || r.status === 201) {
+        setSavedToCatalog(s => new Set([...s, i]));
+      } else {
+        const err = await r.json().catch(() => ({}));
+        console.error('Catalog add failed:', r.status, err);
+      }
+    } catch (e) {
+      console.error('Catalog add error:', e);
+    }
     setSavingCatalog(null);
   };
 
-  const CONF_COLOR  = { high: 'var(--green)', medium: 'var(--amber)', low: 'var(--r2)', none: 'var(--text3)' };
-  const CONF_LABEL  = { high: 'high match', medium: 'medium match', low: 'low match', none: 'nearest available' };
+  const CONF_COLOR  = { exact: '#7c3aed', high: 'var(--green)', medium: 'var(--amber)', low: 'var(--r2)', none: 'var(--text3)' };
+  const CONF_LABEL  = { exact: '✓ Exact SKU', high: 'High match', medium: 'Medium match', low: 'Low match', none: 'Nearest available' };
 
   const { ref: scanModalRef, style: scanDragStyle } = useDraggable();
 
@@ -380,6 +400,8 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
               <div className="scan-tip">📑 PDF / DOCX / Excel requisition form</div>
               <div className="scan-tip">💬 Paste typed or copied WhatsApp text</div>
               <div className="scan-tip">📋 Any unorganized list — AI handles it</div>
+              <div className="scan-tip">🔢 Item code list (e.g. STDS50-I-35 10 nos)</div>
+              <div className="scan-tip">⚡ Bare codes auto-matched without AI</div>
             </div>
           </div>
 
@@ -388,6 +410,12 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
             <div className="scan-results-panel">
               {result.demo_note && (
                 <div className="scan-demo-notice">💡 {result.demo_note}</div>
+              )}
+              {/* Scan method badge */}
+              {result.scan_method && (
+                <div style={{ fontSize: 10, color: result.scan_method.startsWith('direct') ? '#7c3aed' : 'var(--green)', fontWeight: 700, marginBottom: 8, background: result.scan_method.startsWith('direct') ? 'rgba(124,58,237,0.08)' : 'rgba(22,163,74,0.07)', border: `1px solid ${result.scan_method.startsWith('direct') ? 'rgba(124,58,237,0.25)' : 'rgba(22,163,74,0.2)'}`, borderRadius: 6, padding: '4px 10px', display: 'inline-block' }}>
+                  {result.scan_method.startsWith('direct') ? '⚡ Direct catalog lookup — no AI needed' : `✅ AI extracted + catalog matched`}
+                </div>
               )}
 
               {/* Extracted info */}
@@ -439,35 +467,136 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
               {result.extracted.special_requirements && (
                 <div className="scan-special">{result.extracted.special_requirements}</div>
               )}
+              {result.extracted.delivery_notes && (
+                <div className="scan-special" style={{ borderLeftColor: 'var(--blue)' }}>
+                  🚚 {result.extracted.delivery_notes}
+                </div>
+              )}
+              {result.extracted.budget_indication && (
+                <div className="scan-special" style={{ borderLeftColor: 'var(--amber)' }}>
+                  💰 Budget: {result.extracted.budget_indication}
+                </div>
+              )}
 
               {/* Product matches */}
               <div className="scan-section-hd" style={{ marginTop: 16 }}>
                 Product Matches
-                <span className="scan-count">{(result.matched_products || []).length} items detected</span>
+                <span className="scan-count">{(result.matched_products || []).length - skippedItems.size} active · {(result.matched_products || []).length} total</span>
               </div>
 
-              {(result.matched_products || []).map((mp, i) => (
-                <div key={i} className={`scan-product-card${mp.confidence === 'none' ? ' scan-card-none' : ''}`}>
-                  <div className="scan-req-row">
-                    <span className="bdg ba">REQUIRED</span>
-                    <span className="scan-req-desc">{mp.required?.description}</span>
-                    {mp.required?.quantity > 0 && (
-                      <span className="scan-req-qty">{mp.required.quantity} {mp.required.unit || 'units'}</span>
+              {/* Accept-All-Exact shortcut */}
+              {(result.matched_products || []).some(mp => mp.confidence === 'exact') && (
+                <button
+                  onClick={() => {
+                    const sel = {};
+                    (result.matched_products || []).forEach((mp, i) => {
+                      if (mp.confidence === 'exact' && mp.best_match)
+                        sel[i] = mp.best_match.product_id;
+                    });
+                    setSelectedProducts(p => ({ ...p, ...sel }));
+                  }}
+                  style={{ width: '100%', marginBottom: 10, padding: '7px 0', background: 'rgba(124,58,237,0.07)', color: '#7c3aed', border: '1.5px solid rgba(124,58,237,0.25)', borderRadius: 7, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  ⚡ Auto-select All Exact SKU Matches
+                </button>
+              )}
+
+              {(result.matched_products || []).map((mp, i) => {
+                const isExact   = mp.confidence === 'exact';
+                const isNone    = mp.confidence === 'none';
+                const isSkipped = skippedItems.has(i);
+                const itemCode  = mp.required?.item_code || '';
+                const matchedSku = mp.matched_sku || mp.best_match?.sku_code || mp.best_match?.item_code || '';
+                const catalogName = mp.catalog_name || mp.best_match?.item_name || mp.best_match?.name || '';
+                const custDesc   = mp.required?.description || '';
+                const showCustDesc = custDesc && custDesc !== catalogName && !custDesc.match(/^[A-Z0-9\-/\\_. ]{3,20}$/i);
+                const displaySku = matchedSku || itemCode;
+                // Correct GST rate from backend (per-HSN, not hardcoded 18%)
+                const gstRate    = mp.gst_pct ?? 18;
+                // Quantity: respect inline edit, else AI-extracted
+                const displayQty = itemQty[i] !== undefined ? itemQty[i] : (mp.required?.quantity || 1);
+                return (
+                <div key={i} className={`scan-product-card${isNone ? ' scan-card-none' : ''}${isExact ? ' scan-card-exact' : ''}${isSkipped ? ' scan-card-skipped' : ''}`}
+                  style={isExact && !isSkipped ? { borderColor: '#7c3aed', borderWidth: 2 } : {}}>
+
+                  {/* ── Primary row: SKU chip + PRODUCT NAME (always) ────────── */}
+                  <div className="scan-req-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+                    <span className="bdg ba" style={{ flexShrink: 0 }}>REQUIRED</span>
+
+                    {/* SKU chip — customer code OR catalog resolved SKU */}
+                    {displaySku && (
+                      <span style={{
+                        fontSize: 11, fontFamily: 'var(--mono)', fontWeight: 800, flexShrink: 0,
+                        background: isExact ? 'rgba(124,58,237,0.12)' : 'var(--bg3)',
+                        color: isExact ? '#7c3aed' : 'var(--text2)', borderRadius: 4, padding: '2px 8px',
+                        border: isExact ? '1px solid rgba(124,58,237,0.35)' : '1px solid var(--border)',
+                      }}>
+                        {displaySku}
+                      </span>
                     )}
-                    <span className="scan-conf" style={{ color: CONF_COLOR[mp.confidence] || 'var(--text3)' }}>
+                    {/* Show catalog SKU separately when it differs from customer's code */}
+                    {matchedSku && itemCode && matchedSku !== itemCode && (
+                      <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: '#7c3aed', background: 'rgba(124,58,237,0.06)', borderRadius: 4, padding: '2px 6px', border: '1px solid rgba(124,58,237,0.2)', flexShrink: 0 }}>
+                        = {matchedSku}
+                      </span>
+                    )}
+
+                    {/* PRODUCT NAME — always the resolved catalog name (primary display) */}
+                    {catalogName ? (
+                      <span style={{ fontWeight: 700, fontSize: 13, color: isExact ? '#7c3aed' : 'var(--text)', flex: 1 }}>
+                        {catalogName}
+                      </span>
+                    ) : (
+                      <span className="scan-req-desc">{custDesc}</span>
+                    )}
+
+                    {/* Inline quantity editor */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="1"
+                        value={displayQty}
+                        disabled={isSkipped}
+                        onChange={e => setItemQty(q => ({ ...q, [i]: parseFloat(e.target.value) || 1 }))}
+                        className="scan-qty-input"
+                      />
+                      <span style={{ fontSize: 10, color: 'var(--text3)' }}>{mp.required?.unit || 'Nos'}</span>
+                    </span>
+
+                    {/* Confidence badge */}
+                    <span className="scan-conf" style={{ color: CONF_COLOR[mp.confidence] || 'var(--text3)', fontWeight: isExact ? 800 : 600, flexShrink: 0 }}>
                       {CONF_LABEL[mp.confidence] || mp.confidence}
                     </span>
-                    {savedToCatalog.has(i) ? (
-                      <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 700 }}>✓ Saved to Catalog</span>
+
+                    {/* Skip toggle */}
+                    <button
+                      className="scan-skip-btn"
+                      onClick={() => setSkippedItems(s => {
+                        const n = new Set(s);
+                        if (n.has(i)) n.delete(i); else n.add(i);
+                        return n;
+                      })}>
+                      {isSkipped ? '↩ Un-skip' : '⊘ Skip'}
+                    </button>
+
+                    {/* + Catalog button (hidden when skipped) */}
+                    {!isSkipped && (savedToCatalog.has(i) ? (
+                      <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 700, flexShrink: 0 }}>✓ Saved</span>
                     ) : (
-                      <button
-                        disabled={savingCatalog === i}
-                        onClick={() => handleSaveToCatalog(mp, i)}
-                        style={{ fontSize: 11, padding: '2px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', cursor: 'pointer', color: 'var(--text2)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      <button disabled={savingCatalog === i} onClick={() => handleSaveToCatalog(mp, i)}
+                        style={{ fontSize: 11, padding: '2px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', cursor: 'pointer', color: 'var(--text2)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {savingCatalog === i ? '⏳' : '➕ Catalog'}
                       </button>
-                    )}
+                    ))}
                   </div>
+
+                  {/* Customer's original description — only when meaningfully different from resolved name */}
+                  {showCustDesc && (
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, fontStyle: 'italic' }}>
+                      Customer: {custDesc}
+                    </div>
+                  )}
+
                   {mp.required?.specifications && (
                     <div className="scan-req-specs">{mp.required.specifications}</div>
                   )}
@@ -476,44 +605,76 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
                       📝 {mp.required.notes}
                     </div>
                   )}
-                  {/* AI-inferred category and HSN chips */}
-                  {(mp.required?.inferred_category || mp.required?.inferred_hsn) && (
+                  {/* Category and HSN chips */}
+                  {(mp.required?.inferred_category || mp.required?.inferred_hsn || mp.best_match?.category) && (
                     <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
-                      {mp.required.inferred_category && (
+                      {(mp.required?.inferred_category || mp.best_match?.category) && (
                         <span style={{ fontSize: 10, background: 'var(--b3)', color: 'var(--b2)', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>
-                          {mp.required.inferred_category}
+                          {mp.required?.inferred_category || mp.best_match?.category}
                         </span>
                       )}
-                      {mp.required.inferred_hsn && (
+                      {(mp.required?.inferred_hsn || mp.best_match?.hsn_code) && (
                         <span style={{ fontSize: 10, background: 'var(--bg3)', color: 'var(--text3)', borderRadius: 4, padding: '2px 7px', fontFamily: 'var(--mono)', fontWeight: 600 }}>
-                          HSN {mp.required.inferred_hsn} · 18% GST
+                          HSN {mp.required?.inferred_hsn || mp.best_match?.hsn_code} · {gstRate}% GST
+                        </span>
+                      )}
+                      {mp.best_match?.size && (
+                        <span style={{ fontSize: 10, background: 'rgba(8,145,178,0.08)', color: '#0891b2', borderRadius: 4, padding: '2px 7px', fontWeight: 600 }}>
+                          {mp.best_match.size}
+                        </span>
+                      )}
+                      {mp.best_match?.finish && (
+                        <span style={{ fontSize: 10, background: 'var(--bg3)', color: 'var(--text3)', borderRadius: 4, padding: '2px 7px' }}>
+                          {mp.best_match.finish}
                         </span>
                       )}
                     </div>
                   )}
-                  {mp.confidence === 'none' && (
+                  {isNone && (
                     <div className="scan-no-match-note">
-                      ⚠ Not in catalog — showing nearest available products. Select one or skip.
+                      ⚠ Not found in catalog — showing nearest available products. Select one or skip.
                     </div>
                   )}
+                  {/* Exact match confirmation banner */}
+                  {isExact && catalogName && (
+                    <div style={{ fontSize: 11, color: '#7c3aed', marginTop: 3, fontWeight: 700 }}>
+                      ✓ Catalog match: {matchedSku || displaySku} → {catalogName}
+                    </div>
+                  )}
+                  {!isExact && !isNone && catalogName && catalogName !== custDesc && (
+                    <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 3, fontWeight: 600 }}>
+                      Nearest catalog: {matchedSku && <span style={{ fontFamily: 'var(--mono)', marginRight: 4 }}>{matchedSku}</span>}{catalogName}
+                    </div>
+                  )}
+                  {/* Skipped overlay */}
+                  {isSkipped ? (
+                    <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text3)', fontStyle: 'italic', textAlign: 'center', padding: '6px 0' }}>
+                      ⊘ Skipped — will not be included in the quote. Click ↩ Un-skip to restore.
+                    </div>
+                  ) : (
                   <div className="scan-match-row">
-                    {mp.matches?.length > 0 ? mp.matches.map(match => (
+                    {mp.matches?.length > 0 ? mp.matches.map((match, mi) => (
                       <div
                         key={match.product_id}
-                        className={`scan-match-chip${String(selectedProducts[i]) === String(match.product_id) ? ' selected' : ''}${mp.confidence === 'none' ? ' chip-none' : ''}`}
+                        className={`scan-match-chip${String(selectedProducts[i]) === String(match.product_id) ? ' selected' : ''}${isNone ? ' chip-none' : ''}`}
                         onClick={() => setSelectedProducts(p => ({ ...p, [i]: match.product_id }))}
+                        style={isExact && mi === 0 ? { borderColor: '#7c3aed', background: 'rgba(124,58,237,0.06)' } : {}}
                       >
+                        {isExact && mi === 0 && <div style={{ fontSize: 9, color: '#7c3aed', fontWeight: 800, marginBottom: 2 }}>✓ EXACT MATCH</div>}
                         <div className="scan-chip-name">{match.name}</div>
+                        {match.sku_code && <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', marginBottom: 2 }}>{match.sku_code}</div>}
                         <div className="scan-chip-meta">
-                          ₹{(match.sell_price || 0).toLocaleString('en-IN')}/{match.unit} · {match.margin_pct}% margin
+                          ₹{((match.sell_price || match.mrp) || 0).toLocaleString('en-IN')}/{match.unit || 'Nos'} · {match.margin_pct || 0}% margin
                         </div>
                       </div>
                     )) : (
-                      <div className="scan-no-match">No products in catalog — item will be skipped</div>
+                      <div className="scan-no-match">Not in catalog — will appear as manual line item (₹0). Set price in the quote editor.</div>
                     )}
                   </div>
+                  )}
                 </div>
-              ))}
+              );
+              })}
 
               <button className="qb-save-btn scan-build-btn" onClick={handleBuildQuote}>
                 ✓ Build Quotation with Selected Products →
@@ -1178,7 +1339,7 @@ function ImageSearchModal({ onClose, onAddProduct }) {
       reader.onload = e => {
         setImages(prev => {
           if (prev.find(x => x.file.name === f.name && x.file.size === f.size)) return prev;
-          return [...prev, { file: f, preview: e.target.result, result: null, searching: false, error: null }];
+          return [...prev, { file: f, preview: e.target.result, result: null, searching: false, error: null, retryAfter: 0 }];
         });
       };
       reader.readAsDataURL(f);
@@ -1189,19 +1350,41 @@ function ImageSearchModal({ onClose, onAddProduct }) {
     setImages(prev => { const n = prev.filter((_, j) => j !== i); if (activeIdx >= n.length) setActiveIdx(Math.max(0, n.length - 1)); return n; });
   };
 
+  const _tickRef = useRef({});  // holds per-image countdown interval IDs
+
   const searchOne = async (i) => {
-    const img = images[i];
-    if (!img || img.searching) return;
-    setImages(prev => prev.map((x, j) => j === i ? { ...x, searching: true, error: null } : x));
+    // Clear any existing countdown timer for this slot
+    if (_tickRef.current[i]) { clearInterval(_tickRef.current[i]); delete _tickRef.current[i]; }
+
+    setImages(prev => prev.map((x, j) => j === i ? { ...x, searching: true, error: null, retryAfter: 0 } : x));
     try {
-      const form = new FormData();
-      form.append('file', img.file);
-      const r = await fetch('/api/catalog/visual-search', { method: 'POST', body: form });
+      const fd = new FormData();
+      fd.append('file', images[i].file);
+      const r = await fetch('/api/catalog/visual-search', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(`Server error ${r.status}`);
       const d = await r.json();
-      setImages(prev => prev.map((x, j) => j === i ? { ...x, result: d.error ? null : d, error: d.error || null, searching: false } : x));
+
+      if (d.error === 'rate_limit') {
+        // Backend hit rate limit even after its internal retry — show countdown + auto-retry
+        const secs = d.retry_after || 45;
+        setImages(prev => prev.map((x, j) => j === i ? { ...x, error: 'rate_limit', retryAfter: secs, searching: false } : x));
+        let remaining = secs;
+        _tickRef.current[i] = setInterval(() => {
+          remaining--;
+          setImages(prev => prev.map((x, j) => j === i ? { ...x, retryAfter: Math.max(0, remaining) } : x));
+          if (remaining <= 0) {
+            clearInterval(_tickRef.current[i]);
+            delete _tickRef.current[i];
+            searchOne(i);  // auto-retry
+          }
+        }, 1000);
+      } else {
+        setImages(prev => prev.map((x, j) => j === i
+          ? { ...x, result: d.error ? null : d, error: d.error || null, retryAfter: 0, searching: false }
+          : x));
+      }
     } catch (e) {
-      setImages(prev => prev.map((x, j) => j === i ? { ...x, error: e.message || 'Search failed', searching: false } : x));
+      setImages(prev => prev.map((x, j) => j === i ? { ...x, error: e.message || 'Search failed', retryAfter: 0, searching: false } : x));
     }
   };
 
@@ -1338,11 +1521,38 @@ function ImageSearchModal({ onClose, onAddProduct }) {
 
                 {/* Results panel */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-                  {active.error && (
-                    <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>
-                      {active.error} — try a clearer photo
-                    </div>
-                  )}
+                  {active.error && (() => {
+                    const isRateLimit = active.error === 'rate_limit';
+                    const isAuth = active.error.includes('API_KEY') || active.error.includes('Unauthorized');
+                    const isTimeout = active.error.includes('timed out') || active.error.includes('Timeout');
+                    const isServer = active.error.includes('Server error');
+                    const isPhotoQuality = !isRateLimit && !isAuth && !isTimeout && !isServer;
+                    return (
+                      <div style={{ background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>
+                        {isRateLimit ? (
+                          <>
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>⏳ OpenAI rate limit reached</div>
+                            {active.retryAfter > 0 ? (
+                              <div style={{ marginBottom: 8 }}>Auto-retrying in <strong>{active.retryAfter}s</strong>…
+                                <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.7 }}>
+                                  (catalog has been optimised to avoid future rate limits)
+                                </span>
+                              </div>
+                            ) : (
+                              <div style={{ marginBottom: 8 }}>Retrying now…</div>
+                            )}
+                            <button
+                              onClick={() => { setImages(prev => prev.map((x, j) => j === activeIdx ? { ...x, error: null, retryAfter: 0 } : x)); searchOne(activeIdx); }}
+                              style={{ padding: '4px 14px', fontSize: 11, cursor: 'pointer', borderRadius: 6, background: '#dc2626', color: '#fff', border: 'none', fontWeight: 700 }}>
+                              ↺ Retry Now
+                            </button>
+                          </>
+                        ) : (
+                          <div>{active.error}{isPhotoQuality ? ' — try a clearer photo' : ''}</div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {active.result && (
                     <>
                       <div style={{ background: 'linear-gradient(135deg,var(--b3),var(--g3))', border: '1px solid var(--b4)', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>

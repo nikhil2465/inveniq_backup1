@@ -64,6 +64,12 @@
 
   /* Transitions */
   --transition: .18s cubic-bezier(.2,0,.2,1);
+
+  /* Utility aliases — used extensively across all views */
+  --hover:  #edf3ef;  /* subtle hover / table-header bg  (≈ --s2 / --bg2)     */
+  --bg3:    #e2ece6;  /* chip / badge background          (≈ --s3)              */
+  --muted:  #64748b;  /* label & hint text                (between text2/text3) */
+  --input:  #ffffff;  /* input field background                                 */
 }
 
 /* GLOBAL BASE */
@@ -2445,6 +2451,33 @@ textarea.qb-input { height: auto; padding: 8px 11px; }
 .scan-match-chip.chip-none { border-style: dashed; opacity: .85; }
 .scan-match-chip.chip-none:hover { opacity: 1; }
 
+/* Exact SKU match card styling */
+.scan-product-card.scan-card-exact { border-color: #7c3aed; border-width: 2px; background: rgba(124,58,237,0.03); }
+
+/* Skipped item card — dimmed, strikethrough on product name */
+.scan-product-card.scan-card-skipped { opacity: 0.45; border-style: dashed; border-color: var(--border); background: var(--bg3); }
+.scan-product-card.scan-card-skipped .scan-chip-name,
+.scan-product-card.scan-card-skipped .scan-req-desc { text-decoration: line-through; color: var(--text3); }
+
+/* Inline quantity input inside scan card */
+.scan-qty-input {
+  width: 54px; padding: 2px 5px; border: 1.5px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text); font-size: 11px; font-family: var(--mono);
+  font-weight: 700; text-align: center; transition: border-color .15s;
+  -moz-appearance: textfield;
+}
+.scan-qty-input::-webkit-inner-spin-button,
+.scan-qty-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.scan-qty-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(21,128,61,.09); }
+
+/* Skip / un-skip button */
+.scan-skip-btn {
+  padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text3); font-size: 10px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all .15s;
+}
+.scan-skip-btn:hover { border-color: var(--red); color: var(--red); background: var(--r3); }
+
 @media (max-width: 860px) {
   .scan-body { grid-template-columns: 1fr; }
   .scan-upload-panel { border-right: none; border-bottom: 1px solid var(--border); }
@@ -3403,7 +3436,7 @@ canvas { display: block; }
 /* ══════════════════════════════════════════════════════════════════════════════
    DARK MODE — ENHANCED OVERRIDES
 ══════════════════════════════════════════════════════════════════════════════ */
-.dark-mode { --bg: #070c09; --surface: #0c1410; --s2: #111a14; --s3: #152019; --s4: #1c2a20; --border: #1e3224; --border2: #264030; --text: #e8f0ea; --text2: #8aab91; --text3: #5c7a62; }
+.dark-mode { --bg: #070c09; --surface: #0c1410; --s2: #111a14; --s3: #152019; --s4: #1c2a20; --border: #1e3224; --border2: #264030; --text: #e8f0ea; --text2: #8aab91; --text3: #5c7a62; --hover: #111a14; --bg3: #152019; --muted: #5c7a62; --input: #0c1410; }
 .dark-mode .topbar { background: rgba(12,20,16,.97); border-bottom-color: #1e3224; }
 .dark-mode .sidebar { background: linear-gradient(175deg, #050a09 0%, #0d1f15 30%, #0f2e1a 65%, #0a1a10 100%); }
 .dark-mode .tbl thead th { background: var(--s2); }

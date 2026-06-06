@@ -32,8 +32,179 @@ except ImportError:
     _SANJAY_CATALOG = []
 
 
+# -- Import catalog (loaded from product_imp_files/ at startup) ----
+import os as _os, csv as _csv
+from pathlib import Path as _Path
+
+_IMPORT_CATALOG: list = []
+_import_load_status: dict = {'loaded': False, 'count': 0, 'files': [], 'error': ''}
+
+_EBCO_CATEGORY_HSN = {
+    'Drawer Slides': '8302', 'Hinges': '8302',
+    'Aluminium Profiles & Handles': '7604',
+    'Furniture Locks': '8301', 'General Hardware': '8302',
+    'Bed & Wardrobe Fittings': '8302', 'Bed Fittings': '8302',
+    'Hi Slide Wardrobe Sliding Systems': '8302',
+    'Kitchen - Drawer Systems & Accessories': '8302',
+    'Kitchen - Storage Systems': '8302',
+    'Kitchen - Corner Solutions': '8302',
+    'Kitchen - Midway Systems': '8302',
+    'Kitchen - Overhead Systems': '8302',
+    'Kitchen - Waste Bins & More': '8302',
+    'Window, Door & Glass Hardware': '8302',
+    'Joinery Fittings & Screws': '7318',
+    'Furniture Lights - LED': '9405',
+    'ESmart Digital Locks': '8531',
+    'Office Furniture Fittings': '8302',
+    'Office - CPU Stands & Stations': '9403',
+    'Office - Safe Drawers': '8303',
+    'Office - Monitor Arms': '8302',
+    'Office - Keyboard Station & Trays': '8302',
+    'Office - Electric Boxes & Chargers': '8536',
+    'Office - Furniture Essentials': '8302',
+    'Retail Display Systems': '8302',
+    'Speciality Locks': '8301', 'Premium Locks': '8301',
+    'Secutek Locks': '8301', 'Target Locks': '8301',
+    'Other Locks / Latches': '8301',
+}
+
+
+def _csv_row_to_product(row: dict, pid: int) -> dict:
+    cat       = (row.get('Category') or '').strip()
+    item_name = (row.get('Item Name') or '').strip()
+    item_code = (row.get('Item Code') or '').strip()
+    size_str  = (row.get('Size') or '').strip()
+    finish    = (row.get('Finish') or '').strip()
+    pcs_set   = (row.get('PCS / Set') or '').strip()
+    spu_str   = (row.get('SPU') or '').strip()
+    mrp_raw   = ''
+    for k, v in row.items():
+        if 'mrp' in k.lower() or ('price' in k.lower() and 'buy' not in k.lower()):
+            mrp_raw = (v or '').strip().replace(',', '').replace(' ', '')
+            if mrp_raw: break
+    is_new = bool((row.get('New Product') or '').strip())
+    try: mrp = float(mrp_raw) if mrp_raw else 0.0
+    except ValueError: mrp = 0.0
+    try: spu = int(float(spu_str)) if spu_str else 0
+    except ValueError: spu = 0
+    buy_price  = round(mrp * 0.65, 2)
+    margin_pct = 35.0 if mrp > 0 else 0.0
+    hsn  = _EBCO_CATEGORY_HSN.get(cat, '8302')
+    tags = ['ebco', 'hardware']
+    cl   = cat.lower()
+    if 'drawer' in cl:  tags.append('drawer')
+    if 'hinge'  in cl:  tags.append('hinge')
+    if 'lock'   in cl:  tags.append('lock')
+    if 'handle' in cl or 'profile' in cl: tags.append('handle')
+    if 'slide'  in cl or 'sliding' in cl: tags.append('slide')
+    if 'kitchen' in cl: tags.append('kitchen')
+    if 'office'  in cl: tags.append('office')
+    if finish: tags.append(finish.lower().replace('/', '-'))
+    name = (f'{item_name} [{item_code}]'
+            if item_code and item_code not in item_name else item_name)
+    return {
+        'product_id': pid, 'sku_code': item_code, 'item_code': item_code,
+        'name': name, 'item_name': item_name, 'brand': 'Ebco',
+        'category': cat, 'sub_category': finish or '',
+        'size': size_str, 'finish': finish,
+        'pcs_per_set': pcs_set, 'unit': pcs_set or 'Nos',
+        'spu': spu, 'moq': spu or 1,
+        'mrp': mrp, 'sell_price': mrp, 'buy_price': buy_price,
+        'margin_pct': margin_pct, 'gst_rate': 18.0, 'hsn_code': hsn,
+        'stock_status': 'in_stock', 'supplier': 'Ebco India Ltd',
+        'is_new_product': is_new, 'specifications': size_str,
+        'tags': tags, 'features': [], 'applications': [],
+        'certifications': [], 'competitors': [],
+    }
+
+
+def _load_import_files(import_dir=None) -> int:
+    global _import_load_status
+    _IMPORT_CATALOG.clear()
+    _import_load_status = {'loaded': False, 'count': 0, 'files': [], 'error': ''}
+    base = (_Path(import_dir) if import_dir else
+            _Path(__file__).parent.parent.parent.parent / 'product_imp_files')
+    if not base.exists():
+        _import_load_status['error'] = f'Directory not found: {base}'
+        return 0
+    pid   = 20001
+    total = 0
+    loaded_files: list = []
+    for filepath in sorted(base.glob('*.csv')):
+        try:
+            rows = []
+            for enc in ('utf-8-sig', 'utf-8', 'latin-1', 'cp1252'):
+                try:
+                    with open(filepath, 'r', encoding=enc, errors='replace') as fh:
+                        rows = list(_csv.DictReader(fh))
+                    break
+                except Exception: continue
+            count = 0
+            for row in rows:
+                p = _csv_row_to_product(row, pid)
+                if not p['item_code'] and not p['item_name']: continue
+                _IMPORT_CATALOG.append(p)
+                pid += 1; count += 1
+            if count:
+                total += count
+                loaded_files.append(f'{filepath.name} ({count})')
+                logger.info('catalog: loaded %d from %s', count, filepath.name)
+        except Exception as exc:
+            logger.warning('catalog: CSV load failed %s -- %s', filepath.name, exc)
+    try:
+        import openpyxl as _xl
+        for filepath in sorted(base.glob('*.xlsx')):
+            try:
+                wb = _xl.load_workbook(filepath, read_only=True, data_only=True)
+                for ws in wb.worksheets:
+                    headers: list = []
+                    count = 0
+                    for ri, row in enumerate(ws.iter_rows(values_only=True)):
+                        if ri == 0:
+                            headers = [str(c or '').strip() for c in row]
+                            continue
+                        if not any(row): continue
+                        rd = {headers[i]: (str(v) if v is not None else '')
+                              for i, v in enumerate(row) if i < len(headers)}
+                        p = _csv_row_to_product(rd, pid)
+                        if not p['item_code'] and not p['item_name']: continue
+                        _IMPORT_CATALOG.append(p)
+                        pid += 1; count += 1; total += 1
+                    if count:
+                        loaded_files.append(f'{filepath.name}/{ws.title} ({count})')
+                        logger.info('catalog: loaded %d from %s/%s', count, filepath.name, ws.title)
+            except Exception as exc:
+                logger.warning('catalog: XLSX load failed %s -- %s', filepath.name, exc)
+    except ImportError: pass
+    _import_load_status = {
+        'loaded': total > 0, 'count': total,
+        'files': loaded_files,
+        'error': '' if total > 0 else 'No products loaded',
+    }
+    logger.info('catalog: import load complete -- %d products, %d file(s)', total, len(loaded_files))
+    return total
+
+
+# Load at module import time
+try:
+    _load_import_files()
+except Exception as _load_exc:
+    logger.warning('catalog: import load failed at startup -- %s', _load_exc)
+
+
 def _get_all_products() -> List[dict]:
+    if _IMPORT_CATALOG:
+        seen: set = set()
+        merged: list = []
+        for src in (_RUNTIME_PRODUCTS, _IMPORT_CATALOG, _EBCO_CATALOG, CATALOG, _SANJAY_CATALOG):
+            for p in src:
+                sku = p.get('sku_code', '') or str(p.get('product_id', ''))
+                if sku and sku in seen: continue
+                if sku: seen.add(sku)
+                merged.append(p)
+        return merged
     return CATALOG + _EBCO_CATALOG + _SANJAY_CATALOG + _RUNTIME_PRODUCTS
+
 
 
 def _next_id() -> int:
@@ -966,6 +1137,35 @@ async def get_categories():
     return {"categories": {k: list(set(v)) for k, v in cats.items()}}
 
 
+@router.get("/catalog/import-status")
+async def get_import_status():
+    """Return current import file load status — how many products loaded from which files."""
+    all_products = _get_all_products()
+    ebco_count   = sum(1 for p in all_products if p.get("brand") == "Ebco")
+    return {
+        "import_status":      _import_load_status,
+        "total_catalog":      len(all_products),
+        "ebco_total":         ebco_count,
+        "import_loaded":      len(_IMPORT_CATALOG),
+        "hardcoded_ebco":     len(_EBCO_CATALOG),
+        "runtime_added":      len(_RUNTIME_PRODUCTS),
+        "data_source":        "live",
+    }
+
+
+@router.post("/catalog/sync-import")
+async def sync_import_files():
+    """Re-load all CSV/XLSX files from product_imp_files/ into the live catalog.
+    Call this after adding or updating import files — no restart needed."""
+    count = _load_import_files()
+    return {
+        "synced":  count,
+        "status":  _import_load_status,
+        "message": f"Synced {count} products from import files. Catalog is now live.",
+        "data_source": "live",
+    }
+
+
 @router.get("/catalog/{product_id}")
 async def get_product(product_id: int):
     p = next((p for p in _get_all_products() if p["product_id"] == product_id), None)
@@ -1474,7 +1674,7 @@ async def visual_search_catalog(
         elif "AuthenticationError" in err_type or "Unauthorized" in str(exc):
             msg = "Invalid OPENAI_API_KEY. Check your .env file and restart the backend."
         elif "RateLimitError" in err_type:
-            msg = "OpenAI rate limit reached. Wait 60 seconds and try again."
+            return {"error": "rate_limit", "retry_after": 45, "matches": []}
         else:
             msg = f"Visual search failed ({err_type}). Check your OPENAI_API_KEY and try again."
         return {"error": msg, "matches": []}
@@ -1482,16 +1682,59 @@ async def visual_search_catalog(
 
 # â”€â”€ Add product endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+_CATALOG_TABLE_DDL = (
+    "CREATE TABLE IF NOT EXISTS catalog_products ("
+    "    id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,"
+    "    product_id   INT NOT NULL,"
+    "    name         VARCHAR(500) NOT NULL DEFAULT '',"
+    "    sku_code     VARCHAR(200) DEFAULT '',"
+    "    product_json LONGTEXT NOT NULL,"
+    "    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,"
+    "    INDEX idx_pid (product_id),"
+    "    INDEX idx_sku (sku_code(100))"
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+)
+_catalog_db_loaded = False
+
+
+async def _ensure_catalog_db(pool) -> None:
+    """Create catalog_products table and load DB-persisted products into _RUNTIME_PRODUCTS."""
+    global _catalog_db_loaded
+    if _catalog_db_loaded:
+        return
+    _catalog_db_loaded = True
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_CATALOG_TABLE_DDL)
+                await cur.execute(
+                    "SELECT product_json FROM catalog_products ORDER BY created_at"
+                )
+                rows = await cur.fetchall()
+                for row in rows:
+                    try:
+                        p = json.loads(row[0])
+                        pid = p.get("product_id")
+                        if pid and not any(
+                            x.get("product_id") == pid for x in _RUNTIME_PRODUCTS
+                        ):
+                            _RUNTIME_PRODUCTS.append(p)
+                    except Exception:
+                        pass
+    except Exception as exc:
+        logger.warning("catalog: DB init failed -- %s", exc)
+
+
 @router.post("/catalog/add-product", status_code=201)
 async def add_catalog_product(product: dict):
-    """Add a single product to the runtime catalog. Assigns a new product_id."""
+    """Add a single product to the runtime catalog. Persists to DB when MySQL is available."""
     try:
         from app.db.connection import get_pool
         pool = await get_pool()
         if pool:
-            logger.info("DB mode: catalog product would be persisted â€” table not yet created")
+            await _ensure_catalog_db(pool)
     except Exception:
-        pass
+        pool = None
 
     new_id = _next_id()
     product["product_id"] = new_id
@@ -1502,15 +1745,48 @@ async def add_catalog_product(product: dict):
     product.setdefault("applications", [])
     product.setdefault("tags", [])
     product.setdefault("competitors", [])
-    if not product.get("margin_pct") and product.get("sell_price") and product.get("buy_price"):
+    if (
+        not product.get("margin_pct")
+        and product.get("sell_price")
+        and product.get("buy_price")
+    ):
         sp = float(product["sell_price"])
         bp = float(product["buy_price"])
         product["margin_pct"] = round((sp - bp) / sp * 100, 1) if sp > 0 else 0.0
+
+    saved_to_db = False
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "INSERT INTO catalog_products"
+                        " (product_id, name, sku_code, product_json)"
+                        " VALUES (%s, %s, %s, %s)",
+                        (
+                            new_id,
+                            product.get("name", ""),
+                            product.get("sku_code", ""),
+                            json.dumps(product),
+                        ),
+                    )
+                    await conn.commit()
+            saved_to_db = True
+        except Exception as exc:
+            logger.warning("catalog: DB persist failed -- %s", exc)
+
     _RUNTIME_PRODUCTS.append(product)
-    logger.info("Catalog: added product id=%s name=%s", new_id, product.get("name", ""))
-    return {"product": product, "message": f"Product added to catalog (ID: {new_id})", "data_source": "runtime"}
-
-
+    logger.info(
+        "Catalog: added id=%s name=%s persisted=%s",
+        new_id, product.get("name", ""), saved_to_db,
+    )
+    ds = "live" if saved_to_db else "runtime"
+    return {
+        "product": product,
+        "message": f"Product added to catalog (ID: {new_id})",
+        "data_source": ds,
+        "persisted": saved_to_db,
+    }
 @router.post("/catalog/bulk-add", status_code=201)
 async def bulk_add_catalog_products(payload: dict):
     """Add multiple products to the runtime catalog at once."""

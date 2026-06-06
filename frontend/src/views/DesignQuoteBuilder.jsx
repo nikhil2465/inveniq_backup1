@@ -42,6 +42,27 @@ const LBL       = { fontSize:11,color:'var(--muted)',fontWeight:600,marginBottom
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 const fmtC = (n) => '₹' + fmt(n);
 
+// GST rate options for line-item selector
+const GST_RATES = [0, 5, 12, 18, 28];
+
+// HSN → default GST rate (Indian GST schedule)
+const _HSN_GST = { '8481': 18, '6910': 18, '3922': 18, '8302': 18, '8301': 18, '7324': 18, '3917': 12, '6907': 5, '6908': 12, '3214': 18, '9954': 18, '7308': 18 };
+function inferGstFromHsn(hsn) {
+  if (!hsn) return 18;
+  const code = String(hsn).replace(/\D/g, '').slice(0, 4);
+  return _HSN_GST[code] ?? 18;
+}
+
+// File-type icon for document uploads
+const FILE_ICON = (name) => {
+  const ext = (name || '').toLowerCase().split('.').pop();
+  if (ext === 'pdf') return '📄';
+  if (['doc', 'docx'].includes(ext)) return '📝';
+  if (['xls', 'xlsx', 'ods', 'csv'].includes(ext)) return '📊';
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return '🖼';
+  return '📎';
+};
+
 function StatusBadge({ status, cfg }) {
   const c = cfg[status] || { label: status, color: '#6b7280', bg: 'rgba(107,114,128,0.1)' };
   return (
@@ -135,6 +156,12 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
   const [parsingBrief, setParsingBrief] = useState(false);
   const [showImgSearchForm, setShowImgSearchForm] = useState(false);
   const [imgSearchSec, setImgSearchSec] = useState(0);
+  // File parser states
+  const [showFileParser, setShowFileParser] = useState(false);
+  const [parserFiles, setParserFiles] = useState([]);
+  const [parsingFile, setParsingFile] = useState(false);
+  const [fileParserResult, setFileParserResult] = useState(null);
+  const fileParserRef = useRef();
 
   // QB→DQB import on mount
   useEffect(() => {
@@ -146,7 +173,7 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
       if (items && items.length > 0 && !isEdit) {
         const importedSection = {
           section_name: 'Imported from QB', section_order: 0, section_total: 0,
-          items: items.map(i => ({ item_name: i.product_name || i.item_name || '', description: i.description || '', unit: i.unit || 'nos', qty: i.qty || 1, unit_price: i.unit_price || 0, margin_pct: 0, line_total: (i.qty || 1) * (i.unit_price || 0), inferred_hsn: i.inferred_hsn || '', inferred_category: i.inferred_category || '' })),
+          items: items.map(i => ({ item_name: i.product_name || i.item_name || '', description: i.description || '', unit: i.unit || 'nos', qty: i.qty || 1, unit_price: i.unit_price || 0, margin_pct: 0, line_total: (i.qty || 1) * (i.unit_price || 0), inferred_hsn: i.inferred_hsn || '', inferred_category: i.inferred_category || '', gst_pct: i.gst_pct ?? inferGstFromHsn(i.inferred_hsn) })),
         };
         setForm(f => ({ ...f, sections: [importedSection, ...f.sections] }));
         localStorage.removeItem('inveniq_qb_to_dqb');
@@ -191,7 +218,7 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
     setForm(f => {
       const sections = f.sections.map((sec, si) => {
         if (si !== secIdx) return sec;
-        return { ...sec, items: [...sec.items, { item_name: '', description: '', unit: 'nos', qty: 1, unit_price: 0, margin_pct: 0, line_total: 0, inferred_hsn: '', inferred_category: '' }] };
+        return { ...sec, items: [...sec.items, { item_name: '', description: '', unit: 'nos', qty: 1, unit_price: 0, margin_pct: 0, line_total: 0, inferred_hsn: '', inferred_category: '', gst_pct: f.gst_rate ?? 18 }] };
       });
       return { ...f, sections };
     });
@@ -208,10 +235,25 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
     });
   };
 
-  // Totals
+  // Totals — per-item GST rates
   const subtotal = form.sections.reduce((s, sec) => s + (sec.section_total || 0), 0);
-  const gstAmt   = form.include_gst ? subtotal * (form.gst_rate / 100) : 0;
+  const gstAmt   = form.include_gst
+    ? form.sections.reduce((s, sec) =>
+        s + sec.items.reduce((is, it) =>
+          is + (it.line_total || 0) * ((it.gst_pct ?? form.gst_rate ?? 18) / 100), 0), 0)
+    : 0;
   const grandTotal = subtotal + gstAmt;
+  // GST breakdown by rate (for summary panel)
+  const gstBreakdown = (() => {
+    if (!form.include_gst) return {};
+    const bd = {};
+    form.sections.forEach(sec => sec.items.forEach(it => {
+      const rate = it.gst_pct ?? form.gst_rate ?? 18;
+      const amt  = (it.line_total || 0) * (rate / 100);
+      if (amt > 0) bd[rate] = (bd[rate] || 0) + amt;
+    }));
+    return bd;
+  })();
 
   const parseBrief = async () => {
     if (!briefText.trim()) return;
@@ -228,13 +270,75 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
       rawItems.forEach(it => {
         const sec = it.section_name || 'General';
         if (!grouped[sec]) grouped[sec] = [];
-        grouped[sec].push({ item_name: it.item_name || '', description: (it.description_lines || []).join('\n'), unit: it.unit || 'nos', qty: it.quantity || 1, unit_price: it.unit_price || 0, margin_pct: 0, line_total: (it.quantity || 1) * (it.unit_price || 0), inferred_hsn: '', inferred_category: it.item_type || '' });
+        grouped[sec].push({ item_name: it.item_name || '', description: (it.description_lines || []).join('\n'), unit: it.unit || 'nos', qty: it.quantity || 1, unit_price: it.unit_price || 0, margin_pct: 0, line_total: (it.quantity || 1) * (it.unit_price || 0), inferred_hsn: '', inferred_category: it.item_type || '', gst_pct: form.gst_rate ?? 18 });
       });
       const newSections = Object.entries(grouped).map(([name, items], i) => ({ section_name: name, section_order: form.sections.length + i, section_total: items.reduce((s, x) => s + x.line_total, 0), items }));
       setForm(f => ({ ...f, sections: [...f.sections, ...newSections] }));
       setShowBriefParser(false); setBriefText('');
     } catch {}
     finally { setParsingBrief(false); }
+  };
+
+  const parseFile = async () => {
+    if (parserFiles.length === 0) return;
+    setParsingFile(true);
+    setFileParserResult(null);
+    try {
+      const fd = new FormData();
+      parserFiles.forEach(f => fd.append('file', f));
+      // Use the general document parser — works for any file type
+      const r = await fetch('/api/design-quotes/parse-document', { method: 'POST', body: fd });
+      const d = await r.json();
+      setFileParserResult(d);
+    } catch { setFileParserResult(null); }
+    finally { setParsingFile(false); }
+  };
+
+  const addFileSections = (autoFillClient = false) => {
+    if (!fileParserResult?.extracted) return;
+    const ex = fileParserResult.extracted;
+    const rawRooms = ex.rooms || [];
+    const newSecs = rawRooms.map((room, i) => ({
+      section_name: room.room_name || `Section ${i + 1}`,
+      section_order: form.sections.length + i,
+      section_total: 0,
+      items: (room.items || []).map(it => {
+        const base = (it.qty || 1) * (it.unit_price || 0);
+        return {
+          item_name: it.item_name || '',
+          description: [it.description, it.specifications].filter(Boolean).join(' · '),
+          unit: it.unit || 'Nos',
+          qty: it.qty || 1,
+          unit_price: it.unit_price || 0,
+          margin_pct: 0,
+          line_total: base,
+          inferred_hsn: it.inferred_hsn || '',
+          inferred_category: it.item_type || '',
+          gst_pct: inferGstFromHsn(it.inferred_hsn),
+          length_ft: it.length_ft || null,
+          width_ft: it.width_ft || null,
+          height_ft: it.height_ft || null,
+          dim_type: it.dim_type || null,
+        };
+      }),
+    }));
+    setForm(f => {
+      const updates = { sections: [...f.sections, ...newSecs] };
+      if (autoFillClient) {
+        if (!f.client_name.trim() && ex.client_name)    updates.client_name    = ex.client_name;
+        if (!f.client_phone.trim() && ex.client_phone)  updates.client_phone   = ex.client_phone;
+        if (!f.client_email.trim() && ex.client_email)  updates.client_email   = ex.client_email;
+        if (!f.project_name.trim() && ex.project_name)  updates.project_name   = ex.project_name;
+        if (!f.project_address.trim() && ex.project_address) updates.project_address = ex.project_address;
+        if (ex.project_type)  updates.project_type  = ex.project_type;
+        if (ex.designer_name && !f.designer_name.trim()) updates.designer_name = ex.designer_name;
+        if (ex.notes && !f.notes.trim())                updates.notes          = ex.notes;
+      }
+      return { ...f, ...updates };
+    });
+    setShowFileParser(false);
+    setParserFiles([]);
+    setFileParserResult(null);
   };
 
   const save = async () => {
@@ -260,7 +364,8 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontWeight: 900, fontSize: 16 }}>{isEdit ? '✏️ Edit Quote' : '+ New Interior Quote'}</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowBriefParser(true)} style={{ ...SEC_BTN, color: '#7c3aed', borderColor: 'rgba(124,58,237,0.4)' }}>🤖 Parse Brief</button>
+            <button onClick={() => { setShowFileParser(true); setShowBriefParser(false); }} style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)' }}>📄 Upload File</button>
+            <button onClick={() => { setShowBriefParser(true); setShowFileParser(false); }} style={{ ...SEC_BTN, color: '#7c3aed', borderColor: 'rgba(124,58,237,0.4)' }}>🤖 Parse Brief</button>
             <button onClick={save} disabled={saving} style={{ ...PRI_BTN, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : '💾 Save'}</button>
             <button onClick={onClose} style={CLOSE_BTN}>✕</button>
           </div>
@@ -277,6 +382,121 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
                 <button onClick={parseBrief} disabled={parsingBrief} style={{ ...PRI_BTN, opacity: parsingBrief ? 0.6 : 1 }}>{parsingBrief ? 'Parsing…' : '⚡ Parse & Add Sections'}</button>
                 <button onClick={() => setShowBriefParser(false)} style={SEC_BTN}>Cancel</button>
               </div>
+            </div>
+          )}
+
+          {/* File parser overlay */}
+          {showFileParser && (
+            <div style={{ background: 'rgba(8,145,178,0.04)', border: '1px solid rgba(8,145,178,0.25)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4, color: '#0891b2' }}>📄 AI Document Parser</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>Upload PDF, Word (.docx), Excel (.xlsx), CSV, or images — AI reads all content including dimensions, quantities, HSN codes, and product details.</div>
+              <input ref={fileParserRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ods,.csv,.txt,image/*" style={{ display: 'none' }} onChange={e => { setParserFiles(Array.from(e.target.files)); setFileParserResult(null); }} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                <button onClick={() => fileParserRef.current.click()} style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)' }}>
+                  + Add Files {parserFiles.length > 0 ? `(${parserFiles.length})` : ''}
+                </button>
+                {parserFiles.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {parserFiles.map((f, i) => (
+                      <span key={i} style={{ fontSize: 11, background: 'rgba(8,145,178,0.1)', border: '1px solid rgba(8,145,178,0.25)', borderRadius: 6, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {FILE_ICON(f.name)} {f.name}
+                        <button onClick={() => setParserFiles(fs => fs.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 11, padding: 0 }}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {parserFiles.length > 0 && (
+                <button onClick={parseFile} disabled={parsingFile} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: parsingFile ? 0.6 : 1, marginBottom: fileParserResult ? 12 : 0 }}>
+                  {parsingFile ? '⏳ AI Reading File…' : '⚡ Extract & Add to Quote'}
+                </button>
+              )}
+              {fileParserResult?.extracted && (() => {
+                const ex = fileParserResult.extracted;
+                const rooms = ex.rooms || [];
+                const totalItems = rooms.reduce((s, r) => s + (r.items || []).length, 0);
+                const hasClient = !!(ex.client_name || ex.project_name || ex.project_address);
+                const isAi = fileParserResult.data_source === 'ai';
+                const hasError = !!fileParserResult.scan_error;
+                return (
+                  <div style={{ marginTop: 10 }}>
+                    {/* Error / demo banners */}
+                    {hasError && (
+                      <div style={{ fontSize: 11, color: '#dc2626', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
+                        ⚠ {fileParserResult.scan_error}
+                      </div>
+                    )}
+                    {fileParserResult.demo_note && !hasError && (
+                      <div style={{ fontSize: 11, color: '#d97706', background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
+                        🔶 {fileParserResult.demo_note}
+                      </div>
+                    )}
+
+                    {/* Success banner */}
+                    {isAi && totalItems > 0 && (
+                      <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, marginBottom: 10, background: 'rgba(22,163,74,0.06)', border: '1px solid rgba(22,163,74,0.2)', borderRadius: 6, padding: '8px 12px' }}>
+                        ✅ Extracted <strong>{totalItems} items</strong> across <strong>{rooms.length} sections</strong> from your document
+                      </div>
+                    )}
+
+                    {/* 0-items message */}
+                    {isAi && totalItems === 0 && (
+                      <div style={{ fontSize: 11, color: '#d97706', background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
+                        ⚠ AI could not find any BOQ items in this document. It may be a scanned image, or the text may not contain product/item lists. Try a text-based PDF or paste the requirements as text.
+                      </div>
+                    )}
+
+                    {/* Section pills */}
+                    {rooms.length > 0 && (
+                      <div style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {rooms.map((r, i) => (
+                          <span key={i} style={{ background: 'rgba(8,145,178,0.1)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 20, padding: '2px 10px', fontSize: 11, color: '#0891b2', fontWeight: 600 }}>
+                            {r.room_name} <span style={{ opacity: 0.7 }}>({(r.items || []).length})</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Client / project details detected */}
+                    {hasClient && (
+                      <div style={{ background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#0891b2', marginBottom: 6 }}>📋 Client & Project Details Detected</div>
+                        {ex.client_name    && <div style={{ fontSize: 12, marginBottom: 3 }}>👤 <strong>{ex.client_name}</strong>{ex.client_phone ? ` · ${ex.client_phone}` : ''}{ex.client_email ? ` · ${ex.client_email}` : ''}</div>}
+                        {ex.project_name   && <div style={{ fontSize: 12, marginBottom: 3 }}>🏗 {ex.project_name}</div>}
+                        {ex.project_address && <div style={{ fontSize: 12, marginBottom: 3, color: 'var(--muted)' }}>📍 {ex.project_address}</div>}
+                        {ex.notes          && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>{ex.notes.slice(0, 120)}{ex.notes.length > 120 ? '…' : ''}</div>}
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {totalItems > 0 && hasClient && (
+                        <button onClick={() => addFileSections(true)}
+                          style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', fontSize: 12 }}>
+                          ✅ Add Sections + Fill Client Details
+                        </button>
+                      )}
+                      {totalItems > 0 && (
+                        <button onClick={() => addFileSections(false)}
+                          style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)', fontSize: 12 }}>
+                          📋 Add {rooms.length} Section{rooms.length !== 1 ? 's' : ''} Only
+                        </button>
+                      )}
+                      {hasClient && !totalItems && (
+                        <button onClick={() => addFileSections(true)}
+                          style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', fontSize: 12 }}>
+                          👤 Fill Client & Project Details
+                        </button>
+                      )}
+                      <button onClick={() => { setFileParserResult(null); setParserFiles([]); }} style={SEC_BTN}>🔄 Re-upload</button>
+                      <button onClick={() => { setShowFileParser(false); setFileParserResult(null); setParserFiles([]); }} style={SEC_BTN}>Cancel</button>
+                    </div>
+                  </div>
+                );
+              })()}
+              {!fileParserResult && !parsingFile && parserFiles.length === 0 && (
+                <button onClick={() => setShowFileParser(false)} style={{ ...SEC_BTN, marginTop: 4 }}>Cancel</button>
+              )}
             </div>
           )}
 
@@ -333,38 +553,60 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
                   <button onClick={() => removeSection(activeSection)} style={{ ...SEC_BTN, color: '#dc2626' }}>Remove Section</button>
                 </div>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 820 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Item Name','Unit','Qty','Unit Price','Margin%','Total',''].map(h => (
-                      <th key={h} style={{ padding: '4px 6px', textAlign: 'left', color: 'var(--muted)', fontWeight: 600 }}>{h}</th>
+                    {['Item Name','Unit','Qty','Unit Price','Margin%','GST %','Base Total',''].map(h => (
+                      <th key={h} style={{ padding: '4px 6px', textAlign: h === 'GST %' || h === 'Base Total' ? 'center' : 'left', color: h === 'GST %' ? '#d97706' : 'var(--muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {sec.items.map((it, ii) => (
                     <tr key={ii} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, minWidth: 180 }} value={it.item_name} onChange={e => updateItem(activeSection, ii, 'item_name', e.target.value)} placeholder="Product name…" /></td>
-                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 70 }} value={it.unit} onChange={e => updateItem(activeSection, ii, 'unit', e.target.value)} /></td>
-                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 60 }} type="number" value={it.qty} onChange={e => updateItem(activeSection, ii, 'qty', e.target.value)} /></td>
-                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 90 }} type="number" value={it.unit_price} onChange={e => updateItem(activeSection, ii, 'unit_price', e.target.value)} /></td>
-                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 70 }} type="number" value={it.margin_pct} onChange={e => updateItem(activeSection, ii, 'margin_pct', e.target.value)} /></td>
-                      <td style={{ padding: '4px 8px', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmtC(it.line_total)}</td>
+                      <td style={{ padding: '4px 4px' }}>
+                        <input style={{ ...INP, minWidth: 160 }} value={it.item_name} onChange={e => updateItem(activeSection, ii, 'item_name', e.target.value)} placeholder="Product name…" />
+                        {(it.length_ft || it.width_ft || it.height_ft) && (
+                          <div style={{ fontSize: 10, color: '#0891b2', marginTop: 2 }}>
+                            📐 {[it.length_ft && `L:${it.length_ft}ft`, it.width_ft && `W:${it.width_ft}ft`, it.height_ft && `H:${it.height_ft}ft`].filter(Boolean).join(' × ')}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 65 }} value={it.unit} onChange={e => updateItem(activeSection, ii, 'unit', e.target.value)} /></td>
+                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 55 }} type="number" value={it.qty} onChange={e => updateItem(activeSection, ii, 'qty', e.target.value)} /></td>
+                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 85 }} type="number" value={it.unit_price} onChange={e => updateItem(activeSection, ii, 'unit_price', e.target.value)} /></td>
+                      <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 60 }} type="number" value={it.margin_pct} onChange={e => updateItem(activeSection, ii, 'margin_pct', e.target.value)} /></td>
+                      <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                        <select
+                          style={{ ...INP, width: 72, textAlign: 'center', color: '#d97706', fontWeight: 700, background: 'rgba(217,119,6,0.07)', borderColor: 'rgba(217,119,6,0.3)' }}
+                          value={it.gst_pct ?? form.gst_rate ?? 18}
+                          onChange={e => updateItem(activeSection, ii, 'gst_pct', Number(e.target.value))}>
+                          {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding: '4px 8px', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtC(it.line_total)}</td>
                       <td style={{ padding: '4px 4px' }}><button onClick={() => removeItem(activeSection, ii)} style={{ ...SEC_BTN, color: '#dc2626', padding: '2px 8px' }}>✕</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div style={{ textAlign: 'right', marginTop: 8, fontWeight: 700, fontSize: 13 }}>Section Total: {fmtC(sec.section_total)}</div>
+              </div>
+              <div style={{ textAlign: 'right', marginTop: 8, fontWeight: 700, fontSize: 13 }}>Section Base Total: {fmtC(sec.section_total)}</div>
             </div>
           )}
 
           {/* Grand total summary */}
           <div style={{ marginTop: 16, background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)', padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-              <div style={{ fontSize: 13 }}>Subtotal: <strong>{fmtC(subtotal)}</strong></div>
-              {form.include_gst && <div style={{ fontSize: 13 }}>GST @{form.gst_rate}%: <strong>{fmtC(gstAmt)}</strong></div>}
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#a855f7' }}>Grand Total: {fmtC(grandTotal)}</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
+              <div style={{ fontSize: 13 }}>Base Subtotal: <strong>{fmtC(subtotal)}</strong></div>
+              {form.include_gst && Object.entries(gstBreakdown).sort(([a],[b]) => +a - +b).map(([rate, amt]) => (
+                <div key={rate} style={{ fontSize: 12, color: '#d97706' }}>GST @{rate}%: <strong>{fmtC(amt)}</strong></div>
+              ))}
+              {form.include_gst && Object.keys(gstBreakdown).length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>GST: ₹0 (no items priced yet)</div>
+              )}
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#a855f7', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>Grand Total: {fmtC(grandTotal)}</div>
             </div>
           </div>
 
@@ -390,6 +632,7 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
                   unit: it.unit || 'Nos', qty: it.qty || 1, unit_price: 0,
                   margin_pct: 0, line_total: 0,
                   inferred_hsn: it.inferred_hsn || '', inferred_category: it.item_type || '',
+                  gst_pct: inferGstFromHsn(it.inferred_hsn),
                 };
                 const items = [...sec.items, newItem];
                 return { ...sec, items, section_total: items.reduce((s, x) => s + (x.line_total || 0), 0) };
@@ -448,20 +691,28 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
       ${(quote.sections || []).map(sec => `
         <div style="margin-bottom:20px">
           <div style="font-weight:800;font-size:13px;background:#f3f4f6;padding:8px 10px;border-radius:6px;margin-bottom:8px">${sec.section_name}</div>
-          <table><thead><tr><th>#</th><th>Item</th><th>Unit</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
-          <tbody>${(sec.items || []).map((it, i) => `<tr><td>${i+1}</td><td>${it.item_name}${it.description ? '<br/><span style="font-size:10px;color:#9ca3af">'+it.description+'</span>' : ''}</td><td>${it.unit}</td><td style="text-align:right">${it.qty}</td><td style="text-align:right">₹${Number(it.unit_price||0).toLocaleString('en-IN')}</td><td style="text-align:right;font-weight:700">₹${Number(it.line_total||0).toLocaleString('en-IN')}</td></tr>`).join('')}</tbody>
-          <tfoot><tr><td colspan="5" style="text-align:right;font-weight:700">Section Total</td><td style="text-align:right;font-weight:800">₹${Number(sec.section_total||0).toLocaleString('en-IN')}</td></tr></tfoot>
+          <table><thead><tr><th>#</th><th>Item</th><th>Unit</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:center;color:#d97706">GST%</th><th style="text-align:right">Amount</th></tr></thead>
+          <tbody>${(sec.items || []).map((it, i) => `<tr><td>${i+1}</td><td>${it.item_name}${it.description ? '<br/><span style="font-size:10px;color:#9ca3af">'+it.description+'</span>' : ''}${(it.length_ft||it.width_ft||it.height_ft)?'<br/><span style="font-size:10px;color:#0891b2">📐 '+[it.length_ft&&'L:'+it.length_ft+'ft',it.width_ft&&'W:'+it.width_ft+'ft',it.height_ft&&'H:'+it.height_ft+'ft'].filter(Boolean).join(' × ')+'</span>':''}</td><td>${it.unit}</td><td style="text-align:right">${it.qty}</td><td style="text-align:right">₹${Number(it.unit_price||0).toLocaleString('en-IN')}</td><td style="text-align:center;font-weight:700;color:#d97706">${it.gst_pct??quote.gst_rate??18}%</td><td style="text-align:right;font-weight:700">₹${Number(it.line_total||0).toLocaleString('en-IN')}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><td colspan="6" style="text-align:right;font-weight:700">Section Total</td><td style="text-align:right;font-weight:800">₹${Number(sec.section_total||0).toLocaleString('en-IN')}</td></tr></tfoot>
           </table>
         </div>`).join('')}
-      <div style="margin-left:auto;width:280px;border:1px solid #e5e7eb;border-radius:8px;padding:14px">
-        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span>Subtotal</span><strong>₹${Number(quote.subtotal||0).toLocaleString('en-IN')}</strong></div>
-        ${quote.include_gst ? `
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:3px"><span>CGST @${Number(quote.gst_rate||18)/2}%</span><span>₹${Number((quote.gst_amount||0)/2).toLocaleString('en-IN')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:6px"><span>SGST @${Number(quote.gst_rate||18)/2}%</span><span>₹${Number((quote.gst_amount||0)/2).toLocaleString('en-IN')}</span></div>
-        ` : ''}
-        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;color:#a855f7;border-top:1px solid #e5e7eb;padding-top:8px"><span>Grand Total</span><span>₹${Number(quote.grand_total||0).toLocaleString('en-IN')}</span></div>
-        ${quote.include_gst ? '<div style="font-size:10px;color:#9ca3af;margin-top:4px">SAC: 9983 (Interior Design Services)</div>' : ''}
-      </div>
+      ${(() => {
+        const bd = {};
+        (quote.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>{
+          const rate=it.gst_pct??quote.gst_rate??18;
+          const amt=(it.line_total||0)*(rate/100);
+          if(amt>0&&quote.include_gst) bd[rate]=(bd[rate]||0)+amt;
+        }));
+        const entries=Object.entries(bd).sort(([a],[b])=>+a-+b);
+        const totalGst=entries.reduce((s,[,v])=>s+v,0)||(quote.gst_amount||0);
+        return `<div style="margin-left:auto;width:320px;border:1px solid #e5e7eb;border-radius:8px;padding:14px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span>Base Subtotal</span><strong>₹${Number(quote.subtotal||0).toLocaleString('en-IN')}</strong></div>
+          ${quote.include_gst?(entries.length>0?entries.map(([r,a])=>`<div style="display:flex;justify-content:space-between;font-size:12px;color:#d97706;margin-bottom:3px"><span>GST @${r}% (CGST ${r/2}% + SGST ${r/2}%)</span><span>₹${Math.round(a).toLocaleString('en-IN')}</span></div>`).join(''):`<div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:3px"><span>CGST @${Number(quote.gst_rate||18)/2}%</span><span>₹${Number((quote.gst_amount||0)/2).toLocaleString('en-IN')}</span></div><div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:3px"><span>SGST @${Number(quote.gst_rate||18)/2}%</span><span>₹${Number((quote.gst_amount||0)/2).toLocaleString('en-IN')}</span></div>`):''}
+          ${quote.include_gst&&entries.length>1?`<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#d97706;border-top:1px solid #e5e7eb;padding-top:4px;margin-bottom:4px"><span>Total GST</span><span>₹${Math.round(totalGst).toLocaleString('en-IN')}</span></div>`:''}
+          <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;color:#a855f7;border-top:1px solid #e5e7eb;padding-top:8px"><span>Grand Total</span><span>₹${Number(quote.grand_total||0).toLocaleString('en-IN')}</span></div>
+          ${quote.include_gst?'<div style="font-size:10px;color:#9ca3af;margin-top:4px">SAC: 9983 (Interior Design Services)</div>':''}
+        </div>`;
+      })()}
       ${quote.payment_terms ? `<div style="margin-top:20px"><strong style="font-size:12px">Payment Terms:</strong> <span style="font-size:12px;color:#6b7280">${quote.payment_terms}</span></div>` : ''}
       ${quote.terms ? `<div style="margin-top:12px"><strong style="font-size:12px">Terms & Conditions:</strong><div style="font-size:11px;color:#6b7280;white-space:pre-line;margin-top:4px">${quote.terms}</div></div>` : ''}
     </body></html>`);
@@ -557,7 +808,8 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
           {(quote.sections || []).map((sec, si) => (
             <div key={si} style={{ marginBottom: 18 }}>
               <div style={{ fontWeight: 800, fontSize: 13, background: 'var(--bg)', padding: '7px 12px', borderRadius: 6, marginBottom: 8, border: '1px solid var(--border)' }}>{sec.section_name}</div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 600 }}>
                 <thead>
                   <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
                     <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--muted)', fontWeight: 600 }}>#</th>
@@ -565,6 +817,7 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
                     <th style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--muted)', fontWeight: 600 }}>Unit</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--muted)', fontWeight: 600 }}>Qty</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--muted)', fontWeight: 600 }}>Rate</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', color: '#d97706', fontWeight: 700 }}>GST%</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--muted)', fontWeight: 600 }}>Amount</th>
                   </tr>
                 </thead>
@@ -576,34 +829,68 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
                         <div style={{ fontWeight: 600 }}>{it.item_name}</div>
                         {it.description && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{it.description}</div>}
                         {it.inferred_category && <ItemTypeBadge type={it.inferred_category} />}
+                        {(it.length_ft || it.width_ft || it.height_ft) && (
+                          <div style={{ fontSize: 10, color: '#0891b2', marginTop: 2 }}>
+                            📐 {[it.length_ft && `L:${it.length_ft}ft`, it.width_ft && `W:${it.width_ft}ft`, it.height_ft && `H:${it.height_ft}ft`].filter(Boolean).join(' × ')}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'center' }}>{it.unit}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right' }}>{it.qty}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtC(it.unit_price)}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.1)', borderRadius: 10, padding: '1px 7px' }}>
+                          {it.gst_pct ?? quote.gst_rate ?? 18}%
+                        </span>
+                      </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtC(it.line_total)}</td>
                     </tr>
                   ))}
                   <tr style={{ background: 'var(--bg)' }}>
-                    <td colSpan={5} style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>Section Total</td>
+                    <td colSpan={6} style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>Section Total</td>
                     <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 800, color: '#a855f7' }}>{fmtC(sec.section_total)}</td>
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           ))}
 
-          {/* Summary */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, minWidth: 260 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}><span>Subtotal</span><strong>{fmtC(quote.subtotal)}</strong></div>
-              {quote.include_gst && <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 3 }}><span>CGST @{(quote.gst_rate || 18) / 2}%</span><span>{fmtC((quote.gst_amount || 0) / 2)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}><span>SGST @{(quote.gst_rate || 18) / 2}%</span><span>{fmtC((quote.gst_amount || 0) / 2)}</span></div>
-              </>}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#a855f7', borderTop: '1px solid var(--border)', paddingTop: 8 }}><span>Grand Total</span><span>{fmtC(quote.grand_total)}</span></div>
-              {quote.include_gst && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>SAC: 9983 — Interior Design Services</div>}
-            </div>
-          </div>
+          {/* Summary — per-rate GST breakdown */}
+          {(() => {
+            const bdMap = {};
+            (quote.sections || []).forEach(sec => (sec.items || []).forEach(it => {
+              const rate = it.gst_pct ?? quote.gst_rate ?? 18;
+              const amt  = (it.line_total || 0) * (rate / 100);
+              if (amt > 0 && quote.include_gst) bdMap[rate] = (bdMap[rate] || 0) + amt;
+            }));
+            const bdEntries = Object.entries(bdMap).sort(([a],[b]) => +a - +b);
+            const totalGst = bdEntries.reduce((s, [,v]) => s + v, 0) || (quote.gst_amount || 0);
+            return (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, minWidth: 280 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}><span>Base Subtotal</span><strong>{fmtC(quote.subtotal)}</strong></div>
+                  {quote.include_gst && (
+                    bdEntries.length > 0 ? bdEntries.map(([rate, amt]) => (
+                      <div key={rate} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#d97706', marginBottom: 3 }}>
+                        <span>GST @{rate}% (CGST {rate/2}% + SGST {rate/2}%)</span><span>{fmtC(amt)}</span>
+                      </div>
+                    )) : <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 3 }}><span>CGST @{(quote.gst_rate || 18) / 2}%</span><span>{fmtC((quote.gst_amount || 0) / 2)}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 3 }}><span>SGST @{(quote.gst_rate || 18) / 2}%</span><span>{fmtC((quote.gst_amount || 0) / 2)}</span></div>
+                    </>
+                  )}
+                  {quote.include_gst && bdEntries.length > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: '#d97706', borderTop: '1px solid var(--border)', paddingTop: 4, marginBottom: 4 }}>
+                      <span>Total GST</span><span>{fmtC(totalGst)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#a855f7', borderTop: '1px solid var(--border)', paddingTop: 8 }}><span>Grand Total</span><span>{fmtC(quote.grand_total)}</span></div>
+                  {quote.include_gst && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>SAC: 9983 — Interior Design Services</div>}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Payment terms */}
           {quote.payment_terms && <div style={{ marginTop: 16, fontSize: 13 }}><strong>Payment Terms:</strong> <span style={{ color: 'var(--muted)' }}>{quote.payment_terms}</span></div>}
@@ -618,7 +905,7 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
 
 // ── WhatsAppScannerModal ──────────────────────────────────────────────────────
 function WhatsAppScannerModal({ onClose, onCreateQuote }) {
-  const [mode, setMode]         = useState('text'); // 'text' | 'image'
+  const [mode, setMode]         = useState('text'); // 'text' | 'file'
   const [text, setText]         = useState('');
   const [files, setFiles]       = useState([]);
   const [scanning, setScanning] = useState(false);
@@ -655,9 +942,20 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
     const sections = (ex.rooms || []).map((room, i) => ({
       section_name: room.room_name, section_order: i, section_total: 0,
       items: (room.items || []).map(it => ({
-        item_name: it.item_name || '', description: it.specifications || '',
-        unit: it.unit || 'Nos', qty: it.qty || 1, unit_price: 0, margin_pct: 0, line_total: 0,
-        inferred_hsn: it.inferred_hsn || '', inferred_category: it.item_type || '',
+        item_name: it.item_name || '',
+        description: [it.specifications, it.description].filter(Boolean).join(' · '),
+        unit: it.unit || 'Nos',
+        qty: it.qty || 1,
+        unit_price: it.unit_price || 0,
+        margin_pct: 0,
+        line_total: (it.qty || 1) * (it.unit_price || 0),
+        inferred_hsn: it.inferred_hsn || '',
+        inferred_category: it.item_type || '',
+        gst_pct: inferGstFromHsn(it.inferred_hsn),
+        length_ft: it.length_ft || null,
+        width_ft: it.width_ft || null,
+        height_ft: it.height_ft || null,
+        dim_type: it.dim_type || null,
       })),
     }));
     onCreateQuote({
@@ -678,8 +976,8 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'linear-gradient(135deg,rgba(8,145,178,0.08),transparent)' }}>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 15 }}>📱 WhatsApp / Image Scanner</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Scan photos or paste requirements — AI extracts every item for the architect & interior industry</div>
+            <div style={{ fontWeight: 900, fontSize: 15 }}>📱 WhatsApp / Document / Image Scanner</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Paste text, upload files (PDF, Word, Excel) or photos — AI reads everything and builds your BOQ</div>
           </div>
           <button onClick={onClose} style={CLOSE_BTN}>✕</button>
         </div>
@@ -688,7 +986,7 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
 
           {/* Mode tabs */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
-            {[['text','💬 Text / WhatsApp Message'], ['image','📷 Photos / Site Images']].map(([m, l]) => (
+            {[['text','💬 Text / WhatsApp'], ['file','📄 Files / Photos']].map(([m, l]) => (
               <button key={m} onClick={() => { setMode(m); }} style={{ ...SEC_BTN, background: mode === m ? 'rgba(8,145,178,0.12)' : 'transparent', color: mode === m ? '#0891b2' : 'var(--muted)', borderColor: mode === m ? '#0891b2' : 'var(--border)', fontWeight: mode === m ? 700 : 600 }}>{l}</button>
             ))}
           </div>
@@ -699,35 +997,45 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
               value={text} onChange={e => setText(e.target.value)} />
           )}
 
-          {mode === 'image' && (
+          {mode === 'file' && (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <input ref={fileRef} type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                <input ref={fileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ods,.csv,.txt,image/*" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
                 <button onClick={() => fileRef.current.click()} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', padding: '8px 16px', fontSize: 12 }}>
-                  📷 Add Photos ({files.length})
+                  📎 Add Files ({files.length})
                 </button>
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>Max 4 MB per image · JPEG/PNG/WebP</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>PDF · Word · Excel · CSV · Images (max 4 MB per image)</span>
               </div>
 
               {/* Oversized warning */}
               {oversized.length > 0 && (
                 <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 10 }}>
-                  ⚠ {oversized.map(f => f.name).join(', ')} {oversized.length === 1 ? 'is' : 'are'} over 4 MB. Please compress or reduce resolution before uploading.
+                  ⚠ {oversized.map(f => f.name).join(', ')} {oversized.length === 1 ? 'is' : 'are'} over 4 MB (images only). Please compress or reduce resolution before uploading.
                 </div>
               )}
 
               {files.length > 0 && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {files.map((f, i) => (
-                    <div key={i} style={{ position: 'relative' }}>
-                      <img src={URL.createObjectURL(f)} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: `2px solid ${f.size > 4*1024*1024 ? '#dc2626' : 'var(--border)'}` }} />
-                      <div style={{ position: 'absolute', bottom: 2, left: 2, right: 2, background: 'rgba(0,0,0,0.6)', borderRadius: 4, fontSize: 9, color: '#fff', padding: '1px 3px', textAlign: 'center' }}>{(f.size/1024).toFixed(0)}KB</div>
-                      <button onClick={() => setFiles(fs => fs.filter((_, j) => j !== i))} style={{ position:'absolute',top:-5,right:-5,width:18,height:18,borderRadius:'50%',background:'#dc2626',color:'#fff',border:'none',fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>✕</button>
-                    </div>
-                  ))}
+                  {files.map((f, i) => {
+                    const isImg = f.type.startsWith('image/');
+                    return (
+                      <div key={i} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        {isImg ? (
+                          <img src={URL.createObjectURL(f)} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: `2px solid ${f.size > 4*1024*1024 ? '#dc2626' : 'var(--border)'}` }} />
+                        ) : (
+                          <div style={{ width: 80, height: 80, borderRadius: 8, border: '2px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontSize: 28 }}>
+                            {FILE_ICON(f.name)}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2, maxWidth: 80, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>{(f.size/1024).toFixed(0)}KB</div>
+                        <button onClick={() => setFiles(fs => fs.filter((_, j) => j !== i))} style={{ position:'absolute',top:-5,right:-5,width:18,height:18,borderRadius:'50%',background:'#dc2626',color:'#fff',border:'none',fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>✕</button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-              <textarea style={{ ...INP, height: 70, fontSize: 12 }} placeholder="Optional: add context — project name, client, location, no. of units, budget tier…" value={text} onChange={e => setText(e.target.value)} />
+              <textarea style={{ ...INP, height: 60, fontSize: 12 }} placeholder="Optional: add context — project name, client, no. of units, budget tier…" value={text} onChange={e => setText(e.target.value)} />
             </div>
           )}
 
@@ -735,7 +1043,7 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
           <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
             <button onClick={scan} disabled={scanning || oversized.length > 0}
               style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: (scanning || oversized.length > 0) ? 0.5 : 1, fontSize: 13, padding: '10px 22px' }}>
-              {scanning ? '⏳ AI Extracting…' : '⚡ Scan & Extract'}
+              {scanning ? '⏳ AI Reading…' : mode === 'file' ? '⚡ Parse Files & Extract' : '⚡ Scan & Extract'}
             </button>
             {scanning && <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>GPT-4o is analysing your requirements…</span>}
           </div>
@@ -797,8 +1105,13 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
                             <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                               <ItemTypeBadge type={it.item_type} />
                               {it.qty && <span style={{ fontSize: 10, color: '#0891b2', background: 'rgba(8,145,178,0.1)', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>Qty: {it.qty} {it.unit}</span>}
-                              {it.inferred_hsn && <span style={{ fontSize: 10, color: '#6b7280', background: 'rgba(107,114,128,0.1)', borderRadius: 10, padding: '2px 8px' }}>HSN {it.inferred_hsn}</span>}
+                              {it.inferred_hsn && <span style={{ fontSize: 10, color: '#6b7280', background: 'rgba(107,114,128,0.1)', borderRadius: 10, padding: '2px 8px' }}>HSN {it.inferred_hsn} · GST {inferGstFromHsn(it.inferred_hsn)}%</span>}
                               {it.material_preference && <span style={{ fontSize: 10, color: '#7c3aed', background: 'rgba(124,58,237,0.08)', borderRadius: 10, padding: '2px 8px' }}>{it.material_preference}</span>}
+                              {(it.length_ft || it.width_ft || it.height_ft) && (
+                                <span style={{ fontSize: 10, color: '#0891b2', background: 'rgba(8,145,178,0.08)', borderRadius: 10, padding: '2px 8px', fontWeight: 600 }}>
+                                  📐 {[it.length_ft && `L:${it.length_ft}ft`, it.width_ft && `W:${it.width_ft}ft`, it.height_ft && `H:${it.height_ft}ft`].filter(Boolean).join(' × ')}
+                                </span>
+                              )}
                             </div>
                             {it.specifications && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>{it.specifications}</div>}
                           </div>

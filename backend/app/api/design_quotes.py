@@ -3,6 +3,7 @@ Design Quote Studio API — Interior & Architect Quotations.
 Accessible only to the 'architect' role (module: designquote).
 DB-first / demo-fallback pattern. Tables auto-created on first DB call.
 """
+import io
 import json
 import logging
 import base64
@@ -457,7 +458,18 @@ Rules:
 - Plumbing complete lot: dim_type = fixed, unit = Lot
 - If no dimensions given: all null and dim_type = fixed
 - If qty is mentioned inline (e.g. "3 sets"), capture it in qty
-- Keep all brand names exactly as mentioned"""
+- Keep all brand names exactly as mentioned
+
+DOCUMENT / BOQ PARSING RULES (for PDF, Word, Excel, or structured text input):
+- If input is a BOQ table or schedule, read each row as a separate item
+- Extract Length×Width, Length×Height, or single dimension from any column labelled: L, W, H, Length, Width, Height, Size, Dim, Dimension, Area, Room Size
+- Convert mm → ft by dividing by 304.8; cm → ft by dividing by 30.48; m → ft by multiplying by 3.281
+- Column labelled "Qty", "Quantity", "Nos", "Units" → populate qty field
+- Column labelled "Rate", "Unit Price", "MRP", "Price" → populate unit_price field
+- Column labelled "Description", "Particulars", "Item" → populate item_name and description
+- Column labelled "HSN", "HSN Code", "SAC" → populate inferred_hsn
+- Group rows by room/area/section headers found in the document
+- If client name, project name, or address is visible in the document header → populate those fields"""
 
 _ARCHITECT_PARSE_PROMPT = """You are an expert architectural quantity surveyor. Parse the project brief into structured JSON.
 Always respond with valid JSON only — no preamble, no explanation.
@@ -633,7 +645,112 @@ def _generate_boq(areas: dict, project_type: str, complexity: str) -> list:
     return items
 
 
+# ── Document text extraction ──────────────────────────────────────────────────
+
+_DOC_EXTS_TEXT = (".txt", ".csv", ".md", ".log", ".json", ".xml")
+_DOC_EXTS_PDF  = (".pdf",)
+_DOC_EXTS_DOCX = (".docx", ".doc")
+_DOC_EXTS_XLSX = (".xlsx", ".xls", ".ods")
+
+
+def _extract_document_text(filename: str, raw: bytes, content_type: str) -> Optional[str]:
+    """
+    Extract readable text from uploaded documents.
+    Returns extracted text string (up to 6000 chars), or None on failure.
+    Supports: PDF, DOCX/DOC, XLSX/XLS, CSV, plain text.
+    Libraries (pypdf, python-docx, openpyxl) are already in requirements.txt.
+    """
+    fn  = (filename or "").lower()
+    ct  = (content_type or "").lower()
+
+    # ── PDF ──────────────────────────────────────────────────────────────────
+    if fn.endswith(_DOC_EXTS_PDF) or "pdf" in ct:
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(raw))
+            pages  = []
+            for page in reader.pages:
+                t = page.extract_text() or ""
+                if t.strip():
+                    pages.append(t.strip())
+            text = "\n\n--- Page Break ---\n\n".join(pages)
+            if text.strip():
+                logger.info("design_quotes: extracted %d chars from PDF '%s' (%d pages)", len(text), filename, len(pages))
+                return text[:6000]
+        except ImportError:
+            logger.warning("design_quotes: pypdf not available — falling back to raw decode for %s", filename)
+        except Exception as exc:
+            logger.warning("design_quotes: PDF extraction failed for '%s' — %s", filename, exc)
+        # Fallback: raw bytes occasionally contain readable ASCII text
+        return raw.decode("utf-8", errors="ignore")[:4000] or None
+
+    # ── DOCX / DOC ───────────────────────────────────────────────────────────
+    if fn.endswith(_DOC_EXTS_DOCX) or "wordprocessingml" in ct or "msword" in ct:
+        try:
+            import docx as _docx
+            document = _docx.Document(io.BytesIO(raw))
+            parts = []
+            for para in document.paragraphs:
+                if para.text.strip():
+                    parts.append(para.text.strip())
+            for table in document.tables:
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells]
+                    if any(cells):
+                        parts.append(" | ".join(cells))
+            text = "\n".join(parts)
+            if text.strip():
+                logger.info("design_quotes: extracted %d chars from DOCX '%s'", len(text), filename)
+                return text[:6000]
+        except ImportError:
+            logger.warning("design_quotes: python-docx not available for %s", filename)
+        except Exception as exc:
+            logger.warning("design_quotes: DOCX extraction failed for '%s' — %s", filename, exc)
+        return None
+
+    # ── XLSX / XLS ───────────────────────────────────────────────────────────
+    if fn.endswith(_DOC_EXTS_XLSX) or "spreadsheet" in ct or "excel" in ct:
+        try:
+            import openpyxl
+            wb    = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            lines = []
+            for ws in list(wb.worksheets)[:5]:          # max 5 sheets
+                lines.append(f"\n=== Sheet: {ws.title} ===")
+                for row in ws.iter_rows(values_only=True):
+                    cells = [str(c) if c is not None else "" for c in row]
+                    if any(c.strip() for c in cells):
+                        lines.append(" | ".join(cells))
+            text = "\n".join(lines)
+            if text.strip():
+                logger.info("design_quotes: extracted %d chars from XLSX '%s'", len(text), filename)
+                return text[:6000]
+        except ImportError:
+            logger.warning("design_quotes: openpyxl not available for %s", filename)
+        except Exception as exc:
+            logger.warning("design_quotes: XLSX extraction failed for '%s' — %s", filename, exc)
+        return None
+
+    # ── CSV / plain text ─────────────────────────────────────────────────────
+    try:
+        text = raw.decode("utf-8", errors="ignore")
+        return text[:4000] if text.strip() else None
+    except Exception:
+        return None
+
+
 # ── AI helpers ────────────────────────────────────────────────────────────────
+
+def _sanitize_doc_text(text: str) -> str:
+    """Remove control characters and normalise whitespace from extracted document text."""
+    if not text:
+        return text
+    # Keep printable ASCII + common Unicode printables; remove control chars except \n \t
+    cleaned = "".join(ch if (ch in ("\n", "\t") or (ord(ch) >= 32 and ord(ch) != 127)) else " " for ch in text)
+    # Collapse long runs of blank lines
+    import re as _re
+    cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
 
 async def _ai_scan(text: str, images: Optional[List[dict]] = None) -> dict:
     """images is a list of dicts with keys b64 (str) and ct (content-type str)."""
@@ -641,6 +758,8 @@ async def _ai_scan(text: str, images: Optional[List[dict]] = None) -> dict:
     cfg = get_settings()
     if not cfg.openai_api_key:
         return _demo_scan_result()
+    # Sanitise document text before sending to the model
+    text = _sanitize_doc_text(text) if text else text
     try:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=90.0)
@@ -687,10 +806,37 @@ async def _ai_scan(text: str, images: Optional[List[dict]] = None) -> dict:
         resp = await client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            max_tokens=4000,
+            max_tokens=4096,
             response_format={"type": "json_object"},
         )
         raw = resp.choices[0].message.content
+
+        # GPT-4o can return content=None on content_filter or tool_call finish reasons.
+        # Detect this early and retry without response_format constraint.
+        if not raw or not raw.strip():
+            finish = resp.choices[0].finish_reason
+            logger.warning("design_quotes: GPT-4o returned null content (finish_reason=%s), retrying without json_object mode", finish)
+            resp2 = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=4096,
+                # No response_format — ask the model to produce JSON in the system prompt
+            )
+            raw = resp2.choices[0].message.content or ""
+            # Strip markdown fences if any (```json ... ```)
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```", 2)[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+                raw = raw.split("```")[0].strip()
+
+        if not raw:
+            raise ValueError(
+                "OpenAI returned an empty response on both attempts. "
+                "This is usually a transient API issue — please retry."
+            )
+
         extracted = json.loads(raw)
         return {"extracted": extracted, "data_source": "ai"}
     except Exception as exc:
@@ -966,6 +1112,225 @@ async def parse_interior_brief(payload: dict):
         text = text[:2000]
     result = await _ai_parse_interior_brief(text)
     return result
+
+
+# ── General Document Parser (any file type → quotation BOQ) ──────────────────
+
+_GENERAL_DOCUMENT_PROMPT = """You are an expert at reading ANY Indian construction, interior design, or project specification document and converting it to a structured Bill of Quantities (BOQ).
+
+Your task: read the complete document text and extract EVERYTHING that could be a line item in a quotation — products, materials, fittings, civil works, electrical, furniture, services, or any other deliverable.
+
+Return ONLY valid JSON — no markdown, no explanation, no preamble.
+
+Required JSON schema:
+{
+  "client_name": "full name of client/owner/buyer — check document header, salutation, or 'For:' / 'To:' fields",
+  "client_phone": "phone number or null",
+  "client_email": "email or null",
+  "project_name": "project/building/flat name or null",
+  "project_address": "site/flat/building address or null",
+  "project_type": "Residential|Commercial|Hospitality|Office|Industrial|Other",
+  "designer_name": "architect/designer name if mentioned or null",
+  "notes": "any special requirements, payment terms, remarks found in the document",
+  "rooms": [
+    {
+      "room_name": "Section / Room / Work Package / Floor name — use what the document uses",
+      "items": [
+        {
+          "item_name": "Clear, complete item name — include brand, model, size if mentioned",
+          "description": "Full specifications: material, finish, color, standard, model number, remarks",
+          "item_type": "cp_fittings|sanitary_ware|tiles|hardware|flooring|false_ceiling|wall_panel|furniture|electrical|civil|plumbing|waterproofing|glass|aluminium|painting|other",
+          "unit": "Nos|Set|Pair|SqFt|SqMtr|RFT|Mtr|Kg|Bag|Cft|Cum|LS|Lot",
+          "qty": number,
+          "unit_price": number_or_null,
+          "length_ft": number_or_null,
+          "width_ft": number_or_null,
+          "height_ft": number_or_null,
+          "inferred_hsn": "4-digit HSN code or null"
+        }
+      ]
+    }
+  ]
+}
+
+MANDATORY EXTRACTION RULES — follow every one:
+1. READ THE ENTIRE TEXT. Every table row, bullet point, paragraph line, footnote.
+2. Client name: look for "Mr/Mrs/M/s", "To:", "For:", "Customer:", "Owner:", "Name:" at start of document.
+3. Project address: look for flat number, tower, building name, locality, city, pincode.
+4. Group items by the document's own structure: room names, work packages, floors, area headings.
+   If no headings exist, use ONE group named after the document subject.
+5. Dimensions: convert everything to feet — mm÷304.8, cm÷30.48, m×3.281 (round to 2 dec).
+6. Quantities: from "Qty", "Nos.", "Units", "Count" columns or inline numbers.
+7. Unit prices: from "Rate", "MRP", "Price/Unit", "Unit Cost" columns.
+8. HSN inference: cp_fittings→8481, sanitary_ware→6910, tiles→6907, hardware→8302,
+   electrical→8536, plumbing→3917, civil/construction→6901, painting→3210, glass→7005.
+9. NEVER return an empty rooms array. If the document has ANY readable text, extract at least one item.
+10. If a row in a BOQ table is a heading/subtotal row, skip it (don't create an item for it).
+11. For items without explicit qty, default qty = 1.
+12. Translate non-English item names to English."""
+
+
+async def _ai_parse_document(text: str) -> dict:
+    """General-purpose document → BOQ extraction using a permissive prompt."""
+    from app.core.config import get_settings
+    cfg = get_settings()
+    if not cfg.openai_api_key:
+        return _demo_doc_parse_result()
+
+    clean = _sanitize_doc_text(text)
+    if not clean:
+        return _demo_doc_parse_result()
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=90.0)
+
+        messages = [
+            {"role": "system", "content": _GENERAL_DOCUMENT_PROMPT},
+            {"role": "user",   "content": clean[:8000]},  # generous limit for large documents
+        ]
+
+        resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=4096,
+            response_format={"type": "json_object"},
+        )
+        raw = resp.choices[0].message.content
+
+        # Null-content guard — retry without strict JSON mode
+        if not raw or not raw.strip():
+            finish = resp.choices[0].finish_reason
+            logger.warning("design_quotes: parse-document null content (finish=%s), retrying", finish)
+            resp2 = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=4096,
+            )
+            raw = resp2.choices[0].message.content or ""
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```", 2)[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+                raw = raw.split("```")[0].strip()
+
+        if not raw:
+            raise ValueError("OpenAI returned empty response on both attempts — please retry.")
+
+        extracted = json.loads(raw)
+
+        # Ensure rooms is always a list
+        if not isinstance(extracted.get("rooms"), list):
+            extracted["rooms"] = []
+
+        # If AI still returned 0 rooms but gave us text, create a fallback section
+        if not extracted["rooms"] and clean.strip():
+            extracted["rooms"] = [{
+                "room_name": "Extracted Items",
+                "items": [{
+                    "item_name": "Document content extracted — please review",
+                    "description": clean[:500],
+                    "item_type": "other", "unit": "LS", "qty": 1,
+                    "unit_price": None, "inferred_hsn": None,
+                }],
+            }]
+
+        return {"extracted": extracted, "data_source": "ai"}
+
+    except Exception as exc:
+        logger.error("design_quotes: parse-document failed — %s", exc)
+        demo = _demo_doc_parse_result()
+        demo["data_source"] = "error"
+        demo["scan_error"] = f"AI extraction failed: {str(exc)[:200]}"
+        return demo
+
+
+def _demo_doc_parse_result() -> dict:
+    """Realistic demo result shown when OPENAI_API_KEY is not configured."""
+    return {
+        "demo_note": "Demo mode — configure OPENAI_API_KEY in backend/.env to extract from real documents.",
+        "extracted": {
+            "client_name": "Mr. Sandeep Kumar",
+            "client_phone": "+91 98765 00000",
+            "client_email": None,
+            "project_name": "Pacific Bannerghatta — 3BHK Flat",
+            "project_address": "Pacific Bannerghatta Road, Bangalore — 560 076",
+            "project_type": "Residential",
+            "designer_name": None,
+            "notes": "Demo extraction — real document not parsed (no OpenAI API key).",
+            "rooms": [
+                {
+                    "room_name": "Master Bathroom",
+                    "items": [
+                        {"item_name": "Basin Mixer — Single Lever Chrome", "description": "Hot & cold, wall-mounted, 35mm cartridge", "item_type": "cp_fittings", "unit": "Nos", "qty": 1, "unit_price": None, "length_ft": None, "width_ft": None, "height_ft": None, "inferred_hsn": "8481"},
+                        {"item_name": "Overhead Shower Set", "description": "6\" round, SS arm 450mm", "item_type": "cp_fittings", "unit": "Set", "qty": 1, "unit_price": None, "length_ft": None, "width_ft": None, "height_ft": None, "inferred_hsn": "8481"},
+                        {"item_name": "Wall-Hung EWC with Soft-Close Seat", "description": "Dual flush 3/6L, concealed cistern", "item_type": "sanitary_ware", "unit": "Set", "qty": 1, "unit_price": None, "length_ft": None, "width_ft": None, "height_ft": None, "inferred_hsn": "6910"},
+                        {"item_name": "Bathroom Accessories 5-Piece Set", "description": "Towel bar 24\", ring, hook, soap dish, TP holder", "item_type": "sanitary_ware", "unit": "Set", "qty": 1, "unit_price": None, "length_ft": None, "width_ft": None, "height_ft": None, "inferred_hsn": "3922"},
+                    ],
+                },
+                {
+                    "room_name": "Kitchen",
+                    "items": [
+                        {"item_name": "SS Double Bowl Kitchen Sink", "description": "304 grade, sound deadening pads, drain basket", "item_type": "other", "unit": "Nos", "qty": 1, "unit_price": None, "length_ft": None, "width_ft": None, "height_ft": None, "inferred_hsn": "7324"},
+                        {"item_name": "Kitchen Single Lever Mixer Tap", "description": "Chrome finish, swivel spout", "item_type": "cp_fittings", "unit": "Nos", "qty": 1, "unit_price": None, "length_ft": None, "width_ft": None, "height_ft": None, "inferred_hsn": "8481"},
+                    ],
+                },
+            ],
+        },
+        "data_source": "demo",
+    }
+
+
+@router.post("/design-quotes/parse-document")
+async def parse_document(
+    file: List[UploadFile] = File(default=[]),
+    text_input: Optional[str] = Form(default=None),
+):
+    """
+    General-purpose document → quotation BOQ parser.
+    Accepts PDF, DOCX, XLSX, CSV, images, or plain text.
+    Uses a permissive AI prompt that extracts ANY item type.
+    Also extracts client name, project name, and address from document headers.
+    """
+    combined_text = text_input or ""
+    images: List[dict] = []
+    IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
+    MAX_IMAGE_BYTES = 4 * 1024 * 1024
+
+    for f in (file or []):
+        if not f or not f.filename:
+            continue
+        raw = await f.read()
+        ct  = (f.content_type or "").lower()
+        fn  = (f.filename or "").lower()
+
+        if ct.startswith("image/") or fn.endswith(IMAGE_EXTS):
+            if len(raw) > MAX_IMAGE_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Image '{f.filename}' is {len(raw)//1024}KB — max 4 MB.",
+                )
+            b64 = base64.b64encode(raw).decode()
+            images.append({"b64": b64, "ct": ct if ct.startswith("image/") else "image/jpeg"})
+        else:
+            doc_text = _extract_document_text(f.filename, raw, f.content_type or "")
+            if doc_text and doc_text.strip():
+                combined_text = combined_text + f"\n\n[Document: {f.filename}]\n" + doc_text
+            else:
+                logger.warning("design_quotes: parse-document could not extract text from '%s'", f.filename)
+
+    if not combined_text.strip() and not images:
+        raise HTTPException(status_code=400, detail="Provide at least one file or text_input")
+
+    # Images: describe them as text first (reuse _ai_scan for image path)
+    if images:
+        # Use the general scan endpoint for image inputs
+        result = await _ai_scan(combined_text, images)
+        return result
+
+    # Text/document path: use the general document prompt
+    return await _ai_parse_document(combined_text)
 
 
 # ── Routes: Templates ─────────────────────────────────────────────────────────
@@ -1331,12 +1696,15 @@ async def scan_requirements(
     IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 
     MAX_IMAGE_BYTES = 4 * 1024 * 1024  # 4 MB per image
+    doc_meta: list = []  # human-readable info about processed docs (for logging)
+
     for f in (file or []):
         if not f or not f.filename:
             continue
         raw = await f.read()
-        ct = (f.content_type or "").lower()
-        fn = (f.filename or "").lower()
+        ct  = (f.content_type or "").lower()
+        fn  = (f.filename or "").lower()
+
         if ct.startswith("image/") or fn.endswith(IMAGE_EXTS):
             if len(raw) > MAX_IMAGE_BYTES:
                 raise HTTPException(
@@ -1347,12 +1715,14 @@ async def scan_requirements(
             b64 = base64.b64encode(raw).decode()
             images.append({"b64": b64, "ct": ct if ct.startswith("image/") else "image/jpeg"})
         else:
-            try:
-                extracted_text = raw.decode("utf-8", errors="ignore")[:4000]
-                if extracted_text.strip():
-                    combined_text = "\n\n".join(filter(None, [combined_text, extracted_text]))
-            except Exception:
-                pass
+            # Use the structured extractor for PDF / DOCX / XLSX / CSV / text
+            doc_text = _extract_document_text(f.filename, raw, f.content_type or "")
+            if doc_text and doc_text.strip():
+                header = f"\n\n[Document: {f.filename}]\n"
+                combined_text = combined_text + header + doc_text
+                doc_meta.append(f.filename)
+            else:
+                logger.warning("design_quotes: could not extract text from '%s'", f.filename)
 
     if not combined_text.strip() and not images:
         raise HTTPException(status_code=400, detail="Provide at least one file or text_input")

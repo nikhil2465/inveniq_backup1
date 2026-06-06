@@ -321,9 +321,15 @@ INDUSTRY KNOWLEDGE — apply these rules every time:
 • SANITARY WARE (WC/EWC, wash basin, bathtub, urinal): Brands = Kohler, Hindware, Jaquar, Parryware, Cera, American Standard, TOTO, Roca. Keep type (one-piece, two-piece, wall-hung, pedestal, counter-top, free-standing). HSN 6910, 18% GST.
 • BATHROOM ACCESSORIES (towel bars, rings, soap dispensers, toilet roll holders, mirrors, floor drains, shower enclosures): Keep size (e.g. 24", 18"), finish (chrome, PVD gold, SS). HSN 3922, 18% GST.
 • HARDWARE — HINGES: Keep type (soft-close, clip-top, glass hinge, flap hinge) + brand (Hettich, Blum, Hafele, Ebco, Euro). HSN 8302.
-• HARDWARE — CHANNELS/SLIDES: Keep type (soft-close, tandem box, full-extension, undermount) + size (18", 24") + brand. HSN 8302.
-• HARDWARE — HANDLES & KNOBS: Keep finish (PVD, SS, chrome, gold, black, antique brass) + size (96mm, 128mm, 160mm, 320mm) + brand (Hafele, Hettich, Godrej, Dorset). HSN 8302.
-• HARDWARE — LOCKS & LATCHES: Keep type (mortise, cylindrical, deadbolt, cam lock) + brand (Godrej, Yale, Assa Abloy, Dorset, Ozone). HSN 8301.
+• HARDWARE — CHANNELS/SLIDES (EBCO): Ebco SKU format = STDS/BMDS/LTDS + load(20/35/45) + size + type. e.g. STDS50-I-35 = Soft-close drawer slide, 500mm, 35kg load. BMDS = Bottom mount. Keep exact SKU. HSN 8302.
+• HARDWARE — WARDROBE/BED FITTINGS (EBCO): Wardrobe locks (P-WLS, P-MPL, E-MPL series), bed fittings (BF series), HiSlide systems (HSWS series). Keep exact item code.
+• HARDWARE — ALUMINIUM PROFILES (EBCO): Profile handles, aluminium extrusions, LED channel profiles. HSN 7604.
+• HARDWARE — FURNITURE LOCKS (EBCO): Target locks, Secutek, Premium locks, Speciality locks series. HSN 8301.
+• HARDWARE — HANDLES & KNOBS: Keep finish (PVD, SS, chrome, gold, black, antique brass) + size (96mm, 128mm, 160mm, 320mm) + brand (Hafele, Hettich, Godrej, Dorset, Ebco). HSN 8302.
+• HARDWARE — LOCKS & LATCHES: Keep type (mortise, cylindrical, deadbolt, cam lock) + brand (Godrej, Yale, Assa Abloy, Dorset, Ozone, Ebco). HSN 8301.
+• KITCHEN HARDWARE (EBCO): Corner solutions, overhead systems, midway systems, waste bins, pull-outs, carousel units. Keep exact item code. HSN 8302.
+• OFFICE FURNITURE (EBCO): CPU stands, monitor arms, keyboard trays, safe drawers, electric boxes. HSN varies.
+• FURNITURE LIGHTS (EBCO): LED furniture lights, channel LEDs. HSN 9405.
 • PLUMBING (CPVC/PVC pipes, fittings, valves, stop cocks, ball valves): Keep size (15mm, 20mm, 25mm, 4") + brand (Astral, Supreme, Finolex, Wavin, Ashirvad). HSN 3917/8481.
 • TILES (ceramic, vitrified, PGVT, marble, granite): Keep size (300×300, 600×600, 800×800, 1200×600mm) + finish (matt, polished, rustic) + brand (Kajaria, Somany, Johnson, Asian Granito, RAK, Simpolo). HSN 6907/2515.
 • KITCHEN FITTINGS (sinks, mixers, pull-out taps): Brands = Franke, Kohler, Jaquar, Grohe, Hafele. HSN 8481/7324.
@@ -352,6 +358,7 @@ Return a JSON object with EXACTLY this structure:
   "site_location": "delivery or site address, else empty string",
   "required_products": [
     {
+      "item_code": "SKU / item code / part number EXACTLY as written in the source — e.g. STDS50I35, P-WLS1-25, E-MPL2-22. Empty string if none.",
       "description": "full product description — brand, model, series, type, finish — exactly as mentioned or inferred",
       "quantity": 0,
       "unit": "Nos, Set, Pair, Mtr, SqFt, SqMtr, Lot, KG, Box",
@@ -366,12 +373,334 @@ Return a JSON object with EXACTLY this structure:
   "budget_indication": "any budget, rate, or price range mentioned"
 }
 
+11. item_code: if the input contains a product code, SKU, part number, or catalogue number (alphanumeric string, possibly with hyphens like STDS50-I-35, P-WLS1-25, E-MPL2-22), capture it VERBATIM in item_code. Do NOT clean or modify it.
+12. If the entire input is just a list of item codes (one per line, with optional quantities), treat each code as a separate required_product with item_code = that code and description = that code.
+13. Ignore any surrounding special characters but preserve the alphanumeric core of each code exactly.
+14. EBCO item codes: STDS = Soft-close drawer slides; BMDS = Bottom mount slides; LTDS = Light-duty slides; P-WLS = Wardrobe lock; P-MPL/E-MPL = Multipurpose lock; HSWS = HiSlide wardrobe system; BF = Bed fitting. Extract these exactly as written including the hyphens.
+15. Size context: "500 mm" = 50 (in STDS50), "35 kgs" = load capacity (in I-35 suffix), "45 kgs" = I-45. Finish: ZW=zinc-white, ZB=zinc-black, IV=ivory, BR=brown.
+16. When input has both text description and item code, prefer the item_code match for catalog lookup but keep the full description for display.
+17. QUANTITY MULTIPLIER EXPRESSIONS: "2×12", "2x12", "2*12" = 24 units. "24 flats, 3 baths each" = 72 Nos. "12 units × 2 mixers" = 24 Nos. ALWAYS compute the final total quantity as a number. Store only the computed result in "quantity", never the expression string.
+18. HINDI / KANNADA SHORTCUTS (very common in Indian sites and WhatsApp messages):
+    नल/nal/nall = tap/faucet | बेसिन/besin = wash basin | शॉवर = shower | फ्लश = WC flush
+    टाइल/taile = tile | हिंज = hinge | चैनल = drawer channel/slide | हैंडल = handle
+    पाइप/pipe = pipe | वाल्व = valve | ताला/tala = lock | प्लंबर/plumber = plumbing work
+    ಹಿಂಜ್ = hinge | ಚಾನೆಲ್ = channel | ನಲ್ = tap | ಬೇಸಿನ್ = basin | ಶವರ್ = shower
+19. CORRECT HSN CODES AND GST RATES — apply precisely, not generically:
+    CP fittings (taps, mixers, showers, stop cocks) → HSN 8481, 18% GST
+    Sanitary ware (WC, basin, bathtub, urinal) → HSN 6910, 18% GST
+    Bathroom accessories (towel bars, soap dishes, mirrors, floor drains) → HSN 3922, 18% GST
+    Hardware hinges, channels, handles, cabinet fittings → HSN 8302, 18% GST
+    Hardware locks, deadbolts, cam locks → HSN 8301, 18% GST
+    CPVC/PVC pipes and plumbing fittings → HSN 3917, 12% GST
+    Vitrified / ceramic / glazed tiles → HSN 6907 or 6908, 12% GST
+    Marble, granite, natural stone → HSN 2515, 12% GST
+    LED furniture/strip lights → HSN 9405, 12% GST
+    Kitchen sinks (SS) → HSN 7324, 18% GST
+    Waterproofing / construction chemicals → HSN 3214, 18% GST
+    Installation / labour charges → HSN 9954, 18% GST
+    Do NOT put everything as HSN 8302. Use the category-appropriate code above.
+20. UNIT DEFAULTS by category:
+    CP fittings, sanitary ware, accessories, hinges, handles, locks → Nos
+    Drawer channels/slides → Nos or Pair
+    CPVC/PVC pipes → Mtr or Rmt
+    Tiles → SqFt or SqMtr (state which)
+    Waterproofing liquid → Ltr or Bag
+    Installation labour → Lot or Nos (per flat/room)
+
 Empty string for missing text fields. 0 for missing quantities. Return ONLY valid JSON — no markdown fences, no extra keys."""
+
+
+async def _load_catalog_db_if_needed():
+    """Trigger DB catalog load so user-added products are available for matching."""
+    try:
+        from app.db.connection import get_pool
+        from app.api.catalog import _ensure_catalog_db
+        pool = await get_pool()
+        if pool:
+            await _ensure_catalog_db(pool)
+    except Exception:
+        pass
 
 
 def _get_catalog_for_matching():
     from app.api.catalog import _get_all_products
     return _get_all_products()
+
+
+def _normalize_code(code: str) -> str:
+    """
+    Strip every non-alphanumeric character and uppercase for comparison.
+    'STDS50-I-35' -> 'STDS50I35'  |  'P-WLS1-25' -> 'PWLS125'  |  'E/MPL2.22' -> 'EMPL222'
+    Handles any keyboard special characters: -, /, \\, ., _, (, ), #, @, etc.
+    """
+    if not code:
+        return ""
+    return re.sub(r"[^A-Z0-9]", "", code.upper())
+
+
+def _looks_like_code(s: str) -> bool:
+    """True if string looks like an item/SKU code (not a plain description)."""
+    s = s.strip()
+    if not s or len(s) < 3 or len(s.split()) > 4:
+        return False
+    return bool(re.search(r"\d", s))
+
+
+def _normalize_unit(u: str) -> str:
+    """Normalize raw unit strings (from AI or direct scan) to standard display form."""
+    if not u:
+        return "Nos"
+    l = u.strip().lower().rstrip(".")
+    _MAP = {
+        "nos": "Nos", "no": "Nos", "number": "Nos", "numbers": "Nos",
+        "pcs": "Nos", "pc": "Nos", "piece": "Nos", "pieces": "Nos",
+        "each": "Nos", "unit": "Nos", "units": "Nos", "item": "Nos", "items": "Nos",
+        "set": "Set", "sets": "Set",
+        "pair": "Pair", "pairs": "Pair", "pr": "Pair",
+        "mtr": "Mtr", "m": "Mtr", "meter": "Mtr", "metre": "Mtr", "meters": "Mtr",
+        "rmt": "Rmt", "rft": "RFt", "rft.": "RFt",
+        "sqft": "SqFt", "sft": "SqFt", "sqfeet": "SqFt", "sqf": "SqFt",
+        "sq ft": "SqFt", "sq.ft": "SqFt", "sf": "SqFt",
+        "sqmtr": "SqMtr", "sqm": "SqMtr", "m2": "SqMtr", "sq.mtr": "SqMtr",
+        "lot": "Lot", "ls": "Lot", "lumpsum": "Lot", "lump sum": "Lot",
+        "kg": "KG", "kgs": "KG", "kilogram": "KG", "kilograms": "KG",
+        "box": "Box", "boxes": "Box", "carton": "Box", "ctn": "Box", "ctns": "Box",
+        "ltr": "Ltr", "litre": "Ltr", "liter": "Ltr", "ltrs": "Ltr",
+        "bag": "Bag", "bags": "Bag",
+        "roll": "Roll", "rolls": "Roll",
+        "sht": "Sheet", "sheet": "Sheet", "sheets": "Sheet",
+        "tube": "Tube", "tubes": "Tube",
+        "tin": "Tin", "tins": "Tin",
+    }
+    return _MAP.get(l, u.strip() or "Nos")
+
+
+def _parse_qty_expr(s: str) -> float:
+    """
+    Parse quantity expressions including multipliers.
+    Examples: '2×12' → 24.0 | '2x12' → 24.0 | '2*12' → 24.0 | '10' → 10.0 | '1.5' → 1.5
+    """
+    if not s:
+        return 1.0
+    s = s.strip().replace("×", "*").replace("✕", "*")
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*[xX*]\s*(\d+(?:\.\d+)?)$", s)
+    if m:
+        try:
+            return float(m.group(1)) * float(m.group(2))
+        except (ValueError, ZeroDivisionError):
+            pass
+    try:
+        return float(s)
+    except ValueError:
+        return 1.0
+
+
+# GST rate exceptions from the default 18% (4-digit HSN → rate %)
+_GST_BY_HSN4 = {
+    "6907": 12,  # vitrified / ceramic tiles
+    "6908": 12,  # glazed tiles
+    "2515": 12,  # marble, granite, travertine
+    "3917": 12,  # CPVC / PVC pipes and fittings
+    "9405": 12,  # LED lighting
+    "6906": 5,   # refractory bricks / blocks
+}
+
+
+def _gst_for_hsn(hsn: str) -> int:
+    """Return the applicable GST rate % for the given HSN code."""
+    if not hsn:
+        return 18
+    code = re.sub(r"\D", "", str(hsn))[:4]
+    return _GST_BY_HSN4.get(code, 18)
+
+
+def _build_sku_index(catalog: list) -> dict:
+    """Build normalized-SKU -> product dict for O(1) exact lookups."""
+    idx: dict = {}
+    for p in catalog:
+        raw = p.get("sku_code", "")
+        if raw:
+            n = _normalize_code(raw)
+            if n and n not in idx:
+                idx[n] = p
+    return idx
+
+
+def _build_series_index(catalog: list) -> dict:
+    """
+    Build normalized item_name -> [products] for series matching.
+    Multiple products share the same item_name (e.g. 8 products share
+    'Slides - (I) 35 450 mm'). This index returns ALL of them.
+    """
+    idx: dict = {}
+    for p in catalog:
+        for field in ("item_name",):
+            raw = (p.get(field) or "").strip()
+            if not raw:
+                continue
+            # Strip bracketed codes like [STDS50-I-35] appended to names
+            clean = re.sub(r"\[.*?\]", "", raw).strip()
+            # Normalize: lowercase, strip all non-alphanumeric except space
+            norm = re.sub(r"[^a-z0-9 ]", " ", clean.lower())
+            norm = re.sub(r"\s+", " ", norm).strip()
+            if norm:
+                idx.setdefault(norm, []).append(p)
+    return idx
+
+
+def _build_prefix_index(sku_index: dict) -> dict:
+    """
+    Build prefix -> [products] for partial prefix lookups.
+    Prefix length 3–6 alphanumeric chars.
+    """
+    idx: dict = {}
+    for norm_sku, p in sku_index.items():
+        for plen in range(3, min(7, len(norm_sku) + 1)):
+            prefix = norm_sku[:plen]
+            idx.setdefault(prefix, []).append(p)
+    return idx
+
+
+# Module-level cached indexes (rebuilt on first _match_to_catalog call per process)
+_SERIES_INDEX: dict = {}
+_PREFIX_INDEX: dict = {}
+_CATALOG_HASH: int  = 0
+
+
+def _ensure_indexes(catalog: list) -> tuple:
+    """Return (sku_index, series_index, prefix_index) rebuilding if catalog changed."""
+    global _SERIES_INDEX, _PREFIX_INDEX, _CATALOG_HASH
+    ch = id(catalog) ^ len(catalog)
+    if ch != _CATALOG_HASH:
+        _CATALOG_HASH = ch
+        _SERIES_INDEX = _build_series_index(catalog)
+        _PREFIX_INDEX = _build_prefix_index(_build_sku_index(catalog))
+    sku_index = _build_sku_index(catalog)
+    return sku_index, _SERIES_INDEX, _PREFIX_INDEX
+
+
+def _pre_scan_codes(text: str, sku_index: dict) -> dict:
+    """
+    Scan ANY text (plain, messy, mixed with special chars) for item codes and
+    look them up in the catalog.  Returns {original_token: catalog_product}.
+
+    Handles all keyboard chars between alphanumeric clusters:
+      'STDS50-I-35' -> normalized 'STDS50I35'  (hyphen stripped)
+      'E/MPL2.22'   -> 'EMPL222'               (slash+dot stripped)
+      'P_WLS1 25'   -> 'PWLS125'               (underscore stripped)
+    """
+    # Tokenise: grab clusters of alphanum + separator chars, then normalise
+    tokens = re.findall(r'[A-Za-z0-9][A-Za-z0-9\-/\\_.()\[\]#@!+]*', text)
+    found: dict = {}
+    for tok in tokens:
+        norm = _normalize_code(tok)
+        if len(norm) < 4 or not re.search(r'\d', norm):
+            continue  # skip pure-alpha or too-short tokens
+        # Tier-1: exact
+        if norm in sku_index:
+            found[tok] = sku_index[norm]
+            continue
+        # Tier-2: one contains the other (at least 4 chars)
+        for n_sku, p in sku_index.items():
+            if len(n_sku) >= 4 and (norm in n_sku or n_sku in norm):
+                found[tok] = p
+                break
+    return found
+
+
+def _direct_code_scan(text: str, sku_index: dict, catalog: list) -> dict | None:
+    """
+    Fast path: if the input is primarily a list of item codes (one per line),
+    resolve them directly from the catalog WITHOUT calling GPT-4o.
+
+    Returns a pseudo-extraction result dict, or None if input is too complex
+    for this simple path (needs full AI parsing).
+    """
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+    if not lines or len(lines) > 100:
+        return None
+
+    # Parse each line as:  CODE  [qty]  [unit]  [description...]
+    # CODE = leading alphanumeric+separator cluster
+    # qty supports multiplier expressions: 2x12, 2×12, 2*12 → 24
+    LINE_RE = re.compile(
+        r'^(?P<code>[A-Za-z0-9][A-Za-z0-9\-/\\_.()\[\]#@!+]*)'      # item code
+        r'(?:\s+(?P<qty>\d+(?:[×xX*]\d+)?(?:\.\d+)?))?'              # optional qty (with multiplier)
+        r'(?:\s+(?P<unit>[A-Za-z]+))?'                                # optional unit
+        r'(?:\s+(?P<extra>.*))?$'                                     # rest = description
+    )
+
+    required: list = []
+    hits = 0
+
+    for line in lines:
+        m = LINE_RE.match(line)
+        if not m:
+            continue
+        code_raw = m.group("code") or ""
+        qty_str  = m.group("qty") or "1"
+        unit_raw = m.group("unit") or ""
+        extra    = (m.group("extra") or "").strip()
+        norm     = _normalize_code(code_raw)
+
+        if len(norm) < 3:
+            continue
+
+        # Catalog lookup — tier 1: exact normalized SKU
+        cat_p = sku_index.get(norm)
+        if not cat_p and len(norm) >= 3:
+            # Tier 2: substring SKU match
+            for n_sku, p in sku_index.items():
+                if len(n_sku) >= 4 and (norm in n_sku or n_sku in norm):
+                    cat_p = p
+                    break
+        if not cat_p and not re.search(r"\d", code_raw):
+            # Tier 3: no digits = probably a product name → keyword search
+            kw_scored = sorted(
+                ({"product": p, "score": _score_match(code_raw, "", p)} for p in catalog),
+                key=lambda x: x["score"], reverse=True,
+            )
+            if kw_scored and kw_scored[0]["score"] >= 8:
+                cat_p = kw_scored[0]["product"]
+
+        qty  = _parse_qty_expr(qty_str) if qty_str else 1.0
+        unit = _normalize_unit(unit_raw) if unit_raw else (cat_p.get("unit", "Nos") if cat_p else "Nos")
+        # Always show the catalog product name (not just the raw code)
+        item_n = cat_p.get("item_name", "") or cat_p.get("name", "") if cat_p else ""
+        desc   = item_n or extra or code_raw
+
+        # The catalog SKU (may differ from customer's raw code, e.g. STDS50I35 → STDS50-I-35)
+        cat_sku = (cat_p.get("sku_code") or cat_p.get("item_code") or "") if cat_p else ""
+        required.append({
+            "item_code":         code_raw,          # customer's original code
+            "catalog_sku":       cat_sku,           # resolved catalog SKU (with hyphens etc.)
+            "description":       desc or code_raw,  # always the product name, never bare code
+            "quantity":          qty,
+            "unit":              unit,
+            "specifications":    extra if cat_p else "",
+            "notes":             "",
+            "inferred_category": cat_p.get("category", "Other") if cat_p else "Other",
+            "inferred_hsn":      cat_p.get("hsn_code", "") if cat_p else "",
+        })
+        if cat_p:
+            hits += 1
+
+    if not required:
+        return None
+
+    # Use the fast path only when >=30% of lines had a direct catalog hit
+    # OR when the input is a very short list (≤10 lines) — user probably typed codes
+    if hits / len(required) < 0.3 and len(required) > 10:
+        return None
+
+    return {
+        "customer_name": "", "customer_type": "Contractor",
+        "contact_person": "", "contact_phone": "", "contact_email": "",
+        "project_name": "", "site_location": "",
+        "required_products": required,
+        "special_requirements": "", "delivery_notes": "", "budget_indication": "",
+        "_scan_method": "direct_code_lookup",
+    }
 
 
 def _score_match(desc: str, specs: str, product: dict) -> int:
@@ -517,46 +846,217 @@ def _score_match(desc: str, specs: str, product: dict) -> int:
     elif partial_hits == 1:
         score += 2
 
+    # ── item_name scoring (clean name without code brackets) ─────────────────
+    item_name = product.get("item_name", "").lower()
+    if item_name:
+        iw = [w for w in item_name.split() if len(w) > 2]
+        ih = sum(1 for w in iw if w in combined)
+        if iw:
+            ratio = ih / len(iw)
+            if ratio >= 0.8:
+                score += ih * 12   # very strong signal — most words match
+            elif ratio >= 0.5:
+                score += ih * 7
+            elif ih >= 1:
+                score += ih * 3
+
+    # ── size / specifications field scoring ───────────────────────────────────
+    size_val = product.get("size", product.get("specifications", "")).lower()
+    if size_val:
+        # Match numeric tokens (dimensions, load capacities) — e.g. "500", "35"
+        size_nums  = re.findall(r"\d+", size_val)
+        query_nums = re.findall(r"\d+", combined)
+        query_num_set = set(query_nums)
+        size_num_set  = set(size_nums)
+        common = query_num_set & size_num_set
+        num_hits = len(common)
+        if num_hits >= 3:
+            score += 30   # very specific — all dimensions match
+        elif num_hits == 2:
+            # Strong bonus when BOTH query numbers appear in size
+            score += 18
+            # Extra: if ALL query numbers are accounted for → near-definitive
+            if query_num_set and query_num_set <= size_num_set:
+                score += 15
+        elif num_hits == 1:
+            score += 6
+
+    # ── finish / sub_category scoring ─────────────────────────────────────────
+    finish = product.get("finish", "").lower()
+    if finish:
+        for part in re.split(r"[/\s]", finish):
+            if len(part) >= 2 and part in combined:
+                score += 5
+                break
+
+    # ── Ebco SKU prefix scoring — STDS/BMDS/LTDS/HSWS/BF series ─────────────
+    sku = product.get("sku_code", "").upper()
+    if sku:
+        for prefix, kws in (
+            ("STDS",  ["stds", "soft close slide", "soft-close slide"]),
+            ("BMDS",  ["bmds", "bottom mount", "bottom mounting drawer"]),
+            ("LTDS",  ["ltds", "light duty slide"]),
+            ("HSWS",  ["hsws", "hi slide", "hislide", "wardrobe sliding"]),
+            ("P-WLS", ["wardrobe lock", "wls"]),
+            ("P-MPL", ["multipurpose lock", "multi purpose lock"]),
+            ("E-MPL", ["pedestal lock", "empl"]),
+            ("BF",    ["bed fitting", "bed fittings"]),
+        ):
+            if sku.startswith(prefix) and any(k in combined for k in kws):
+                score += 15
+                break
+
     return score
 
 
 def _match_to_catalog(required_products: list) -> list:
+    """
+    Three-tier catalog matching, priority order:
+      Tier 1 — Exact normalized SKU match   → confidence "exact"
+      Tier 2 — Partial normalized SKU match → confidence "high"
+      Tier 3 — Keyword / description score  → confidence high/medium/low/none
+
+    All special characters (-, /, \\, etc.) are stripped before SKU comparison so that
+    customer codes like 'STDS50I35' match catalog entries like 'STDS50-I-35'.
+    Always returns ≥ 1 match (nearest available) so the UI never shows zero results.
+    """
     catalog = _get_catalog_for_matching()
+
+    # ── Pre-build normalized SKU index (one pass over catalog) ───────────────
+    sku_index = _build_sku_index(catalog)
+
     results = []
     for req in required_products:
-        desc  = req.get("description", "")
-        specs = req.get("specifications", "")
-        notes = req.get("notes", "")
-        scored = []
-        for p in catalog:
-            s = _score_match(desc, specs + " " + notes, p)
-            scored.append({"product": p, "score": s})
-        scored.sort(key=lambda x: x["score"], reverse=True)
+        item_code = (req.get("item_code") or "").strip()
+        desc      = (req.get("description") or "").strip()
+        specs     = req.get("specifications", "")
+        notes     = req.get("notes", "")
 
-        # Always return top 3 — even if score is 0, show nearest available products
-        top    = scored[:3]
-        score0 = top[0]["score"] if top else 0
+        # Candidate codes to try for exact/partial lookup
+        candidates = []
+        if item_code:
+            candidates.append(_normalize_code(item_code))
+        # Also treat description as a code when it looks like one
+        if _looks_like_code(desc):
+            candidates.append(_normalize_code(desc))
+        # Check every token in description that looks like a code
+        for tok in desc.split():
+            if _looks_like_code(tok):
+                candidates.append(_normalize_code(tok))
+        candidates = [c for c in candidates if len(c) >= 3]
 
-        # Include all products that scored > 0; if none did, include top 3 anyway
-        positive = [x for x in top if x["score"] > 0]
-        matches  = [x["product"] for x in (positive if positive else top)]
+        # ── Tier 1: Exact SKU match ───────────────────────────────────────────
+        exact_product = None
+        for cand in candidates:
+            if cand in sku_index:
+                exact_product = sku_index[cand]
+                break
 
-        if score0 >= 15:
-            conf = "high"
-        elif score0 >= 8:
-            conf = "medium"
-        elif score0 >= 3:
-            conf = "low"
+        # ── Tier 2: Partial SKU match (substring, ≥ 4 chars shared) ──────────
+        partial_products = []
+        if not exact_product and candidates:
+            for cand in candidates:
+                if len(cand) < 4:
+                    continue
+                for norm_sku, p in sku_index.items():
+                    # both contain each other's substring of ≥ 4 chars
+                    overlap = max(len(cand), len(norm_sku))
+                    if cand in norm_sku or norm_sku in cand:
+                        partial_products.append((p, overlap))
+                if partial_products:
+                    break
+            partial_products.sort(key=lambda x: -x[1])
+            partial_products = [p for p, _ in partial_products[:3]]
+
+        # ── Tier 3: Keyword/description scoring ──────────────────────────────
+        kw_input = " ".join(filter(None, [desc, specs, notes, item_code]))
+        scored = sorted(
+            ({"product": p, "score": _score_match(desc, specs + " " + notes + " " + item_code, p)} for p in catalog),
+            key=lambda x: x["score"],
+            reverse=True,
+        )
+
+        # ── Assemble final match list ─────────────────────────────────────────
+        if exact_product:
+            # Put exact first, fill rest from keyword scoring
+            used_ids = {exact_product.get("product_id")}
+            others   = [x["product"] for x in scored if x["product"].get("product_id") not in used_ids][:4]
+            matches  = [exact_product] + others
+            conf     = "exact"
+            best     = exact_product
+
+        elif partial_products:
+            used_ids = {p.get("product_id") for p in partial_products}
+            others   = [x["product"] for x in scored if x["product"].get("product_id") not in used_ids][:3]
+            matches  = partial_products + others
+            conf     = "high"
+            best     = partial_products[0]
+
         else:
-            conf = "none"  # No catalog category match — nearest shown as suggestion
+            # Keyword-only fallback — always return at least 3 even if score = 0
+            top3  = scored[:3]
+            score0 = top3[0]["score"] if top3 else 0
+            pos    = [x for x in top3 if x["score"] > 0]
+            matches = [x["product"] for x in (pos if pos else top3)]
+
+            if score0 >= 15:
+                conf = "high"
+            elif score0 >= 8:
+                conf = "medium"
+            elif score0 >= 3:
+                conf = "low"
+            else:
+                conf = "none"
+
+            best = top3[0]["product"] if (top3 and score0 >= 3) else None
+
+        # ── Post-enrichment: always resolve product name + item code ─────────────
+        catalog_name  = best.get("name", "")       if best else ""
+        item_name_clean = best.get("item_name", "") if best else ""
+        matched_sku   = best.get("sku_code", "")   if best else (best.get("item_code", "") if best else "")
+
+        # Resolved display name: prefer clean item_name over full name-with-code
+        resolved_name = item_name_clean or catalog_name
+
+        req = dict(req)   # never mutate the original
+
+        # Normalize unit to standard form
+        if req.get("unit"):
+            req["unit"] = _normalize_unit(req["unit"])
+
+        req_desc = req.get("description", "").strip()
+        req_code = req.get("item_code", "").strip()
+
+        # Always resolve description to product name when:
+        # 1. Description is empty
+        # 2. Description is the same as the item code (bare code)
+        # 3. Description looks like a code (alphanumeric with digits, ≤ 4 words)
+        # 4. Description is shorter than the resolved name (customer gave partial info)
+        if resolved_name and (
+            not req_desc
+            or req_desc == req_code
+            or _looks_like_code(req_desc)
+            or (len(req_desc.split()) <= 3 and len(resolved_name) > len(req_desc))
+        ):
+            req["description"] = resolved_name
+
+        # Attach matched_sku to required so frontend can always show the item code
+        if matched_sku and not req.get("item_code"):
+            req["item_code"] = matched_sku
+
+        # Compute correct GST rate from HSN — not hardcoded 18%
+        inferred_hsn = req.get("inferred_hsn", "") or (best.get("hsn_code", "") if best else "")
 
         results.append({
-            "required":   req,
-            "matches":    matches,
-            # Only auto-select a product when there is a real catalog signal (score >= 3)
-            "best_match": top[0]["product"] if (top and score0 >= 3) else None,
-            "confidence": conf,
+            "required":     req,
+            "matches":      matches[:5],
+            "best_match":   best,
+            "confidence":   conf,
+            "catalog_name": resolved_name,   # always the catalog product name
+            "matched_sku":  matched_sku,     # always the catalog item code (SKU)
+            "gst_pct":      _gst_for_hsn(inferred_hsn),  # accurate per-HSN rate
         })
+
     return results
 
 
@@ -572,8 +1072,8 @@ def _build_suggested_lines(matched: list) -> list:
             "product_name":  p.get("name", ""),
             "category":      p.get("category", ""),
             "quantity":      req.get("quantity") or 1,
-            "unit":          p.get("unit", "pc"),
-            "unit_price":    p.get("sell_price", 0),
+            "unit":          p.get("unit", "Nos"),
+            "unit_price":    p.get("sell_price") or p.get("mrp") or 0,
             "buy_price":     p.get("buy_price", 0),
             "discount_pct":  0,
             "specifications": req.get("specifications", ""),
@@ -1090,6 +1590,39 @@ def _extract_file_content(file_bytes: bytes, content_type: str, filename: str):
     return "", False, "", ""
 
 
+def _extract_pdf_images(file_bytes: bytes) -> list:
+    """
+    Extract embedded raster images from a scanned (image-based) PDF.
+    Returns up to 4 dicts of {'b64': str, 'ct': str} ready for the Vision API.
+    Uses pypdf ≥ 4.0 page.images iterator — available in requirements.txt.
+    """
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(_io.BytesIO(file_bytes))
+        extracted: list = []
+        for page in reader.pages:
+            for img_obj in page.images:
+                data = getattr(img_obj, "data", None)
+                if not data:
+                    continue
+                # Detect image format from file signature
+                if data[:3] == b"\xff\xd8\xff":
+                    ct = "image/jpeg"
+                elif data[:8] == b"\x89PNG\r\n\x1a\n":
+                    ct = "image/png"
+                elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+                    ct = "image/webp"
+                else:
+                    ct = "image/jpeg"  # safe fallback
+                extracted.append({"b64": base64.b64encode(data).decode(), "ct": ct})
+            if len(extracted) >= 4:  # cap — Vision API degrades past 4 large images
+                break
+        return extracted
+    except Exception as exc:
+        logger.warning("scan-whatsapp: PDF image extraction failed — %s", exc)
+        return []
+
+
 @router.post("/quotes/scan-whatsapp")
 async def scan_whatsapp_requirement(
     file: List[UploadFile] = File(default=[]),
@@ -1102,6 +1635,9 @@ async def scan_whatsapp_requirement(
     """
     if text_input.strip() == "__demo__":
         return _demo_scan_result()
+
+    # Load any DB-persisted catalog products before matching
+    await _load_catalog_db_if_needed()
 
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
@@ -1128,11 +1664,22 @@ async def scan_whatsapp_requirement(
             file_text, is_image, image_b64, image_ct = _extract_file_content(raw, ct, fn)
 
             if file_text == "__scanned_pdf__":
-                return {
-                    "extracted": {"customer_name": "", "customer_type": "Retailer", "contact_person": "", "contact_phone": "", "contact_email": "", "project_name": "", "site_location": "", "required_products": [], "special_requirements": "", "delivery_notes": "", "budget_indication": ""},
-                    "matched_products": [], "suggested_lines": [], "data_source": "error",
-                    "demo_note": "One of the uploaded PDFs appears to be scanned (image-based) — no text layer found. Please upload a screenshot instead.",
-                }
+                # Scanned (image-based) PDF — try to extract embedded page images for Vision API
+                pdf_imgs = _extract_pdf_images(raw)
+                if pdf_imgs:
+                    image_parts.extend(pdf_imgs[:4])
+                    logger.info(
+                        "scan-whatsapp: scanned PDF '%s' — extracted %d page image(s) for Vision API",
+                        f.filename, len(pdf_imgs),
+                    )
+                else:
+                    # pypdf found no embedded images — extremely rare; guide the user
+                    combined_text += (
+                        "\n[Note: a scanned PDF was uploaded but page images could not be extracted. "
+                        "If this is a printed form, please photograph it and upload the photo directly.]"
+                    )
+                    logger.warning("scan-whatsapp: scanned PDF '%s' — no extractable images", f.filename)
+                continue
 
             if is_image:
                 image_parts.append({"b64": image_b64, "ct": image_ct})
@@ -1142,20 +1689,75 @@ async def scan_whatsapp_requirement(
         if not combined_text.strip() and not image_parts:
             return _demo_scan_result("No readable content in the uploaded files.")
 
+        # ── Catalog pre-scan ─────────────────────────────────────────────────
+        # Build SKU index once for this request (shared across pre-scan + matching)
+        catalog       = _get_catalog_for_matching()
+        sku_index     = _build_sku_index(catalog)
+        pre_found     = _pre_scan_codes(combined_text, sku_index) if combined_text.strip() else {}
+
+        # ── Fast path: pure item-code list → skip GPT-4o entirely ────────────
+        if combined_text.strip() and not image_parts:
+            direct = _direct_code_scan(combined_text, sku_index, catalog)
+            if direct:
+                logger.info("scan-whatsapp: direct code scan resolved %d items (no AI call needed)",
+                            len(direct.get("required_products", [])))
+                matched = _match_to_catalog(direct["required_products"])
+                return {
+                    "extracted":        direct,
+                    "matched_products": matched,
+                    "suggested_lines":  _build_suggested_lines(matched),
+                    "data_source":      "catalog_direct",
+                    "scan_method":      "direct_code_lookup",
+                }
+
+        # ── Build catalog context hint for GPT-4o ────────────────────────────
+        # When we found item codes in the text, tell GPT-4o their product names
+        # so it can fill description correctly instead of leaving it as a bare code.
+        catalog_hint = ""
+        if pre_found:
+            lines_hint = []
+            for tok, p in list(pre_found.items())[:20]:   # cap at 20 to stay within tokens
+                lines_hint.append(
+                    f"  {tok} => {p['name']} [SKU: {p['sku_code']}, Cat: {p['category']}]"
+                )
+            catalog_hint = (
+                "\n\nCATALOG LOOKUP — these item codes from the input were found in our catalog:\n"
+                + "\n".join(lines_hint)
+                + "\nUse the product name (not the code) as the 'description' field for these items.\n"
+            )
+
         client = AsyncOpenAI(api_key=api_key, timeout=60.0)
 
         if image_parts:
-            # Vision: send all images + any text context
+            # Vision: send all images + any text context + catalog hint
             user_content: list = []
             for img in image_parts:
                 user_content.append({"type": "image_url", "image_url": {"url": f"data:{img['ct']};base64,{img['b64']}", "detail": "high"}})
-            context = f"Also consider this typed context:\n\n{combined_text}\n\n" if combined_text.strip() else ""
-            user_content.append({"type": "text", "text": f"{context}Extract ALL product requirements from these images. Return ONLY valid JSON as specified."})
+            ctx = ""
+            if combined_text.strip():
+                ctx = f"Also consider this typed context:\n\n{combined_text}\n\n"
+            if catalog_hint:
+                ctx += catalog_hint
+            user_content.append({
+                "type": "text",
+                "text": (
+                    f"{ctx}"
+                    "Extract ALL product requirements from these images — include every item code, product name, "
+                    "quantity, unit, and specification you can see. "
+                    "If an image contains handwritten or printed item codes, extract each one as a separate item. "
+                    "Return ONLY valid JSON as specified."
+                ),
+            })
         else:
             user_content = (
-                f"Extract ALL product requirements from the following input. "
-                f"It may be a WhatsApp message, typed note, requisition form, or any requirement document. "
-                f"Return ONLY valid JSON as specified.\n\n---\n{combined_text}\n---"
+                "Extract ALL product requirements from the following input. "
+                "It may be a WhatsApp message, typed note, requisition form, item-code list, "
+                "or any requirement document — including inputs with only alphanumeric codes, "
+                "special characters, or mixed formats. "
+                "Extract every line as a separate required_product. "
+                f"{catalog_hint}"
+                "Return ONLY valid JSON as specified.\n\n"
+                f"---\n{combined_text}\n---"
             )
 
         response = await client.chat.completions.create(
@@ -1168,19 +1770,27 @@ async def scan_whatsapp_requirement(
             response_format={"type": "json_object"},
         )
 
-        extracted = json.loads(response.choices[0].message.content)
+        raw_content = response.choices[0].message.content
+        if not raw_content:
+            return _demo_scan_result("AI returned empty response — please retry.")
+        extracted = json.loads(raw_content)
         required_products = extracted.get("required_products", [])
         matched = _match_to_catalog(required_products)
 
         note = ""
         if not required_products:
-            note = "No product requirements found in this input. Try adding more detail — e.g. product names, quantities, specifications."
+            note = "No product requirements found in this input. Try adding more detail — e.g. product names, item codes, quantities, specifications."
+
+        scan_method = "ai_vision" if image_parts else "ai_text"
+        if pre_found:
+            scan_method += f"+catalog_hint({len(pre_found)})"
 
         return {
             "extracted":        extracted,
             "matched_products": matched,
             "suggested_lines":  _build_suggested_lines(matched),
             "data_source":      "openai",
+            "scan_method":      scan_method,
             **({"demo_note": note} if note else {}),
         }
 

@@ -964,13 +964,28 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [importStatus, setImportStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
   const PAGE_SIZE = 20;
 
   const fetchData = useCallback(() => {
     fetch('/api/catalog').then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchImportStatus = useCallback(() => {
+    fetch('/api/catalog/import-status').then(r => r.json()).then(d => setImportStatus(d)).catch(() => {});
+  }, []);
+
+  const handleSyncImport = async () => {
+    setSyncing(true);
+    try {
+      await fetch('/api/catalog/sync-import', { method: 'POST' });
+      await Promise.all([fetchData(), fetchImportStatus()]);
+    } catch { /* silent */ }
+    setSyncing(false);
+  };
+
+  useEffect(() => { fetchData(); fetchImportStatus(); }, [fetchData, fetchImportStatus]);
   useAutoRefresh(fetchData, 10 * 60_000);
   useEffect(() => { setPage(1); }, [category, inStockOnly, search, view]);
 
@@ -982,6 +997,11 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
       const q = search.toLowerCase();
       list = list.filter(p =>
         p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)
+        || (p.sku_code || '').toLowerCase().includes(q)
+        || (p.item_code || '').toLowerCase().includes(q)
+        || (p.item_name || '').toLowerCase().includes(q)
+        || (p.size || '').toLowerCase().includes(q)
+        || (p.finish || '').toLowerCase().includes(q)
         || (p.tags || []).join(' ').includes(q)
         || (p.applications || []).some(a => a.toLowerCase().includes(q))
       );
@@ -1017,6 +1037,14 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
           <button className="btn-secondary" onClick={() => setShowAddModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             ➕ Add Products
           </button>
+          <button
+            className="btn-secondary"
+            onClick={handleSyncImport}
+            disabled={syncing}
+            title="Re-load all CSV/XLSX files from product_imp_files/ into the live catalog"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: syncing ? 0.65 : 1 }}>
+            {syncing ? '⏳ Syncing…' : '🔄 Sync Products'}
+          </button>
           {onGoChat && (
             <button className="btn-primary" onClick={() => onGoChat('Which products in our catalog have the highest margin and best market demand in Bangalore?')}>
               ✨ AI Product Intelligence
@@ -1024,6 +1052,29 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
           )}
         </div>
       </div>
+
+      {/* Import status banner */}
+      {importStatus && (
+        <div style={{ margin: '0 0 12px', padding: '10px 16px', borderRadius: 8, fontSize: 12,
+          background: importStatus.import_loaded > 0 ? 'rgba(22,163,74,0.07)' : 'rgba(217,119,6,0.07)',
+          border: `1px solid ${importStatus.import_loaded > 0 ? 'rgba(22,163,74,0.2)' : 'rgba(217,119,6,0.2)'}`,
+          display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontWeight: 700, color: importStatus.import_loaded > 0 ? '#16a34a' : '#d97706' }}>
+            {importStatus.import_loaded > 0
+              ? `✅ ${importStatus.import_loaded.toLocaleString('en-IN')} products loaded from import files`
+              : '⚠ No import files loaded'}
+          </span>
+          <span style={{ color: 'var(--muted)' }}>Total catalog: <strong>{(importStatus.total_catalog || 0).toLocaleString('en-IN')}</strong></span>
+          {importStatus.import_status?.files?.length > 0 && (
+            <span style={{ color: 'var(--muted)', fontSize: 11 }}>
+              Files: {importStatus.import_status.files.join(' · ')}
+            </span>
+          )}
+          {importStatus.import_status?.error && (
+            <span style={{ color: '#dc2626', fontSize: 11 }}>{importStatus.import_status.error}</span>
+          )}
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="kg g4">
