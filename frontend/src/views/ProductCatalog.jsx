@@ -730,7 +730,7 @@ function AddProductModal({ onClose, onAdded, onGoChat }) {
 }
 
 // ── Product Card ───────────────────────────────────────────────────────────────
-function ProductCard({ product, onView, onGoChat }) {
+function ProductCard({ product, onView, onGoChat, onEdit, onDelete }) {
   const icon = CATEGORY_ICONS[product.category] || '📦';
   const marginColor = product.margin_pct >= 25 ? 'var(--green)' : product.margin_pct >= 18 ? 'var(--amber)' : 'var(--red)';
 
@@ -780,12 +780,95 @@ function ProductCard({ product, onView, onGoChat }) {
           <button className="pc-view-btn" onClick={e => { e.stopPropagation(); onView(product); }}>
             View Specs
           </button>
+          {onEdit && (
+            <button className="pc-row-action pc-edit" title="Edit" onClick={e => { e.stopPropagation(); onEdit(); }}>✏</button>
+          )}
+          {onDelete && (
+            <button className="pc-row-action pc-del" title="Remove" onClick={e => { e.stopPropagation(); onDelete(); }}>🗑</button>
+          )}
           {onGoChat && (
             <button className="pc-ai-btn" onClick={e => {
               e.stopPropagation();
               onGoChat(`Tell me about ${product.name} — applications, pricing, specifications and which customers should I target?`);
             }}>✨ AI</button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Product Modal ────────────────────────────────────────────────────────
+function EditProductModal({ product, onClose, onSave }) {
+  const [form, setForm] = useState({ ...product });
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    if (!form.name?.trim()) return alert('Product name is required');
+    setSaving(true);
+    await onSave(form);
+    setSaving(false);
+  };
+
+  const INP = { padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--input)', color: 'var(--text)', fontSize: 12, width: '100%', fontFamily: 'inherit' };
+  const LBL = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 };
+  const FLD = ({ label, k, type='text', readOnly=false }) => (
+    <div>
+      <div style={LBL}>{label}</div>
+      <input style={{ ...INP, background: readOnly ? 'var(--bg3)' : 'var(--input)' }} type={type} value={form[k] ?? ''} readOnly={readOnly}
+        onChange={e => set(k, type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)} />
+    </div>
+  );
+
+  return (
+    <div className="qb-modal-overlay">
+      <div style={{ background: 'var(--card)', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,.35)', width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg,#0f4c81,#1a6ba0)' }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>✏ Edit Product</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'rgba(255,255,255,.8)' }}>✕</button>
+        </div>
+
+        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div style={{ gridColumn: '1/-1' }}><FLD label="Product Name *" k="name" /></div>
+            <FLD label="Brand" k="brand" />
+            <FLD label="SKU / Item Code" k="sku_code" />
+            <FLD label="Category" k="category" />
+            <FLD label="Unit" k="unit" />
+            <FLD label="Sell Price (₹)" k="sell_price" type="number" />
+            <FLD label="Buy Price (₹)" k="buy_price" type="number" />
+            <FLD label="GST Rate (%)" k="gst_rate" type="number" />
+            <FLD label="HSN Code" k="hsn_code" />
+            <FLD label="Size / Thickness" k="size" />
+            <FLD label="Finish" k="finish" />
+            <div>
+              <div style={LBL}>Stock Status</div>
+              <select style={INP} value={form.stock_status || 'in_stock'} onChange={e => set('stock_status', e.target.value)}>
+                <option value="in_stock">In Stock</option>
+                <option value="on_order">On Order</option>
+                <option value="out_of_stock">Out of Stock</option>
+              </select>
+            </div>
+            <FLD label="Lead Time" k="lead_time" />
+            <FLD label="Product ID" k="product_id" type="number" readOnly />
+          </div>
+
+          {/* Computed margin preview */}
+          {(form.sell_price > 0 && form.buy_price > 0) && (
+            <div style={{ padding: '8px 12px', background: 'var(--g5)', border: '1px solid var(--g4)', borderRadius: 7, fontSize: 12, marginBottom: 12 }}>
+              Computed margin: <strong style={{ color: 'var(--green)' }}>
+                {(((form.sell_price - form.buy_price) / form.sell_price) * 100).toFixed(1)}%
+              </strong> · Buy ₹{Number(form.buy_price).toLocaleString('en-IN')} → Sell ₹{Number(form.sell_price).toLocaleString('en-IN')}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '8px 22px', background: 'linear-gradient(135deg,#0f4c81,#1a6ba0)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Saving…' : '💾 Save Changes'}
+          </button>
         </div>
       </div>
     </div>
@@ -958,14 +1041,18 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('All');
-  const [search, setSearch]   = useState('');
-  const [view, setView]       = useState('grid');
+  const [search, setSearch]     = useState('');
+  const [view, setView]         = useState('grid');
   const [selected, setSelected] = useState(null);
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [page, setPage] = useState(1);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [importStatus, setImportStatus] = useState(null);
-  const [syncing, setSyncing] = useState(false);
+  const [brandFilter, setBrandFilter] = useState('All');
+  const [sortBy,  setSortBy]   = useState(null);   // 'name'|'sell_price'|'buy_price'|'margin_pct'
+  const [sortDir, setSortDir]  = useState('asc');
+  const [page, setPage]        = useState(1);
+  const [showAddModal, setShowAddModal]   = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [importStatus, setImportStatus]   = useState(null);
+  const [syncing, setSyncing]             = useState(false);
   const PAGE_SIZE = 20;
 
   const fetchData = useCallback(() => {
@@ -987,12 +1074,43 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
 
   useEffect(() => { fetchData(); fetchImportStatus(); }, [fetchData, fetchImportStatus]);
   useAutoRefresh(fetchData, 10 * 60_000);
-  useEffect(() => { setPage(1); }, [category, inStockOnly, search, view]);
+  useEffect(() => { setPage(1); }, [category, inStockOnly, search, view, brandFilter, sortBy, sortDir]);
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Remove this product from the catalog? This cannot be undone.')) return;
+    try {
+      const r = await fetch(`/api/catalog/${productId}`, { method: 'DELETE' });
+      if (r.ok) fetchData();
+      else console.error('Delete failed:', r.status);
+    } catch (e) { console.error('Delete error:', e); }
+  };
+
+  const handleEditSave = async (product) => {
+    try {
+      const r = await fetch(`/api/catalog/${product.product_id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(product),
+      });
+      if (r.ok) { fetchData(); setEditingProduct(null); }
+      else console.error('Edit failed:', r.status);
+    } catch (e) { console.error('Edit error:', e); }
+  };
+
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('asc'); }
+  };
+
+  const brands = useMemo(() => {
+    const bs = [...new Set((data?.products || []).map(p => p.brand).filter(Boolean))].sort();
+    return ['All', ...bs];
+  }, [data]);
 
   const products = useMemo(() => {
     let list = data?.products || [];
-    if (category !== 'All') list = list.filter(p => p.category === category);
-    if (inStockOnly)        list = list.filter(p => p.stock_status === 'in_stock');
+    if (category !== 'All')    list = list.filter(p => p.category === category);
+    if (inStockOnly)            list = list.filter(p => p.stock_status === 'in_stock');
+    if (brandFilter !== 'All') list = list.filter(p => p.brand === brandFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p =>
@@ -1004,11 +1122,23 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
         || (p.finish || '').toLowerCase().includes(q)
         || (p.tags || []).join(' ').includes(q)
         || (p.applications || []).some(a => a.toLowerCase().includes(q))
+        || (p.brand || '').toLowerCase().includes(q)
       );
     }
+    if (sortBy) {
+      list = [...list].sort((a, b) => {
+        const va = a[sortBy] ?? 0;
+        const vb = b[sortBy] ?? 0;
+        if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va;
+        return sortDir === 'asc'
+          ? String(va).localeCompare(String(vb))
+          : String(vb).localeCompare(String(va));
+      });
+    }
     return list;
-  }, [data, category, search, inStockOnly]);
-  const pagedProducts = view === 'table' ? products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : products;
+  }, [data, category, search, inStockOnly, brandFilter, sortBy, sortDir]);
+
+  const pagedProducts = products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const catCounts = useMemo(() => {
     const counts = {};
@@ -1106,8 +1236,14 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
 
       {/* Filter bar */}
       <div className="filter-bar">
-        <input className="view-search" placeholder="🔍  Search products, applications, tags…"
-          value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 320 }} />
+        <input className="view-search" placeholder="🔍  Search products, SKU, brand, size…"
+          value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 280 }} />
+        {brands.length > 1 && (
+          <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
+            style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', fontSize: 12, color: 'var(--text)', maxWidth: 160 }}>
+            {brands.map(b => <option key={b} value={b}>{b === 'All' ? '🏷 All Brands' : b}</option>)}
+          </select>
+        )}
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)' }}>
           <input type="checkbox" checked={inStockOnly} onChange={e => setInStockOnly(e.target.checked)} />
           In-stock only
@@ -1117,10 +1253,11 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
           <button className={`vswitch-btn${view === 'list' ? ' active' : ''}`} onClick={() => setView('list')}>☰ List</button>
         </div>
         <ExportButton rows={products} filename="product_catalog" columns={[
-          { key: 'product_id', label: 'ID' }, { key: 'sku_name', label: 'Product' },
+          { key: 'product_id', label: 'ID' }, { key: 'name', label: 'Product' },
+          { key: 'sku_code', label: 'SKU' }, { key: 'brand', label: 'Brand' },
           { key: 'category', label: 'Category' }, { key: 'sell_price', label: 'Sell Price (₹)' },
-          { key: 'margin_pct', label: 'Margin %' }, { key: 'stock_status', label: 'Stock Status' },
-          { key: 'unit', label: 'Unit' }, { key: 'applications', label: 'Applications' },
+          { key: 'buy_price', label: 'Buy Price (₹)' }, { key: 'margin_pct', label: 'Margin %' },
+          { key: 'stock_status', label: 'Stock Status' }, { key: 'unit', label: 'Unit' },
         ]} />
       </div>
 
@@ -1136,13 +1273,41 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
         ))}
       </div>
 
+      {/* Sort bar — shown above both views */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Sort:</span>
+        {[['name','Name'],['sell_price','Price'],['margin_pct','Margin'],['category','Category']].map(([col, lbl]) => (
+          <button key={col} onClick={() => toggleSort(col)}
+            className={`pc-sort-btn${sortBy === col ? ' active' : ''}`}>
+            {lbl} {sortBy === col ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+          </button>
+        ))}
+        {sortBy && (
+          <button onClick={() => { setSortBy(null); setSortDir('asc'); }}
+            style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+            ✕ Clear
+          </button>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
+          {products.length} product{products.length !== 1 ? 's' : ''}
+          {brandFilter !== 'All' ? ` · ${brandFilter}` : ''}
+        </span>
+      </div>
+
       {/* Products */}
       {view === 'grid' ? (
-        <div className="pc-grid">
-          {products.map(p => (
-            <ProductCard key={p.product_id} product={p} onView={setSelected} onGoChat={onGoChat} />
-          ))}
-        </div>
+        <>
+          <div className="pc-grid">
+            {pagedProducts.map(p => (
+              <ProductCard key={p.product_id} product={p} onView={setSelected} onGoChat={onGoChat}
+                onEdit={() => setEditingProduct({ ...p })} onDelete={() => handleDeleteProduct(p.product_id)} />
+            ))}
+          </div>
+          {products.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>No products match your filters.</div>
+          )}
+          <Pagination page={page} total={products.length} pageSize={PAGE_SIZE} onChange={setPage} />
+        </>
       ) : (
         <div className="card-table">
           <table className="tbl">
@@ -1151,9 +1316,9 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
                 <th>Product</th>
                 <th>Category</th>
                 <th>Size / Thickness</th>
-                <th>Buy Price</th>
-                <th>Sell Price</th>
-                <th>Margin</th>
+                <th className="pc-sort-th" onClick={() => toggleSort('buy_price')}>Buy Price {sortBy==='buy_price'?(sortDir==='asc'?'▲':'▼'):''}</th>
+                <th className="pc-sort-th" onClick={() => toggleSort('sell_price')}>Sell Price {sortBy==='sell_price'?(sortDir==='asc'?'▲':'▼'):''}</th>
+                <th className="pc-sort-th" onClick={() => toggleSort('margin_pct')}>Margin {sortBy==='margin_pct'?(sortDir==='asc'?'▲':'▼'):''}</th>
                 <th>Lead Time</th>
                 <th>Stock</th>
                 <th></th>
@@ -1180,8 +1345,14 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--text2)' }}>{p.lead_time}</td>
                   <td><span className={`bdg ${STOCK_COLORS[p.stock_status]}`}>{STOCK_LABELS[p.stock_status]}</span></td>
-                  <td>
-                    <button className="qb-view-btn" onClick={e => { e.stopPropagation(); setSelected(p); }}>View →</button>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <button className="qb-view-btn" onClick={() => setSelected(p)}>View</button>
+                      <button className="pc-row-action pc-edit" title="Edit product"
+                        onClick={() => setEditingProduct({ ...p })}>✏</button>
+                      <button className="pc-row-action pc-del" title="Remove from catalog"
+                        onClick={() => handleDeleteProduct(p.product_id)}>🗑</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1211,6 +1382,15 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
           onClose={() => setShowAddModal(false)}
           onAdded={() => { fetchData(); setTimeout(() => setShowAddModal(false), 1800); }}
           onGoChat={onGoChat}
+        />
+      )}
+
+      {/* Edit product modal */}
+      {editingProduct && (
+        <EditProductModal
+          product={editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onSave={handleEditSave}
         />
       )}
 

@@ -76,6 +76,12 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
 
   const handleScan = async () => {
     if (!canScan) return;
+    // Client-side file size guard (20 MB per file)
+    const oversized = files.find(f => f.size > 20 * 1024 * 1024);
+    if (oversized) {
+      setError(`"${oversized.name}" exceeds 20 MB. Compress or split the file and try again.`);
+      return;
+    }
     setScanning(true);
     setError(null);
     try {
@@ -338,8 +344,9 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
             </div>
 
             <input
-              ref={fileRef} type="file" accept="*/*" multiple
-              style={{ display: 'none' }}
+              ref={fileRef} type="file"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ods,.csv,.txt,.rtf"
+              multiple style={{ display: 'none' }}
               onChange={e => addFiles(e.target.files)}
             />
 
@@ -1350,10 +1357,11 @@ function ImageSearchModal({ onClose, onAddProduct }) {
     setImages(prev => { const n = prev.filter((_, j) => j !== i); if (activeIdx >= n.length) setActiveIdx(Math.max(0, n.length - 1)); return n; });
   };
 
-  const _tickRef = useRef({});  // holds per-image countdown interval IDs
+  const _tickRef   = useRef({});   // per-image countdown interval IDs
+  const _retryRef  = useRef({});   // per-image retry attempt counter
 
   const searchOne = async (i) => {
-    // Clear any existing countdown timer for this slot
+    // Clear any existing countdown for this slot
     if (_tickRef.current[i]) { clearInterval(_tickRef.current[i]); delete _tickRef.current[i]; }
 
     setImages(prev => prev.map((x, j) => j === i ? { ...x, searching: true, error: null, retryAfter: 0 } : x));
@@ -1365,7 +1373,15 @@ function ImageSearchModal({ onClose, onAddProduct }) {
       const d = await r.json();
 
       if (d.error === 'rate_limit') {
-        // Backend hit rate limit even after its internal retry — show countdown + auto-retry
+        const attempts = (_retryRef.current[i] || 0) + 1;
+        _retryRef.current[i] = attempts;
+        if (attempts >= 4) {
+          // Max retries reached — stop auto-retry, let user decide
+          setImages(prev => prev.map((x, j) => j === i
+            ? { ...x, error: 'Rate limit: max retries reached. Wait a minute and retry manually.', retryAfter: 0, searching: false }
+            : x));
+          return;
+        }
         const secs = d.retry_after || 45;
         setImages(prev => prev.map((x, j) => j === i ? { ...x, error: 'rate_limit', retryAfter: secs, searching: false } : x));
         let remaining = secs;
@@ -1375,10 +1391,11 @@ function ImageSearchModal({ onClose, onAddProduct }) {
           if (remaining <= 0) {
             clearInterval(_tickRef.current[i]);
             delete _tickRef.current[i];
-            searchOne(i);  // auto-retry
+            searchOne(i);
           }
         }, 1000);
       } else {
+        _retryRef.current[i] = 0;  // reset retry counter on success
         setImages(prev => prev.map((x, j) => j === i
           ? { ...x, result: d.error ? null : d, error: d.error || null, retryAfter: 0, searching: false }
           : x));
@@ -1388,7 +1405,11 @@ function ImageSearchModal({ onClose, onAddProduct }) {
     }
   };
 
-  const searchAll = () => images.forEach((_, i) => { if (!images[i].result && !images[i].searching) searchOne(i); });
+  // Parallel search — launches all pending images concurrently
+  const searchAll = () => {
+    const pending = images.map((img, i) => ({ img, i })).filter(({ img }) => !img.result && !img.searching);
+    pending.forEach(({ i }) => searchOne(i));  // fire-and-forget; each manages its own state
+  };
 
   const handleSelect = (match) => {
     onAddProduct({

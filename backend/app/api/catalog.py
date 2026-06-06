@@ -1822,6 +1822,86 @@ async def bulk_add_catalog_products(payload: dict):
     }
 
 
+@router.put("/catalog/{product_id}")
+async def update_catalog_product(product_id: int, product: dict):
+    """Update a runtime-added product (name, price, stock status, etc.) and persist to DB."""
+    target_idx = next(
+        (i for i, p in enumerate(_RUNTIME_PRODUCTS) if p.get("product_id") == product_id),
+        None,
+    )
+    if target_idx is None:
+        raise HTTPException(status_code=404, detail=f"Product {product_id} not found in editable catalog")
+
+    product["product_id"] = product_id
+    # Recompute margin when buy/sell prices change
+    sp = float(product.get("sell_price") or 0)
+    bp = float(product.get("buy_price") or 0)
+    if sp > 0 and bp > 0:
+        product["margin_pct"] = round((sp - bp) / sp * 100, 1)
+
+    updated = {**_RUNTIME_PRODUCTS[target_idx], **product}
+    _RUNTIME_PRODUCTS[target_idx] = updated
+
+    saved = False
+    try:
+        from app.db.connection import get_pool
+        pool = await get_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "UPDATE catalog_products SET name=%s, sku_code=%s, product_json=%s"
+                        " WHERE product_id=%s",
+                        (
+                            updated.get("name", ""),
+                            updated.get("sku_code", ""),
+                            json.dumps(updated),
+                            product_id,
+                        ),
+                    )
+                    await conn.commit()
+                    saved = cur.rowcount > 0
+    except Exception as exc:
+        logger.warning("catalog: update DB failed -- %s", exc)
+
+    return {
+        "product":     updated,
+        "persisted":   saved,
+        "data_source": "live" if saved else "runtime",
+    }
+
+
+@router.delete("/catalog/{product_id}")
+async def delete_catalog_product(product_id: int):
+    """Remove a runtime-added product from the catalog (runtime + DB)."""
+    target_idx = next(
+        (i for i, p in enumerate(_RUNTIME_PRODUCTS) if p.get("product_id") == product_id),
+        None,
+    )
+    if target_idx is None:
+        raise HTTPException(status_code=404, detail=f"Product {product_id} not in editable catalog")
+
+    _RUNTIME_PRODUCTS.pop(target_idx)
+
+    db_removed = False
+    try:
+        from app.db.connection import get_pool
+        pool = await get_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "DELETE FROM catalog_products WHERE product_id=%s", (product_id,)
+                    )
+                    await conn.commit()
+                    db_removed = cur.rowcount > 0
+    except Exception as exc:
+        logger.warning("catalog: delete DB failed -- %s", exc)
+
+    logger.info("catalog: deleted product_id=%s db_removed=%s", product_id, db_removed)
+    return {"deleted": product_id, "persisted": db_removed}
+
+
 @router.post("/catalog/parse-import")
 async def parse_import_file(file: UploadFile = File(...)):
     """Parse a CSV or Excel file and return raw tabular data (headers + rows) for column mapping."""

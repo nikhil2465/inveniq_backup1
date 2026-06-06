@@ -514,6 +514,32 @@ def _gst_for_hsn(hsn: str) -> int:
     return _GST_BY_HSN4.get(code, 18)
 
 
+def _dedup_required_products(products: list) -> list:
+    """
+    Merge duplicate entries that resolve to the same item code.
+    Keeps the first occurrence and sums quantities; merges notes with ' | '.
+    Only deduplicates when normalized codes match AND are ≥ 4 chars (avoids over-merging).
+    """
+    seen: dict = {}   # normalized_code → index in result
+    result: list = []
+    for req in products:
+        raw_code = (req.get("item_code") or "").strip()
+        raw_desc = (req.get("description") or "").strip()
+        key = _normalize_code(raw_code or raw_desc)
+        if len(key) >= 4 and key in seen:
+            ex = result[seen[key]]
+            ex["quantity"] = (ex.get("quantity") or 1) + (req.get("quantity") or 1)
+            note_new = (req.get("notes") or "").strip()
+            note_ex  = (ex.get("notes") or "").strip()
+            if note_new and note_new not in note_ex:
+                ex["notes"] = f"{note_ex} | {note_new}".strip(" | ")
+        else:
+            result.append(dict(req))
+            if len(key) >= 4:
+                seen[key] = len(result) - 1
+    return result
+
+
 def _build_sku_index(catalog: list) -> dict:
     """Build normalized-SKU -> product dict for O(1) exact lookups."""
     idx: dict = {}
@@ -1699,6 +1725,7 @@ async def scan_whatsapp_requirement(
         if combined_text.strip() and not image_parts:
             direct = _direct_code_scan(combined_text, sku_index, catalog)
             if direct:
+                direct["required_products"] = _dedup_required_products(direct["required_products"])
                 logger.info("scan-whatsapp: direct code scan resolved %d items (no AI call needed)",
                             len(direct.get("required_products", [])))
                 matched = _match_to_catalog(direct["required_products"])
@@ -1774,7 +1801,8 @@ async def scan_whatsapp_requirement(
         if not raw_content:
             return _demo_scan_result("AI returned empty response — please retry.")
         extracted = json.loads(raw_content)
-        required_products = extracted.get("required_products", [])
+        required_products = _dedup_required_products(extracted.get("required_products", []))
+        extracted["required_products"] = required_products
         matched = _match_to_catalog(required_products)
 
         note = ""

@@ -162,14 +162,22 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
   const [parsingFile, setParsingFile] = useState(false);
   const [fileParserResult, setFileParserResult] = useState(null);
   const fileParserRef = useRef();
+  const [qbSync, setQbSync] = useState(null); // {count, ageMin, expired}
 
-  // QB→DQB import on mount
+  // QB→DQB import on mount — auto-import fresh data, show banner for expired
   useEffect(() => {
     try {
       const raw = localStorage.getItem('inveniq_qb_to_dqb');
       if (!raw) return;
-      const { items, ts } = JSON.parse(raw);
-      if (Date.now() - ts > 30 * 60 * 1000) { localStorage.removeItem('inveniq_qb_to_dqb'); return; }
+      const stored = JSON.parse(raw);
+      const { items, ts } = stored;
+      const ageMin = Math.round((Date.now() - ts) / 60000);
+      const expired = ageMin > 30;
+      if (expired) {
+        // Show banner so user knows data is available (stale)
+        setQbSync({ count: (items || []).length, ageMin, expired: true, stored });
+        return;
+      }
       if (items && items.length > 0 && !isEdit) {
         const importedSection = {
           section_name: 'Imported from QB', section_order: 0, section_total: 0,
@@ -191,6 +199,11 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
   };
 
   const removeSection = (idx) => {
+    const sec = form.sections[idx];
+    const count = (sec?.items || []).length;
+    if (count > 0 && !window.confirm(
+      `Remove section "${sec.section_name}" with ${count} item${count !== 1 ? 's' : ''}? This cannot be undone.`
+    )) return;
     setForm(f => ({ ...f, sections: f.sections.filter((_, i) => i !== idx) }));
     setActiveSection(s => Math.max(0, s - 1));
   };
@@ -281,12 +294,20 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
 
   const parseFile = async () => {
     if (parserFiles.length === 0) return;
+    // Client-side file size guard (15 MB per file)
+    const oversized = parserFiles.find(f => f.size > 15 * 1024 * 1024);
+    if (oversized) {
+      setFileParserResult({
+        scan_error: `"${oversized.name}" exceeds 15 MB — compress or split it before uploading.`,
+        data_source: 'error',
+      });
+      return;
+    }
     setParsingFile(true);
     setFileParserResult(null);
     try {
       const fd = new FormData();
       parserFiles.forEach(f => fd.append('file', f));
-      // Use the general document parser — works for any file type
       const r = await fetch('/api/design-quotes/parse-document', { method: 'POST', body: fd });
       const d = await r.json();
       setFileParserResult(d);
@@ -372,6 +393,29 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+
+          {/* QB→DQB sync banner — shown when QB data exists but expired */}
+          {qbSync?.expired && (
+            <div style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.25)', borderRadius: 8, padding: '8px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+              <span style={{ fontSize: 16 }}>🔗</span>
+              <div style={{ flex: 1 }}>
+                <strong style={{ color: '#7c3aed' }}>{qbSync.count} item{qbSync.count !== 1 ? 's' : ''} from Quote Builder</strong>
+                <span style={{ color: 'var(--muted)', marginLeft: 6 }}>({qbSync.ageMin} min ago — import window expired)</span>
+              </div>
+              <button onClick={() => {
+                const { items } = qbSync.stored;
+                const sec = { section_name: 'Imported from QB', section_order: 0, section_total: 0,
+                  items: items.map(i => ({ item_name: i.product_name || i.item_name || '', description: i.description || '', unit: i.unit || 'nos', qty: i.qty || 1, unit_price: i.unit_price || 0, margin_pct: 0, line_total: (i.qty||1)*(i.unit_price||0), inferred_hsn: i.inferred_hsn || '', inferred_category: i.inferred_category || '', gst_pct: i.gst_pct ?? 18 })) };
+                setForm(f => ({ ...f, sections: [sec, ...f.sections] }));
+                localStorage.removeItem('inveniq_qb_to_dqb');
+                setQbSync(null);
+              }} style={{ padding: '4px 14px', background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>
+                Import Anyway
+              </button>
+              <button onClick={() => { localStorage.removeItem('inveniq_qb_to_dqb'); setQbSync(null); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✕</button>
+            </div>
+          )}
 
           {/* Brief parser overlay */}
           {showBriefParser && (
@@ -563,32 +607,61 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {sec.items.map((it, ii) => (
-                    <tr key={ii} style={{ borderBottom: '1px solid var(--border)' }}>
+                  {sec.items.map((it, ii) => {
+                    const hasDim = it.length_ft || it.width_ft || it.height_ft;
+                    const dimKey = `${activeSection}-${ii}`;
+                    return (
+                    <React.Fragment key={ii}>
+                    <tr style={{ borderBottom: hasDim ? 'none' : '1px solid var(--border)' }}>
                       <td style={{ padding: '4px 4px' }}>
                         <input style={{ ...INP, minWidth: 160 }} value={it.item_name} onChange={e => updateItem(activeSection, ii, 'item_name', e.target.value)} placeholder="Product name…" />
-                        {(it.length_ft || it.width_ft || it.height_ft) && (
-                          <div style={{ fontSize: 10, color: '#0891b2', marginTop: 2 }}>
-                            📐 {[it.length_ft && `L:${it.length_ft}ft`, it.width_ft && `W:${it.width_ft}ft`, it.height_ft && `H:${it.height_ft}ft`].filter(Boolean).join(' × ')}
-                          </div>
-                        )}
                       </td>
                       <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 65 }} value={it.unit} onChange={e => updateItem(activeSection, ii, 'unit', e.target.value)} /></td>
                       <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 55 }} type="number" value={it.qty} onChange={e => updateItem(activeSection, ii, 'qty', e.target.value)} /></td>
                       <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 85 }} type="number" value={it.unit_price} onChange={e => updateItem(activeSection, ii, 'unit_price', e.target.value)} /></td>
                       <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 60 }} type="number" value={it.margin_pct} onChange={e => updateItem(activeSection, ii, 'margin_pct', e.target.value)} /></td>
                       <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                        <select
-                          style={{ ...INP, width: 72, textAlign: 'center', color: '#d97706', fontWeight: 700, background: 'rgba(217,119,6,0.07)', borderColor: 'rgba(217,119,6,0.3)' }}
+                        <select style={{ ...INP, width: 72, textAlign: 'center', color: '#d97706', fontWeight: 700, background: 'rgba(217,119,6,0.07)', borderColor: 'rgba(217,119,6,0.3)' }}
                           value={it.gst_pct ?? form.gst_rate ?? 18}
                           onChange={e => updateItem(activeSection, ii, 'gst_pct', Number(e.target.value))}>
                           {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
                       <td style={{ padding: '4px 8px', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtC(it.line_total)}</td>
-                      <td style={{ padding: '4px 4px' }}><button onClick={() => removeItem(activeSection, ii)} style={{ ...SEC_BTN, color: '#dc2626', padding: '2px 8px' }}>✕</button></td>
+                      <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
+                        <button title="Toggle dimensions (L/W/H)"
+                          onClick={() => updateItem(activeSection, ii, '_showDim', !it._showDim)}
+                          style={{ ...SEC_BTN, padding: '2px 6px', marginRight: 3, color: (hasDim || it._showDim) ? '#0891b2' : 'var(--muted)', borderColor: (hasDim || it._showDim) ? 'rgba(8,145,178,0.35)' : 'var(--border)' }}>📐</button>
+                        <button onClick={() => removeItem(activeSection, ii)} style={{ ...SEC_BTN, color: '#dc2626', padding: '2px 8px' }}>✕</button>
+                      </td>
                     </tr>
-                  ))}
+                    {/* Dimension sub-row — toggle with 📐 button */}
+                    {(it._showDim || hasDim) && (
+                      <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(8,145,178,0.03)' }}>
+                        <td colSpan={8} style={{ padding: '3px 8px 6px 12px' }}>
+                          <div className="dqb-dim-row">
+                            <span style={{ fontSize: 10, color: '#0891b2', fontWeight: 700 }}>📐 Dimensions (ft):</span>
+                            {[['L', 'length_ft'], ['W', 'width_ft'], ['H', 'height_ft']].map(([lbl, key]) => (
+                              <React.Fragment key={key}>
+                                <span style={{ fontSize: 10, color: 'var(--muted)' }}>{lbl}:</span>
+                                <input className="dqb-dim-input" type="number" min="0" step="0.1"
+                                  placeholder="—"
+                                  value={it[key] ?? ''}
+                                  onChange={e => updateItem(activeSection, ii, key, parseFloat(e.target.value) || null)} />
+                              </React.Fragment>
+                            ))}
+                            {hasDim && (
+                              <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>
+                                = {[it.length_ft, it.width_ft, it.height_ft].filter(Boolean).join(' × ')} ft
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               </div>

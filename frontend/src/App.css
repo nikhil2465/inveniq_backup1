@@ -2451,6 +2451,24 @@ textarea.qb-input { height: auto; padding: 8px 11px; }
 .scan-match-chip.chip-none { border-style: dashed; opacity: .85; }
 .scan-match-chip.chip-none:hover { opacity: 1; }
 
+/* ── ProductCatalog — sort + CRUD ─────────────────────────────────────────── */
+/* Sortable column header button */
+.pc-sort-btn { padding: 3px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text2); font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all .12s; font-family: var(--font); }
+.pc-sort-btn:hover { border-color: var(--brand); color: var(--brand); }
+.pc-sort-btn.active { background: var(--g5); border-color: var(--brand); color: var(--brand); font-weight: 800; }
+/* Clickable sort column header in table */
+.pc-sort-th { cursor: pointer; user-select: none; white-space: nowrap; }
+.pc-sort-th:hover { color: var(--brand); }
+/* Product row action buttons (edit / delete) */
+.pc-row-action { padding: 3px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); cursor: pointer; font-size: 12px; transition: all .12s; line-height: 1.4; }
+.pc-row-action.pc-edit:hover { border-color: var(--blue); color: var(--blue); background: var(--b3); }
+.pc-row-action.pc-del:hover  { border-color: var(--red);  color: var(--red);  background: var(--r3); }
+
+/* ── DesignQuoteBuilder — dimension sub-row ──────────────────────────────── */
+.dqb-dim-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dqb-dim-input { width: 64px; padding: 2px 5px; border: 1px solid rgba(8,145,178,0.35); border-radius: 4px; font-size: 11px; font-family: var(--mono); background: var(--surface); color: var(--text); text-align: center; }
+.dqb-dim-input:focus { outline: none; border-color: #0891b2; box-shadow: 0 0 0 2px rgba(8,145,178,.1); }
+
 /* Exact SKU match card styling */
 .scan-product-card.scan-card-exact { border-color: #7c3aed; border-width: 2px; background: rgba(124,58,237,0.03); }
 
