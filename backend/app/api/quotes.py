@@ -1536,6 +1536,23 @@ async def ai_price_recommendation(req: AIPriceRequest):
     }
 
 
+def _text_has_item_content(text: str) -> bool:
+    """
+    Heuristic: is extracted PDF text substantive enough to feed to the AI directly?
+    Returns False for PDFs whose text layer is just a header/title/metadata — those
+    need the vision path even though pypdf extracted something.
+    """
+    if not text or len(text.strip()) < 300:
+        return False
+    import re as _re
+    has_units      = bool(_re.search(r'\b(Nos|SqFt|SqMtr|RFT|Mtr|Lot|LS|Bag|Cft|Kg|Set|Pair|Pcs|Roll|Box)\b', text, _re.I))
+    has_dims       = bool(_re.search(r'\d+\s*[xX×]\s*\d+|\d+\.?\d*\s*(ft|\'|"|mm|cm|m)\b', text))
+    has_rates      = bool(_re.search(r'(rate|price|unit\s*cost|mrp|amount)\s*:?\s*[\d,]+', text, _re.I))
+    has_item_codes = bool(_re.search(r'\b[A-Z]{2,}\d{3,}\b', text))
+    content_lines  = [l for l in text.split('\n') if len(l.strip()) > 10]
+    return (has_units or has_dims or has_rates or has_item_codes) and len(content_lines) >= 6
+
+
 def _extract_file_content(file_bytes: bytes, content_type: str, filename: str):
     """
     Universal file content extractor.
@@ -1551,15 +1568,16 @@ def _extract_file_content(file_bytes: bytes, content_type: str, filename: str):
         ct  = content_type if content_type.startswith("image/") else "image/jpeg"
         return "", True, b64, ct
 
-    # PDF
+    # PDF — only use extracted text if it contains substantive item content;
+    # otherwise treat as scanned and let PyMuPDF render pages for vision.
     if content_type == "application/pdf" or filename.endswith(".pdf"):
         try:
             from pypdf import PdfReader
             reader = PdfReader(_io.BytesIO(file_bytes))
             text = "\n".join(page.extract_text() or "" for page in reader.pages)
-            if text.strip():
+            if text.strip() and _text_has_item_content(text):
                 return text[:14000], False, "", ""
-            # Empty text = scanned/image-based PDF — stop here, don't decode as binary
+            # Scanned PDF, or text layer has only headers/metadata — use vision path
             return "__scanned_pdf__", False, "", ""
         except Exception as e:
             logger.warning("pypdf failed: %s", e)
@@ -1616,11 +1634,39 @@ def _extract_file_content(file_bytes: bytes, content_type: str, filename: str):
     return "", False, "", ""
 
 
+def _render_pdf_pages_pymupdf(file_bytes: bytes, max_pages: int = 4) -> list:
+    """
+    Render PDF pages as JPEG images using PyMuPDF (fitz) for GPT-4o vision.
+    JPEG at quality=90 is ~70% smaller than PNG for scanned content and well within
+    the vision API's size limits at 2.5x DPI without needing to downscale.
+    """
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        result = []
+        for i in range(min(max_pages, len(doc))):
+            page = doc[i]
+            mat = fitz.Matrix(2.5, 2.5)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            img_bytes = pix.tobytes("jpeg", jpg_quality=90)
+            if len(img_bytes) > 4 * 1024 * 1024:
+                mat = fitz.Matrix(1.5, 1.5)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                img_bytes = pix.tobytes("jpeg", jpg_quality=85)
+            result.append({"b64": base64.b64encode(img_bytes).decode(), "ct": "image/jpeg"})
+        doc.close()
+        return result
+    except ImportError:
+        return []  # PyMuPDF not available — caller falls back to pypdf method
+    except Exception as exc:
+        logger.warning("scan-whatsapp: PyMuPDF PDF render failed — %s", exc)
+        return []
+
+
 def _extract_pdf_images(file_bytes: bytes) -> list:
     """
-    Extract embedded raster images from a scanned (image-based) PDF.
-    Returns up to 4 dicts of {'b64': str, 'ct': str} ready for the Vision API.
-    Uses pypdf ≥ 4.0 page.images iterator — available in requirements.txt.
+    Extract embedded raster images from a scanned PDF using pypdf.
+    Fallback when PyMuPDF is unavailable.
     """
     try:
         from pypdf import PdfReader
@@ -1631,7 +1677,6 @@ def _extract_pdf_images(file_bytes: bytes) -> list:
                 data = getattr(img_obj, "data", None)
                 if not data:
                     continue
-                # Detect image format from file signature
                 if data[:3] == b"\xff\xd8\xff":
                     ct = "image/jpeg"
                 elif data[:8] == b"\x89PNG\r\n\x1a\n":
@@ -1639,13 +1684,13 @@ def _extract_pdf_images(file_bytes: bytes) -> list:
                 elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
                     ct = "image/webp"
                 else:
-                    ct = "image/jpeg"  # safe fallback
+                    ct = "image/jpeg"
                 extracted.append({"b64": base64.b64encode(data).decode(), "ct": ct})
-            if len(extracted) >= 4:  # cap — Vision API degrades past 4 large images
+            if len(extracted) >= 4:
                 break
         return extracted
     except Exception as exc:
-        logger.warning("scan-whatsapp: PDF image extraction failed — %s", exc)
+        logger.warning("scan-whatsapp: pypdf image extraction failed — %s", exc)
         return []
 
 
@@ -1690,21 +1735,29 @@ async def scan_whatsapp_requirement(
             file_text, is_image, image_b64, image_ct = _extract_file_content(raw, ct, fn)
 
             if file_text == "__scanned_pdf__":
-                # Scanned (image-based) PDF — try to extract embedded page images for Vision API
-                pdf_imgs = _extract_pdf_images(raw)
+                # Scanned PDF — try PyMuPDF full-page render first (handles handwritten/scanning-app PDFs)
+                pdf_imgs = _render_pdf_pages_pymupdf(raw)
                 if pdf_imgs:
-                    image_parts.extend(pdf_imgs[:4])
+                    image_parts.extend(pdf_imgs)
                     logger.info(
-                        "scan-whatsapp: scanned PDF '%s' — extracted %d page image(s) for Vision API",
+                        "scan-whatsapp: scanned PDF '%s' — PyMuPDF rendered %d page(s)",
                         f.filename, len(pdf_imgs),
                     )
                 else:
-                    # pypdf found no embedded images — extremely rare; guide the user
-                    combined_text += (
-                        "\n[Note: a scanned PDF was uploaded but page images could not be extracted. "
-                        "If this is a printed form, please photograph it and upload the photo directly.]"
-                    )
-                    logger.warning("scan-whatsapp: scanned PDF '%s' — no extractable images", f.filename)
+                    # PyMuPDF unavailable or failed — fall back to embedded-image extraction
+                    pdf_imgs = _extract_pdf_images(raw)
+                    if pdf_imgs:
+                        image_parts.extend(pdf_imgs[:4])
+                        logger.info(
+                            "scan-whatsapp: scanned PDF '%s' — pypdf extracted %d embedded image(s)",
+                            f.filename, len(pdf_imgs),
+                        )
+                    else:
+                        combined_text += (
+                            "\n[Note: a scanned PDF was uploaded but page images could not be extracted. "
+                            "If this is a printed form, please photograph it and upload the photo directly.]"
+                        )
+                        logger.warning("scan-whatsapp: scanned PDF '%s' — no extractable images", f.filename)
                 continue
 
             if is_image:
@@ -1759,7 +1812,12 @@ async def scan_whatsapp_requirement(
             # Vision: send all images + any text context + catalog hint
             user_content: list = []
             for img in image_parts:
+                if len(img["b64"]) > 5_400_000:  # >4 MB decoded — skip to avoid API errors
+                    logger.warning("scan-whatsapp: image too large (%d chars b64), skipping", len(img["b64"]))
+                    continue
                 user_content.append({"type": "image_url", "image_url": {"url": f"data:{img['ct']};base64,{img['b64']}", "detail": "high"}})
+            if not user_content:
+                return _demo_scan_result("Image(s) are too large for AI processing. Please use photos under 4 MB or reduce the PDF resolution before uploading.")
             ctx = ""
             if combined_text.strip():
                 ctx = f"Also consider this typed context:\n\n{combined_text}\n\n"
@@ -1798,6 +1856,24 @@ async def scan_whatsapp_requirement(
         )
 
         raw_content = response.choices[0].message.content
+        if not raw_content or not raw_content.strip():
+            finish = response.choices[0].finish_reason
+            logger.warning("scan-whatsapp: GPT-4o null content (finish=%s), retrying without json_object", finish)
+            response2 = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": _EXTRACTION_SYSTEM},
+                    {"role": "user",   "content": user_content},
+                ],
+                max_tokens=3000,
+            )
+            raw_content = response2.choices[0].message.content or ""
+            raw_content = raw_content.strip()
+            if raw_content.startswith("```"):
+                raw_content = raw_content.split("```", 2)[1]
+                if raw_content.startswith("json"):
+                    raw_content = raw_content[4:]
+                raw_content = raw_content.split("```")[0].strip()
         if not raw_content:
             return _demo_scan_result("AI returned empty response — please retry.")
         extracted = json.loads(raw_content)

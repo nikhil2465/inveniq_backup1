@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
 import { ExportButton } from '../utils/exportUtils';
 import Pagination from '../components/Pagination';
@@ -323,7 +323,7 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
     <div className="qb-modal-overlay">
       <div className="scan-modal" ref={scanModalRef} style={scanDragStyle}>
         {/* Header */}
-        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg, #0f4c81 0%, #1a6ba0 100%)', borderTop: 'none', borderRadius: '12px 12px 0 0' }}>
+        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg, #0f2744 0%, #15803d 100%)', borderTop: 'none', borderRadius: '12px 12px 0 0' }}>
           <div>
             <div className="qb-modal-title" style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>📱 WhatsApp Requirement Scanner</div>
             <div className="qb-modal-sub" style={{ color: 'rgba(255,255,255,.75)', fontSize: 12, marginTop: 3 }}>
@@ -417,7 +417,32 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
             </div>
           </div>
 
-          {/* Results panel */}
+          {/* Results panel — AI ready empty state before first scan */}
+          {!result && (
+            <div className="scan-results-panel scan-results-empty">
+              <div style={{ textAlign: 'center', padding: '0 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div className="scan-empty-hero">🤖</div>
+                <div className="scan-empty-title">AI Scanner Ready</div>
+                <div className="scan-empty-sub">
+                  Drop a file or paste a WhatsApp message on the left — AI extracts all product requirements and matches them to your catalog in seconds.
+                </div>
+                <div className="scan-empty-pills">
+                  {['⚡ SKU code lookup', '📸 Photo recognition', '🧠 Smart matching', '✓ GST-ready quotes'].map(f => (
+                    <span key={f} className="scan-empty-pill">{f}</span>
+                  ))}
+                </div>
+                <div className="scan-empty-stats">
+                  {[['500+', 'Catalog SKUs'], ['< 5s', 'AI extract'], ['95%', 'Match rate']].map(([v, l]) => (
+                    <div key={l} className="scan-empty-stat">
+                      <div className="scan-empty-stat-val">{v}</div>
+                      <div className="scan-empty-stat-lbl">{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Results panel — populated after scan */}
           {result && (
             <div className="scan-results-panel">
               {result.demo_note && (
@@ -743,7 +768,7 @@ function WhatsAppScannerModal({ onClose, onBuildQuote }) {
                   }));
                   alert('Items saved! Go to Design Quote Studio → Import from QB to use them in a BOQ.');
                 }}
-                style={{ width: '100%', marginTop: 8, padding: '9px 0', background: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1.5px solid rgba(168,85,247,0.3)', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                style={{ width: '100%', marginTop: 8, padding: '9px 0', background: '#f5f3ff', color: '#5b21b6', border: '1.5px solid rgba(109,40,217,0.45)', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                 🔗 Also Send to Design Studio (BOQ)
               </button>
             </div>
@@ -962,7 +987,7 @@ function WinLossReasonModal({ status, quote, onConfirm, onClose }) {
             <>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: .7, display: 'block', marginBottom: 6 }}>Reason for Loss *</label>
-                <select className="qb-sel" value={reason} onChange={e => setReason(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13 }}>
+                <select className="qb-sel" value={reason} onChange={e => setReason(e.target.value)}>
                   {LOST_REASONS.map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
@@ -1177,7 +1202,7 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
     onClose();
   };
 
-  const S = { background: 'var(--input, var(--bg))', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', width: '100%', boxSizing: 'border-box' };
+  const S = { background: '#ffffff', border: '1.5px solid #d8dce3', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#0d1b2e', width: '100%', boxSizing: 'border-box', colorScheme: 'light' };
   const TIER_COLOR = { 'Exact Match': '#16a34a', 'Strong Match': '#2563eb', 'Near Match': '#d97706' };
 
   return (
@@ -1713,6 +1738,74 @@ const QUOTE_STATUS = {
 
 const EDITABLE_STATUSES  = ['DRAFT', 'SENT', 'NEGOTIATING', 'REVISED'];
 
+// ── Quick-start Templates (pre-fill NewQuoteForm for common job types) ─────────
+const QUICK_TEMPLATES = [
+  {
+    label: '🚿 Master Bathroom Premium',
+    desc: 'CP fittings + sanitary ware + accessories — full bathroom fitout',
+    customerType: 'Builder / Developer',
+    scope: 'Complete master bathroom fitout — CP fittings, concealed cistern, sanitary ware, shower enclosure, accessories',
+    gstRate: 18,
+    lines: [
+      { product_name: 'Jaquar Artize Single Lever Basin Mixer', qty: 2, unit: 'Nos', unit_price: 12500, gst_rate: 18, hsn_code: '8481' },
+      { product_name: 'Jaquar Continental Wall Mixer with Hand Shower', qty: 1, unit: 'Nos', unit_price: 8900, gst_rate: 18, hsn_code: '8481' },
+      { product_name: 'Hindware Sanitaryware Wall Hung WC with Seat Cover', qty: 1, unit: 'Nos', unit_price: 18500, gst_rate: 18, hsn_code: '6910' },
+      { product_name: 'Hindware Concealed Cistern 6/3L Dual Flush', qty: 1, unit: 'Nos', unit_price: 9200, gst_rate: 18, hsn_code: '3922' },
+      { product_name: 'Hindware Semi-Pedestal Washbasin 580mm', qty: 1, unit: 'Nos', unit_price: 6800, gst_rate: 18, hsn_code: '6910' },
+      { product_name: 'Towel Bar 600mm SS304 Satin', qty: 2, unit: 'Nos', unit_price: 1800, gst_rate: 18, hsn_code: '7326' },
+      { product_name: 'Soap Holder + Tumbler Holder SS Set', qty: 1, unit: 'Set', unit_price: 2400, gst_rate: 18, hsn_code: '7326' },
+    ],
+  },
+  {
+    label: '🏗 3BHK Complete Hardware Fitout',
+    desc: 'Door hardware + cabinet fittings for full apartment fitout',
+    customerType: 'Contractor',
+    scope: 'Complete hardware supply for 3BHK — door handles, hinges, locks, cabinet channels, lift systems',
+    gstRate: 18,
+    lines: [
+      { product_name: 'Hettich Sensys 110° Concealed Hinge Soft-Close', qty: 48, unit: 'Nos', unit_price: 320, gst_rate: 18, hsn_code: '8302' },
+      { product_name: 'Hettich Quadro V6 Drawer Channel 450mm Soft-Close', qty: 24, unit: 'Pairs', unit_price: 1850, gst_rate: 18, hsn_code: '8302' },
+      { product_name: 'Hettich Aventos HF Lift System for Top Cabinet', qty: 8, unit: 'Sets', unit_price: 4200, gst_rate: 18, hsn_code: '8302' },
+      { product_name: 'Dorset Mortice Lock Set SS Finish', qty: 10, unit: 'Sets', unit_price: 2800, gst_rate: 28, hsn_code: '8301' },
+      { product_name: 'Dorset Door Handle Lever Type SS (pair)', qty: 10, unit: 'Pairs', unit_price: 1400, gst_rate: 18, hsn_code: '8302' },
+      { product_name: 'Tower Bolt 8" SS Heavy Duty', qty: 20, unit: 'Nos', unit_price: 280, gst_rate: 18, hsn_code: '8301' },
+      { product_name: 'Door Stopper SS Floor Mounted', qty: 12, unit: 'Nos', unit_price: 350, gst_rate: 18, hsn_code: '8302' },
+    ],
+  },
+  {
+    label: '🔧 Plumber Supply Package',
+    desc: 'CP fittings + CPVC pipes + valves for contractor/plumber supply',
+    customerType: 'Plumber',
+    scope: 'CP fittings and plumbing material supply for residential project',
+    gstRate: 18,
+    lines: [
+      { product_name: 'Astral CPVC Pipe 1/2" 3m Length', qty: 50, unit: 'Pcs', unit_price: 420, gst_rate: 18, hsn_code: '3917' },
+      { product_name: 'Astral CPVC Pipe 3/4" 3m Length', qty: 30, unit: 'Pcs', unit_price: 680, gst_rate: 18, hsn_code: '3917' },
+      { product_name: 'CPVC Elbow 1/2" (bag of 100)', qty: 2, unit: 'Bags', unit_price: 1800, gst_rate: 18, hsn_code: '3917' },
+      { product_name: 'CPVC Tee 1/2" (bag of 50)', qty: 2, unit: 'Bags', unit_price: 1200, gst_rate: 18, hsn_code: '3917' },
+      { product_name: 'Jaquar Quarter Turn Stop Cock 15mm', qty: 20, unit: 'Nos', unit_price: 320, gst_rate: 18, hsn_code: '8481' },
+      { product_name: 'Jaquar Angle Valve Chrome 15mm', qty: 30, unit: 'Nos', unit_price: 420, gst_rate: 18, hsn_code: '8481' },
+      { product_name: 'Teflon Tape (box of 24 rolls)', qty: 2, unit: 'Boxes', unit_price: 480, gst_rate: 18, hsn_code: '5906' },
+    ],
+  },
+  {
+    label: '🏨 Hotel / Hospitality Room Package',
+    desc: 'Bulk supply for hotel rooms — spec-grade fittings',
+    customerType: 'Hotel / Hospitality',
+    scope: 'Hotel room fitout — 20 rooms — CP fittings, sanitary ware, accessories per room specification',
+    gstRate: 18,
+    lines: [
+      { product_name: 'Jaquar Opal Single Lever Basin Mixer (Bulk)', qty: 20, unit: 'Nos', unit_price: 4800, gst_rate: 18, hsn_code: '8481' },
+      { product_name: 'Jaquar Opal Single Lever Bath Shower Mixer', qty: 20, unit: 'Nos', unit_price: 6200, gst_rate: 18, hsn_code: '8481' },
+      { product_name: 'Hindware WC Suite with CC Pan (2-piece)', qty: 20, unit: 'Sets', unit_price: 12500, gst_rate: 18, hsn_code: '6910' },
+      { product_name: 'Hindware Under Counter Wash Basin 600mm', qty: 20, unit: 'Nos', unit_price: 5400, gst_rate: 18, hsn_code: '6910' },
+      { product_name: 'Towel Rail Double 600mm CP', qty: 20, unit: 'Nos', unit_price: 2200, gst_rate: 18, hsn_code: '7326' },
+      { product_name: 'Hotel Bathroom Accessory Set (6 piece)', qty: 20, unit: 'Sets', unit_price: 3800, gst_rate: 18, hsn_code: '7326' },
+      { product_name: 'Tile Grout Mapei Ultracolor Plus 5kg Grey', qty: 40, unit: 'Bags', unit_price: 680, gst_rate: 18, hsn_code: '3214' },
+    ],
+  },
+];
+
 // ── Hardware & Sanitary Industry Constants ────────────────────────────────────
 const CUSTOMER_TYPES = [
   'Contractor', 'Plumber', 'Builder / Developer', 'Interior Designer',
@@ -1987,14 +2080,26 @@ function QuoteRow({ q, onView, onEdit, onAskAI, onClone, isSelected, onToggleSel
   const tagsMatch = (q.notes || '').match(/\[TAGS:\s*([^\]]+)\]/);
   const tags = tagsMatch ? tagsMatch[1].split(',').map(t => t.trim()).filter(Boolean) : [];
 
+  // Quote age micro-badge
+  const daysSince = q.created_at ? Math.floor((new Date() - new Date(q.created_at)) / 86400000) : null;
+  const ageStyle  = daysSince === null ? null :
+    daysSince <= 2  ? { bg:'rgba(22,163,74,.1)',   tc:'#16a34a', bc:'rgba(22,163,74,.25)',   lbl:'NEW' } :
+    daysSince <= 7  ? { bg:'rgba(37,99,235,.08)',  tc:'#2563eb', bc:'rgba(37,99,235,.2)',    lbl:`${daysSince}d` } :
+    daysSince <= 30 ? { bg:'#f0f1f4',              tc:'#5e748a', bc:'#d8dce3',               lbl:`${daysSince}d` } :
+    daysSince <= 90 ? { bg:'rgba(217,119,6,.07)',  tc:'#d97706', bc:'rgba(217,119,6,.2)',    lbl:`${Math.floor(daysSince/7)}w` } :
+                     { bg:'rgba(220,38,38,.07)',    tc:'#dc2626', bc:'rgba(220,38,38,.2)',    lbl:`${Math.floor(daysSince/30)}m` };
+
   return (
-    <tr style={{ cursor: 'pointer', background: isSelected ? 'rgba(37,99,235,0.05)' : undefined }} onClick={() => onView(q)}>
+    <tr className={isSelected ? 'qb-selected' : undefined} style={{ cursor: 'pointer' }} onClick={() => onView(q)}>
       <td onClick={e => e.stopPropagation()} style={{ width: 32, textAlign: 'center' }}>
         <input type="checkbox" checked={!!isSelected} onChange={() => onToggleSelect(q.quote_id)}
           style={{ cursor: 'pointer', width: 14, height: 14 }} />
       </td>
       <td>
-        <div style={{ fontWeight: 700, fontSize: 13, fontFamily: 'var(--mono)' }}>{q.quote_number}</div>
+        <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, fontFamily: 'var(--mono)' }}>{q.quote_number}</div>
+          {ageStyle && <span className="qb-age-badge" style={{ background:ageStyle.bg, color:ageStyle.tc, border:`1px solid ${ageStyle.bc}` }}>{ageStyle.lbl}</span>}
+        </div>
         <div style={{ fontSize: 11, color: 'var(--text3)' }}>{q.created_at}</div>
         {tags.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
@@ -3525,25 +3630,31 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
 
   // ── Main form ─────────────────────────────────────────────────────────────────
   const sectionStyle = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 10,
+    background: '#ffffff',
+    border: '1px solid #c5d0e4',
+    borderRadius: 12,
     padding: '16px 18px',
     marginBottom: 16,
-    boxShadow: '0 1px 4px rgba(0,0,0,.04)',
+    boxShadow: '0 2px 14px rgba(9,18,38,.1)',
   };
   const secTitleStyle = {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 800,
-    color: 'var(--brand)',
+    color: '#0d1b2e',
     textTransform: 'uppercase',
-    letterSpacing: '.8px',
+    letterSpacing: '1.1px',
     marginBottom: 13,
-    paddingBottom: 9,
-    borderBottom: '2px solid var(--g3)',
+    paddingBottom: 8,
+    paddingTop: 8,
+    paddingLeft: 12,
+    borderLeft: '3px solid #15803d',
+    borderBottom: 'none',
+    background: 'linear-gradient(90deg, rgba(13,27,46,.06) 0%, transparent 100%)',
+    borderRadius: '0 6px 6px 0',
     display: 'flex',
     alignItems: 'center',
     gap: 6,
+    fontFamily: "'Inter', -apple-system, sans-serif",
   };
 
   // Print preview + email dialogs (rendered on top of the main form)
@@ -4292,8 +4403,17 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
   const [selectedIds, setSelectedIds]       = useState([]);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [showKanban,    setShowKanban]      = useState(false);
+  const [sortBy,  setSortBy]  = useState('created_at');
+  const [sortDir, setSortDir] = useState('desc');
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [dqbSync, setDqbSync] = useState(null); // {count, ageMin, expired, stored}
 
   const toggleSelect = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const handleSortToggle = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('desc'); }
+  };
 
   // ── Clone handler ──
   const handleClone = async (q) => {
@@ -4338,20 +4458,49 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
 
   useAutoRefresh(silentFetch, 5 * 60_000);
 
+  // DQB→QB sync: detect items sent from Design Quote Studio
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('inveniq_dqb_to_qb');
+      if (!raw) return;
+      const stored = JSON.parse(raw);
+      const { items, ts } = stored;
+      const ageMin = Math.round((Date.now() - ts) / 60000);
+      setDqbSync({ count: (items || []).length, ageMin, expired: ageMin > 30, stored });
+    } catch {}
+  }, []);
+
   const handleEdit = (q) => {
     setEditQuote(q);
     setActiveQ(null);
     setShowForm(true);
   };
 
-  const filteredQuotes = (data?.quotes || []).filter(q => {
-    const matchStatus = statusFilter === 'ALL' || q.status === statusFilter;
-    const matchSearch = !search || q.customer_name.toLowerCase().includes(search.toLowerCase())
-      || q.quote_number.toLowerCase().includes(search.toLowerCase())
-      || (q.project_name || '').toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
-  });
-  useEffect(() => { setPage(1); }, [statusFilter, search]);
+  const filteredQuotes = useMemo(() => {
+    const base = (data?.quotes || []).filter(q => {
+      const matchStatus = statusFilter === 'ALL' || q.status === statusFilter;
+      const matchSearch = !search
+        || q.customer_name.toLowerCase().includes(search.toLowerCase())
+        || q.quote_number.toLowerCase().includes(search.toLowerCase())
+        || (q.project_name || '').toLowerCase().includes(search.toLowerCase())
+        || (q.customer_phone || '').includes(search);
+      return matchStatus && matchSearch;
+    });
+    return [...base].sort((a, b) => {
+      let av = a[sortBy]; let bv = b[sortBy];
+      if (sortBy === 'created_at' || sortBy === 'valid_till') {
+        av = av ? new Date(av).getTime() : 0;
+        bv = bv ? new Date(bv).getTime() : 0;
+      } else if (typeof av === 'string') {
+        av = av.toLowerCase(); bv = (bv || '').toLowerCase();
+      } else {
+        av = av ?? 0; bv = bv ?? 0;
+      }
+      return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+  }, [data, statusFilter, search, sortBy, sortDir]);
+
+  useEffect(() => { setPage(1); }, [statusFilter, search, sortBy, sortDir]);
   const pagedQuotes = filteredQuotes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const kpis = data?.kpis || {};
@@ -4359,7 +4508,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
   if (loading) return <PageLoader />;
 
   return (
-    <div className="view">
+    <div className="view" onClick={() => showTemplates && setShowTemplates(false)}>
 
       {/* ── Hero Banner ─────────────────────────────────────────────────── */}
       {(() => {
@@ -4371,25 +4520,21 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
         const sentQ   = allQ.filter(q => ['SENT','NEGOTIATING','DRAFT'].includes(q.status));
         const avgDeal = sentQ.length > 0 ? Math.round(sentQ.reduce((s,q) => s+(q.total||0), 0) / sentQ.length) : 0;
         const kpiTiles = [
-          { icon:'💰', label:'Pipeline',    value: fmtL(kpis.pipeline_value || 0),  sub:`${kpis.total_quotes || 0} quotes total`,    accent:'#7dd3fc', click: () => onGoChat?.('What is my total quotation pipeline value? Break it down by status and tell me which deals need action.') },
-          { icon:'🏆', label:'Won YTD',     value: fmtL(kpis.won_value || 0),       sub:`${wonQ.length} deals closed`,               accent:'#86efac', click: () => onGoChat?.(`I have won ${fmtL(kpis.won_value || 0)}. What patterns made these deals successful?`) },
-          { icon:'📉', label:'Lost YTD',    value: fmtL(kpis.lost_value || 0),      sub:`${lostQ.length} deals lost`,                accent:'#fda4af', click: () => onGoChat?.(`I have lost ${fmtL(kpis.lost_value || 0)} in quotes. What are the likely reasons?`) },
-          { icon:'🎯', label:'Win Rate',    value: winRate !== null ? `${winRate}%` : '—', sub:'Won ÷ (Won+Lost)',                    accent: winRate >= 50 ? '#86efac' : winRate >= 30 ? '#fde68a' : '#fda4af', click: () => onGoChat?.('My win rate — how can I improve my close rate?') },
-          { icon:'📊', label:'Avg Margin',  value: `${kpis.avg_margin_pct || 0}%`,  sub:'Floor 14% · Target 20%',                    accent:'#c4b5fd', click: () => onGoChat?.(`My average margin is ${kpis.avg_margin_pct || 0}%. Which categories are dragging it down?`) },
-          { icon:'💼', label:'Avg Deal',    value: fmtL(avgDeal),                   sub:'active pipeline avg',                       accent:'#67e8f9', click: () => onGoChat?.(`My average deal size is ${fmtL(avgDeal)}. How can I increase it through upselling?`) },
-          { icon:'⏰', label:'Expiring',    value: kpis.quotes_expiring || 0,       sub:'follow up today',                           accent: (kpis.quotes_expiring || 0) > 0 ? '#fde68a' : '#bfdbfe', warn: (kpis.quotes_expiring || 0) > 0, click: () => onGoChat?.('Which quotes are expiring this week? Give me a follow-up script for each.') },
+          { icon:'💰', label:'Pipeline',   value: fmtL(kpis.pipeline_value || 0), sub:`${kpis.total_quotes || 0} quotes`,        accent:'#7dd3fc', click: () => onGoChat?.('What is my total quotation pipeline value? Break it down by status and tell me which deals need immediate action.') },
+          { icon:'🏆', label:'Won YTD',    value: fmtL(kpis.won_value || 0),      sub:`${wonQ.length} deals closed`,             accent:'#86efac', click: () => onGoChat?.(`I have won ${fmtL(kpis.won_value || 0)} YTD. What patterns made these deals successful?`) },
+          { icon:'📉', label:'Lost YTD',   value: fmtL(kpis.lost_value || 0),     sub:`${lostQ.length} deals lost`,              accent:'#fda4af', click: () => onGoChat?.(`I have lost ${fmtL(kpis.lost_value || 0)} in quotes. What are the most likely reasons and how do I recover?`) },
+          { icon:'🎯', label:'Win Rate',   value: winRate !== null ? `${winRate}%` : '—', sub:'Won ÷ (Won+Lost)',                accent: winRate >= 50 ? '#86efac' : winRate >= 30 ? '#fde68a' : '#fda4af', click: () => onGoChat?.('My quotation win rate — what specific improvements can I make to close more deals?') },
+          { icon:'📊', label:'Avg Margin', value: `${kpis.avg_margin_pct || 0}%`, sub:'Floor 14% · Target 20%',                  accent:'#c4b5fd', click: () => onGoChat?.(`My average margin is ${kpis.avg_margin_pct || 0}%. Which product categories are dragging it below target?`) },
+          { icon:'💼', label:'Avg Deal',   value: fmtL(avgDeal),                  sub:'active pipeline avg',                     accent:'#67e8f9', click: () => onGoChat?.(`My average deal size is ${fmtL(avgDeal)}. How can I increase it through upselling and product mix improvements?`) },
+          { icon:'⏰', label:'Expiring',   value: kpis.quotes_expiring || 0,      sub:'follow up today',                         accent: (kpis.quotes_expiring || 0) > 0 ? '#fde68a' : '#bfdbfe', click: () => onGoChat?.('Which of my quotes are expiring this week? Give me a follow-up WhatsApp script for each customer.') },
         ];
         return (
           <div style={{ background:'#000e1f', padding:'36px 40px 0', position:'relative', overflow:'hidden', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
-
-            {/* Single ambient glow — top right */}
             <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(59,130,246,0.28) 0%,rgba(29,78,216,0.12) 40%,transparent 70%)',pointerEvents:'none' }} />
-            {/* Bottom-left counter-glow */}
             <div style={{ position:'absolute',bottom:-80,left:-60,width:360,height:360,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(14,165,233,0.09) 0%,transparent 65%)',pointerEvents:'none' }} />
-            {/* Dot grid */}
             <div style={{ position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(59,130,246,0.1) 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
 
-            {/* ── Title row ── */}
+            {/* Title row */}
             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:16,position:'relative',zIndex:1 }}>
               <div style={{ display:'flex',alignItems:'center',gap:18 }}>
                 <div style={{ width:58,height:58,borderRadius:16,background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0,boxShadow:'0 0 0 1px rgba(59,130,246,0.1), 0 8px 32px rgba(29,78,216,0.4)' }}>📋</div>
@@ -4404,17 +4549,47 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                   </div>
                 </div>
               </div>
+
+              {/* Action buttons */}
               <div style={{ display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',paddingTop:4 }}>
-                <button className="scan-wa-btn" onClick={() => setShowScanner(true)} style={{ background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.75)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'9px 16px',fontSize:12,cursor:'pointer',fontWeight:600 }}>📱 Scan WhatsApp</button>
-                {selectedIds.length > 0 && (
-                  <button onClick={() => setShowMergeModal(true)} style={{ background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.75)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'9px 16px',fontSize:12,cursor:'pointer',fontWeight:600 }}>🔀 Merge ({selectedIds.length})</button>
-                )}
-                <button onClick={() => setShowKanban(v => !v)} style={{ background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.75)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'9px 16px',fontSize:12,cursor:'pointer',fontWeight:600 }}>{showKanban ? '📋 List' : '🗂 Kanban'}</button>
-                <button className="btn-primary" onClick={() => { setEditQuote(null); setShowForm(true); }} style={{ background:'#3b82f6',color:'#fff',border:'none',borderRadius:9,padding:'10px 24px',fontSize:13,cursor:'pointer',fontWeight:800,boxShadow:'0 4px 20px rgba(59,130,246,0.55)',letterSpacing:'-0.2px' }}>+ New Quotation</button>
+                {/* Templates dropdown */}
+                <div style={{ position:'relative' }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setShowTemplates(t => !t)}
+                    style={{ background: showTemplates ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.06)', color: showTemplates ? '#a5b4fc' : 'rgba(255,255,255,0.85)', border:`1px solid ${showTemplates ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.16)'}`, borderRadius:9, padding:'9px 16px', fontSize:12, cursor:'pointer', fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
+                    📋 Templates ▾
+                  </button>
+                  {showTemplates && (
+                    <div className="qb-template-menu">
+                      {QUICK_TEMPLATES.map((t, i) => (
+                        <button key={i} className="qb-template-item" onClick={() => {
+                          setScanPrefill({ initialData: { customer_type: t.customerType, scope_of_work: t.scope, gst_rate: t.gstRate }, initialLines: t.lines });
+                          setEditQuote(null);
+                          setShowTemplates(false);
+                          setShowForm(true);
+                        }}>
+                          <div className="qb-tpl-label">{t.label}</div>
+                          <div className="qb-tpl-desc">{t.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setShowScanner(true)}
+                  style={{ background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.85)',border:'1px solid rgba(255,255,255,0.16)',borderRadius:9,padding:'9px 16px',fontSize:12,cursor:'pointer',fontWeight:600 }}>
+                  📱 Scan WhatsApp
+                </button>
+                <button onClick={() => setShowKanban(v => !v)}
+                  style={{ background: showKanban ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.06)', color: showKanban ? '#a5b4fc' : 'rgba(255,255,255,0.75)', border:`1px solid ${showKanban ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.16)'}`, borderRadius:9, padding:'9px 16px', fontSize:12, cursor:'pointer', fontWeight:600 }}>
+                  {showKanban ? '📋 List' : '🗂 Kanban'}
+                </button>
+                <button className="btn-primary" onClick={() => { setEditQuote(null); setShowForm(true); }}
+                  style={{ background:'linear-gradient(135deg,#1d4ed8,#3b82f6)',color:'#fff',border:'none',borderRadius:9,padding:'10px 24px',fontSize:13,cursor:'pointer',fontWeight:800,boxShadow:'0 4px 20px rgba(59,130,246,0.55)',letterSpacing:'-0.2px' }}>
+                  + New Quotation
+                </button>
               </div>
             </div>
 
-            {/* ── AI strip ── */}
+            {/* AI strip */}
             {onGoChat && (
               <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:20,background:'rgba(59,130,246,0.07)',border:'1px solid rgba(59,130,246,0.18)',borderRadius:10,padding:'10px 18px',position:'relative',zIndex:1,flexWrap:'wrap' }}>
                 <div style={{ display:'flex',alignItems:'center',gap:10 }}>
@@ -4430,21 +4605,22 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                 </div>
                 <div style={{ display:'flex',gap:6,flexShrink:0,flexWrap:'wrap' }}>
                   {[
-                    ['📞 Follow-up List',   'Which quotes should I urgently follow up on this week? Give me a prioritised call list.'],
-                    ['📊 Win Rate Analysis','Analyse my quotation win rate and lost deals — pricing and strategy patterns?'],
-                    ['🏗 Pipeline Health',  'Give me a complete pipeline health check — at-risk deals, margin analysis, top 3 likely to close.'],
+                    ['📞 Follow-up List',    'Which quotes should I urgently follow up on this week? Give me a prioritised call list with specific talking points for each customer.'],
+                    ['📊 Win Rate Analysis', 'Analyse my quotation win rate and lost deals — what pricing and strategy patterns separate my wins from losses?'],
+                    ['🏗 Pipeline Health',   'Give me a complete pipeline health check — at-risk deals, margin analysis, top 3 most likely to close this month.'],
+                    ['💡 Pricing Strategy',  'Based on my won and lost deals, what is the optimal pricing strategy by customer type (contractor vs builder vs designer)?'],
                   ].map(([lbl, q]) => (
-                    <button key={lbl} onClick={() => onGoChat(q)} style={{ background:'rgba(59,130,246,0.12)',color:'rgba(255,255,255,0.75)',border:'1px solid rgba(59,130,246,0.22)',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer',fontWeight:600 }}>{lbl}</button>
+                    <button key={lbl} onClick={() => onGoChat(q)} style={{ background:'rgba(59,130,246,0.12)',color:'rgba(255,255,255,0.75)',border:'1px solid rgba(59,130,246,0.22)',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap' }}>{lbl}</button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* ── KPI strip ── */}
+            {/* KPI tiles */}
             <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:10,marginTop:22,position:'relative',zIndex:1 }}>
               {kpiTiles.map(k => (
                 <div key={k.label} onClick={k.click}
-                  style={{ background:'rgba(255,255,255,0.04)',borderRadius:'12px 12px 0 0',padding:'14px 16px',borderTop:`2.5px solid ${k.accent}`,borderLeft:'1px solid rgba(255,255,255,0.07)',borderRight:'1px solid rgba(255,255,255,0.07)',borderBottom:'none',cursor:k.click?'pointer':'default',transition:'background 0.12s' }}
+                  style={{ background:'rgba(255,255,255,0.04)',borderRadius:'12px 12px 0 0',padding:'14px 16px',borderTop:`2.5px solid ${k.accent}`,borderLeft:'1px solid rgba(255,255,255,0.07)',borderRight:'1px solid rgba(255,255,255,0.07)',borderBottom:'none',cursor:'pointer',transition:'background 0.12s' }}
                   onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.08)'}
                   onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}>
                   <div style={{ display:'flex',alignItems:'center',gap:5,marginBottom:8 }}>
@@ -4460,128 +4636,257 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
         );
       })()}
 
-      {/* Filter bar */}
-      <div className="filter-bar">
-        <input className="view-search" placeholder="🔍  Search by customer, quote#, project…"
-          value={search} onChange={e => setSearch(e.target.value)} />
-        <div className="stabs">
-          {['ALL', ...Object.keys(QUOTE_STATUS)].map(s => (
-            <button key={s} className={`stab${statusFilter === s ? ' active' : ''}`}
-              onClick={() => setStatusFilter(s)}>
-              {s === 'ALL' ? 'All' : QUOTE_STATUS[s].label}
-              {s !== 'ALL' && (
-                <span className="stab-cnt">
-                  {(data?.quotes || []).filter(q => q.status === s).length}
-                </span>
-              )}
+      {/* ── Content area (slate background) ────────────────────────────── */}
+      <div className="qb-content">
+
+        {/* Expiry alert banner */}
+        {(kpis.quotes_expiring || 0) > 0 && (
+          <div className="qb-expiry-banner">
+            <span className="qb-expiry-icon">⚠</span>
+            <div className="qb-expiry-text">
+              <strong>{kpis.quotes_expiring} quote{kpis.quotes_expiring > 1 ? 's' : ''} expiring this week</strong>
+              {' '}— send follow-up messages now to extend or close these deals before they expire.
+            </div>
+            {onGoChat && (
+              <button className="qb-expiry-btn" onClick={() => onGoChat(`I have ${kpis.quotes_expiring} quotes expiring this week. For each, give me a personalised WhatsApp follow-up message in a professional tone to re-engage the customer and extend or close the deal.`)}>
+                🤖 Generate Follow-up Scripts
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* DQB→QB sync banner */}
+        {dqbSync && (
+          <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.28)', borderRadius: 8, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, fontSize: 12 }}>
+            <span style={{ fontSize: 18 }}>🏗</span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ color: '#b45309' }}>{dqbSync.count} item{dqbSync.count !== 1 ? 's' : ''} from Design Quote Studio</strong>
+              {dqbSync.stored?.project_name && <span style={{ color: 'var(--muted)', marginLeft: 6 }}>· {dqbSync.stored.project_name}</span>}
+              <span style={{ color: 'var(--muted)', marginLeft: 6 }}>
+                {dqbSync.expired ? `(${dqbSync.ageMin} min ago — import window expired)` : `(${dqbSync.ageMin} min ago)`}
+              </span>
+            </div>
+            <button onClick={() => {
+              const { items, client_name, project_name, project_address } = dqbSync.stored;
+              const initialLines = (items || []).map(item => ({
+                product_id: '',
+                product_name: item.product_name || item.item_name || '',
+                category: item.category || item.inferred_category || '',
+                brand: '',
+                room: item.room || '',
+                quantity: item.quantity || item.qty || 1,
+                unit: item.unit || 'Nos',
+                unit_price: item.unit_price || 0,
+                discount_pct: 0,
+                buy_price: 0,
+                specifications: item.specifications || item.description || '',
+                hsn_code: item.hsn_code || item.inferred_hsn || '',
+                line_type: 'product',
+              }));
+              setScanPrefill({
+                initialData: { customer_name: client_name || '', project_name: project_name || '', site_location: project_address || '', customer_type: 'Project' },
+                initialLines: initialLines.length > 0 ? initialLines : undefined,
+              });
+              setEditQuote(null);
+              setShowForm(true);
+              localStorage.removeItem('inveniq_dqb_to_qb');
+              setDqbSync(null);
+            }} style={{ padding: '5px 16px', background: 'rgba(217,119,6,0.1)', color: '#b45309', border: '1px solid rgba(217,119,6,0.35)', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>
+              🛒 Create Quotation
             </button>
-          ))}
+            <button onClick={() => { localStorage.removeItem('inveniq_dqb_to_qb'); setDqbSync(null); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16, lineHeight: 1 }}>✕</button>
+          </div>
+        )}
+
+        {/* Status stats strip */}
+        <div className="qb-stats-strip">
+          {[
+            { key:'ALL',         label:'All',         accent:'#3b82f6' },
+            { key:'DRAFT',       label:'Draft',       accent:'#f59e0b' },
+            { key:'SENT',        label:'Sent',        accent:'#3b82f6' },
+            { key:'NEGOTIATING', label:'Negotiating', accent:'#06b6d4' },
+            { key:'WON',         label:'Won',         accent:'#22c55e' },
+            { key:'LOST',        label:'Lost',        accent:'#ef4444' },
+            { key:'EXPIRED',     label:'Expired',     accent:'#9ca3af' },
+            { key:'REVISED',     label:'Revised',     accent:'#a78bfa' },
+          ].map(s => {
+            const cnt = s.key === 'ALL'
+              ? (data?.quotes || []).length
+              : (data?.quotes || []).filter(q => q.status === s.key).length;
+            const active = statusFilter === s.key;
+            return (
+              <button key={s.key}
+                className={`qb-stat-chip${active ? ' active' : ''}`}
+                style={{ '--chip-accent': s.accent }}
+                onClick={() => setStatusFilter(s.key)}>
+                <span className="qb-stat-cnt">{cnt}</span>
+                <span className="qb-stat-lbl">{s.label}</span>
+              </button>
+            );
+          })}
+          <div style={{ flex:1 }} />
+          <ExportButton rows={filteredQuotes} filename="quotations" columns={[
+            { key:'quote_number', label:'Quote #' }, { key:'customer_name', label:'Customer' },
+            { key:'project_name', label:'Project' }, { key:'total_value',   label:'Value (₹)' },
+            { key:'status',       label:'Status'  }, { key:'valid_until',   label:'Valid Until' },
+            { key:'created_at',   label:'Created' },
+          ]} />
         </div>
-        {/* View toggle: List ↔ Kanban */}
-        <button onClick={() => setShowKanban(k => !k)}
-          title={showKanban ? 'Switch to List view' : 'Switch to Kanban view'}
-          style={{ padding: '6px 12px', background: showKanban ? 'rgba(37,99,235,.1)' : 'var(--hover)', color: showKanban ? 'var(--brand)' : 'var(--text2)', border: `1px solid ${showKanban ? 'rgba(37,99,235,.4)' : 'var(--border)'}`, borderRadius: 7, cursor: 'pointer', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>
-          {showKanban ? '📋 List' : '🗂 Kanban'}
-        </button>
-        {selectedIds.length >= 2 && (
-          <button onClick={() => setShowMergeModal(true)}
-            style={{ padding: '7px 14px', background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>
-            🔀 Merge {selectedIds.length} Quotes
-          </button>
-        )}
+
+        {/* Filter row */}
+        <div className="qb-filterrow">
+          <input className="qb-mainsearch"
+            placeholder="🔍  Search by customer, quote #, project name or phone…"
+            value={search} onChange={e => setSearch(e.target.value)} />
+          <div style={{ display:'flex',gap:7,alignItems:'center',flexShrink:0,flexWrap:'wrap' }}>
+            <button onClick={() => setShowKanban(k => !k)}
+              style={{ padding:'7px 14px',background: showKanban ? 'rgba(99,102,241,.1)' : '#ffffff',color: showKanban ? '#6366f1' : '#3d4f6b',border:`1.5px solid ${showKanban ? 'rgba(99,102,241,.4)' : '#c5d0e4'}`,borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12,whiteSpace:'nowrap',boxShadow:'0 1px 3px rgba(9,18,38,.06)' }}>
+              {showKanban ? '📋 List View' : '🗂 Kanban View'}
+            </button>
+            {selectedIds.length >= 2 && (
+              <button onClick={() => setShowMergeModal(true)}
+                style={{ padding:'7px 14px',background:'linear-gradient(135deg,#1e3a5f,#2563eb)',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:12,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(37,99,235,.3)' }}>
+                🔀 Merge {selectedIds.length}
+              </button>
+            )}
+            {selectedIds.length > 0 && (
+              <button onClick={() => setSelectedIds([])}
+                style={{ padding:'7px 12px',background:'#ffffff',color:'#3d4f6b',border:'1.5px solid #c5d0e4',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12,whiteSpace:'nowrap' }}>
+                ✕ Clear ({selectedIds.length})
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Bulk actions bar — only when selection active */}
         {selectedIds.length > 0 && (
-          <button onClick={() => setSelectedIds([])}
-            style={{ padding: '6px 12px', background: 'var(--hover)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>
-            Clear ({selectedIds.length})
-          </button>
+          <div className="qb-bulk-bar">
+            <span className="qb-bulk-count">{selectedIds.length} selected</span>
+            <div className="qb-bulk-actions">
+              {selectedIds.length >= 2 && (
+                <button className="qb-bulk-btn qb-bulk-merge" onClick={() => setShowMergeModal(true)}>🔀 Merge into One</button>
+              )}
+              <button className="qb-bulk-btn" onClick={() => {
+                const sel = (data?.quotes || []).filter(q => selectedIds.includes(q.quote_id));
+                const rows = [['Quote #','Customer','Project','Total','Status','Valid Until'],
+                  ...sel.map(q => [q.quote_number, q.customer_name, q.project_name||'', q.total||0, q.status, q.valid_till||''])];
+                const csv = rows.map(r => r.join(',')).join('\n');
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+                a.download = 'selected_quotes.csv'; a.click();
+              }}>⬇ Export CSV</button>
+              {onGoChat && (
+                <button className="qb-bulk-btn qb-bulk-ai" onClick={() => {
+                  const sel = (data?.quotes || []).filter(q => selectedIds.includes(q.quote_id));
+                  onGoChat(`Analyse these ${sel.length} quotes: ${sel.map(q => `${q.quote_number} (${q.customer_name}, ₹${q.total||0}, ${q.status})`).join('; ')}. Compare them, identify patterns, and recommend what action I should take on each.`);
+                }}>🤖 AI Batch Analysis</button>
+              )}
+              <button className="qb-bulk-btn qb-bulk-clear" onClick={() => setSelectedIds([])}>✕ Clear</button>
+            </div>
+          </div>
         )}
-        <ExportButton rows={filteredQuotes} filename="quotations" columns={[
-          { key: 'quote_number', label: 'Quote #' }, { key: 'customer_name', label: 'Customer' },
-          { key: 'project_name', label: 'Project' }, { key: 'total_value', label: 'Value (₹)' },
-          { key: 'status', label: 'Status' }, { key: 'valid_until', label: 'Valid Until' },
-          { key: 'created_at', label: 'Created' },
-        ]} />
-      </div>
 
-      {/* Kanban view */}
-      {showKanban && (
-        <PipelineKanbanView quotes={filteredQuotes} onView={setActiveQ} onClone={handleClone} />
-      )}
+        {/* Kanban view */}
+        {showKanban && (
+          <PipelineKanbanView quotes={filteredQuotes} onView={setActiveQ} onClone={handleClone} />
+        )}
 
-      {/* Quotes table (list view) */}
-      {!showKanban && (<><div className="card-table">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th style={{ width: 32 }}>
-                <input type="checkbox"
-                  checked={pagedQuotes.length > 0 && pagedQuotes.every(q => selectedIds.includes(q.quote_id))}
-                  onChange={() => {
-                    const visible = pagedQuotes.map(q => q.quote_id);
-                    const allSel = visible.every(id => selectedIds.includes(id));
-                    setSelectedIds(prev => allSel ? prev.filter(id => !visible.includes(id)) : [...new Set([...prev, ...visible])]);
-                  }}
-                  style={{ cursor: 'pointer' }} title="Select all on this page" />
-              </th>
-              <th>Quote #</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Total</th>
-              <th>Margin</th>
-              <th>Score</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredQuotes.length === 0 ? (
-              <tr><td colSpan={9}>
-                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>📄</div>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
-                    {search || statusFilter !== 'ALL' ? 'No quotes match your filter' : 'No quotations yet'}
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>
-                    {search || statusFilter !== 'ALL'
-                      ? 'Try a different search or status filter'
-                      : 'Create your first professional quotation or scan a WhatsApp requirement'}
-                  </div>
-                  {!search && statusFilter === 'ALL' && (
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <button className="btn-primary" onClick={() => { setEditQuote(null); setShowForm(true); }}>+ New Quotation</button>
-                      <button className="scan-wa-btn" onClick={() => setShowScanner(true)}>📱 Scan WhatsApp</button>
-                      {onGoChat && (
-                        <button className="qb-action-btn" onClick={() => onGoChat('How do I build a winning quotation strategy for my hardware and sanitary business? What should my pricing by customer type (contractor vs plumber vs builder), margin floors, and follow-up process look like?')}>
-                          🤖 Ask AI for Guidance
-                        </button>
+        {/* Quotes table — list view */}
+        {!showKanban && (<>
+          <div className="card-table">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th style={{ width:32 }}>
+                    <input type="checkbox"
+                      checked={pagedQuotes.length > 0 && pagedQuotes.every(q => selectedIds.includes(q.quote_id))}
+                      onChange={() => {
+                        const visible = pagedQuotes.map(q => q.quote_id);
+                        const allSel  = visible.every(id => selectedIds.includes(id));
+                        setSelectedIds(prev => allSel ? prev.filter(id => !visible.includes(id)) : [...new Set([...prev, ...visible])]);
+                      }}
+                      style={{ cursor:'pointer' }} title="Select all on this page" />
+                  </th>
+                  {[
+                    { key:'quote_number',  label:'Quote #'  },
+                    { key:'customer_name', label:'Customer' },
+                    { key:'item_count',    label:'Items'    },
+                    { key:'total',         label:'Total'    },
+                    { key:'avg_margin_pct',label:'Margin'   },
+                    { key:'deal_score',    label:'Score'    },
+                    { key:'status',        label:'Status'   },
+                  ].map(col => (
+                    <th key={col.key} className="qb-sort-hd"
+                      onClick={() => handleSortToggle(col.key)}>
+                      {col.label}
+                      <span className="qb-sort-arrow">
+                        {sortBy === col.key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                      </span>
+                    </th>
+                  ))}
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredQuotes.length === 0 ? (
+                  <tr><td colSpan={9}>
+                    <div className="qb-empty-state">
+                      <div className="qb-empty-icon">{search || statusFilter !== 'ALL' ? '🔍' : '📋'}</div>
+                      <div className="qb-empty-title">
+                        {search || statusFilter !== 'ALL' ? 'No quotes match your filter' : 'Start building your pipeline'}
+                      </div>
+                      <div className="qb-empty-sub">
+                        {search || statusFilter !== 'ALL'
+                          ? 'Try a different search term or change the status filter above'
+                          : 'Create a professional GST-ready quotation in under 2 minutes'}
+                      </div>
+                      {!search && statusFilter === 'ALL' && (
+                        <div className="qb-empty-actions">
+                          <button className="btn-primary" onClick={() => { setEditQuote(null); setShowForm(true); }}>+ New Quotation</button>
+                          <button onClick={() => setShowScanner(true)}
+                            style={{ padding:'8px 16px',background:'#ffffff',color:'#3d4f6b',border:'1.5px solid #c5d0e4',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12 }}>
+                            📱 Scan WhatsApp
+                          </button>
+                          <button onClick={() => setShowTemplates(true)}
+                            style={{ padding:'8px 16px',background:'#ffffff',color:'#3d4f6b',border:'1.5px solid #c5d0e4',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12 }}>
+                            📋 Use Template
+                          </button>
+                          {onGoChat && (
+                            <button style={{ padding:'8px 16px',background:'rgba(99,102,241,.08)',color:'#6366f1',border:'1.5px solid rgba(99,102,241,.3)',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12 }}
+                              onClick={() => onGoChat('How do I build a winning quotation strategy for my hardware and sanitary business? What pricing by customer type, margin floors, and follow-up process should I use?')}>
+                              🤖 Ask AI for Guidance
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </td></tr>
-            ) : pagedQuotes.map(q => (
-              <QuoteRow key={q.quote_id} q={q} onView={setActiveQ} onEdit={handleEdit}
-                onClone={handleClone}
-                isSelected={selectedIds.includes(q.quote_id)}
-                onToggleSelect={toggleSelect}
-                onAskAI={onGoChat ? (q) => onGoChat(`Analyse quotation ${q.quote_number} for ${q.customer_name} — value: ${fmtL(q.total)}, margin: ${q.avg_margin_pct || 0}%, status: ${q.status}, valid till: ${q.valid_till}. What is my win probability, what negotiation strategy should I use, and what follow-up should I do today?`) : null}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <Pagination page={page} total={filteredQuotes.length} pageSize={PAGE_SIZE} onChange={setPage} />
-      </>)}
+                  </td></tr>
+                ) : pagedQuotes.map(q => (
+                  <QuoteRow key={q.quote_id} q={q} onView={setActiveQ} onEdit={handleEdit}
+                    onClone={handleClone}
+                    isSelected={selectedIds.includes(q.quote_id)}
+                    onToggleSelect={toggleSelect}
+                    onAskAI={onGoChat ? (q) => onGoChat(`Analyse quotation ${q.quote_number} for ${q.customer_name} — value: ${fmtL(q.total)}, margin: ${q.avg_margin_pct || 0}%, status: ${q.status}, valid till: ${q.valid_till}. What is my win probability, what negotiation strategy should I use, and what follow-up should I do today?`) : null}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={page} total={filteredQuotes.length} pageSize={PAGE_SIZE} onChange={setPage} />
+        </>)}
 
-      {/* AI assistant prompt */}
-      {onGoChat && (
-        <div className="ai-cta-bar" onClick={() => onGoChat('What is my quotation win rate and how can I improve it?')}>
-          <span>✨</span>
-          <span>Ask AI: Analyse my win rate and pricing strategy →</span>
-        </div>
-      )}
+        {/* AI CTA bar */}
+        {onGoChat && (
+          <div className="ai-cta-bar" onClick={() => onGoChat('Give me a complete quotation pipeline analysis — win rate, at-risk deals, pricing patterns, and the 3 most important actions I should take this week to improve revenue.')}>
+            <span>✨</span>
+            <span>Ask AI: Full pipeline analysis — win rate, at-risk deals &amp; this week's top 3 revenue actions →</span>
+          </div>
+        )}
 
-      {/* Modals */}
+      </div>{/* end qb-content */}
+
+      {/* ── Modals ─────────────────────────────────────────────────────── */}
       {activeQ && (
         <QuoteDetail quote={activeQ} onClose={() => setActiveQ(null)} onGoChat={onGoChat} onEdit={handleEdit}
           onNavigate={onNavigate} onClone={handleClone}
@@ -4596,7 +4901,6 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
           selectedIds={selectedIds}
           onClose={() => setShowMergeModal(false)}
           onOpenInEditor={(initialData, initialLines) => {
-            // Close merge modal and open NewQuoteForm pre-filled with merged data
             setShowMergeModal(false);
             setSelectedIds([]);
             setScanPrefill({ initialData, initialLines });
@@ -4604,7 +4908,6 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
             setShowForm(true);
           }}
           onMerged={(merged) => {
-            // "Save as Draft" path — quote already saved, just refresh the list
             setShowMergeModal(false);
             setSelectedIds([]);
             setData(prev => ({

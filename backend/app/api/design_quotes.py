@@ -440,6 +440,7 @@ Return this exact schema:
           "dim_type": "LxW|LxH|L|W|fixed",
           "unit": "Nos|Set|Pair|Mtr|SqFt|SqMtr|Lot|RFT",
           "qty": number_or_null,
+          "unit_price": number,
           "specifications": "finish, color, size, model number, HSN code if known",
           "material_preference": "brand preference or tier: Economy|Standard|Premium|Luxury",
           "inferred_hsn": "8481|6910|3922|8302|8301|3917|6907|3214|9954|null"
@@ -469,7 +470,55 @@ DOCUMENT / BOQ PARSING RULES (for PDF, Word, Excel, or structured text input):
 - Column labelled "Description", "Particulars", "Item" → populate item_name and description
 - Column labelled "HSN", "HSN Code", "SAC" → populate inferred_hsn
 - Group rows by room/area/section headers found in the document
-- If client name, project name, or address is visible in the document header → populate those fields"""
+- If client name, project name, or address is visible in the document header → populate those fields
+
+UNIVERSAL EXTRACTION RULES — CRITICAL — APPLY TO ALL INPUT TYPES:
+- NEVER return an empty rooms array. If no specific product names or SKUs are found, extract descriptive requirements as items with item_type="other".
+- For ANY space/area/room mentioned (kitchen, bedroom, bathroom, living room, dining, hall, office, terrace, balcony, study, gym, store room, etc.) → create a room entry with that name
+- For ANY work, task, material, finish, or scope described → create an item under the relevant room:
+  * "Modular kitchen with grey shutters" → item_name="Modular Kitchen — Grey Shutter Finish", item_type="other", unit="Set"
+  * "Granite / marble countertop" → item_name="Granite Countertop", item_type="countertop", unit="SqFt"
+  * "Oak / teak / laminate flooring" → item_name="<Material> Flooring", item_type="flooring", unit="SqFt"
+  * "False ceiling / gypsum / POP" → item_name="False Ceiling Works", item_type="other", unit="SqFt"
+  * "Paint / texture / wallpaper" → item_name="Interior Painting Works", item_type="other", unit="SqFt"
+  * "Electrical / lighting / wiring" → item_name="Electrical & Lighting Works", item_type="other", unit="Lot"
+  * "Renovation / fitout / interior design" (vague) → item_name="General Interior Works", item_type="other", unit="Lot"
+  * "Wardrobe / storage / shelving" → item_name="Custom Wardrobe / Storage Unit", item_type="other", unit="Nos"
+  * "Door / window / glazing / shutter" → item_name="Door / Window Works", item_type="other", unit="Nos"
+  * Any brand or material mentioned without specific product → still create an item using material + application as item_name
+- DIMENSION EXTRACTION — mandatory; find and convert dimensions from ANY format anywhere in the text:
+  * "10×12" or "10 by 12 feet" or "10ft x 12ft" or "10' x 12'" → length_ft=10, width_ft=12, dim_type="LxW"
+  * "100 sqft" or "100 sq.ft" or "100 sq ft" → length_ft=10.0, width_ft=10.0, dim_type="LxW" (use sqrt approximation)
+  * "8m × 6m" or "8 mtr x 6 mtr" → length_ft=26.25, width_ft=19.69, dim_type="LxW"
+  * "height 9 feet" or "9ft ceiling" or "ceiling ht 9'" → height_ft=9
+  * "20 running feet" or "20 RFT" or "20 rft" → length_ft=20, dim_type="L"
+  * mm → ft: divide by 304.8 · cm → ft: divide by 30.48 · m → ft: multiply by 3.281
+  * Attach dimensions to the specific item they describe; for room-level area dimensions, apply to the first area-based item in that room
+- If input has no room names → infer from context (bathroom items → "Bathroom", kitchen items → "Kitchen", ungrouped general text → "General Requirements")
+- If ALL input is general text, meeting notes, or a project description without specific products → still extract EVERY mentioned task, material, or requirement as a separate item in the appropriate room
+- item_name for general/descriptive items: use clear, professional language — material + finish + work type (e.g. "Vitrified Tile Flooring — Matt Finish", "Soft-Close Modular Kitchen Cabinets — Grey Finish")
+- qty defaults to 1 unless explicitly stated or calculable from no_of_units × no_of_bathrooms_per_unit
+- notes field: always populate with any context not captured as line items — budget range, timeline, brand tier preference, special requirements, client remarks
+
+RATE ESTIMATION — MANDATORY:
+Set unit_price to your best INR estimate for every item. Never leave 0 unless it is a genuinely custom or one-off item with no market precedent. Adjust ±25% for Premium or Economy tier.
+Per-unit rates only — do not multiply by no_of_units.
+
+CP FITTINGS (Nos, Standard): Basin Mixer 7500 · Shower Mixer 9500 · Overhead Shower 3500
+  Hand Shower 2500 · Health Faucet 1800 · Kitchen Mixer 6000 · Bath Spout 2200
+  Stop Cock 400 · Angle Cock 300 · Full Set per bathroom 18000
+SANITARY WARE (Nos, Standard): EWC / One-piece WC 18000 · Two-piece WC 12000
+  Counter-top Basin 8000 · Pedestal Basin 5500 · Wall-hung Basin 9000 · Bathtub 45000
+BATHROOM ACCESSORIES (Nos): Towel Bar 1500 · Towel Ring 900 · Soap Dispenser 1200
+  TP Holder 800 · Mirror plain 3500 · LED Mirror 8000 · Shower Enclosure 22000
+  Floor Drain 600 · Exhaust Fan 1500
+HARDWARE (per piece / pair): Soft-close Hinge 180 · Channel 18" soft-close (pair) 1200
+  Tandem Channel 21" (pair) 2200 · Handle 128mm 350 · Handle 320mm 600
+  Door Lock / Latch 1800 · Floor Spring 4500 · Door Closer 2800
+TILES (SqFt, supply + fix): Ceramic 2×2 85 · Vitrified PGVT 120 · Large format 4×8 160
+  Marble / Granite 250 · Anti-skid 95
+WATERPROOFING (SqFt): Bathroom 65 · Terrace 80
+PLUMBING: Complete bathroom (Nos) 22000 · CPVC per point 350"""
 
 _ARCHITECT_PARSE_PROMPT = """You are an expert architectural quantity surveyor. Parse the project brief into structured JSON.
 Always respond with valid JSON only — no preamble, no explanation.
@@ -738,6 +787,45 @@ def _extract_document_text(filename: str, raw: bytes, content_type: str) -> Opti
         return None
 
 
+def _pdf_to_vision_images(raw: bytes, max_pages: int = 6, dpi_scale: float = 2.5) -> list:
+    """
+    Render pages of a scanned/image-based PDF as PNG images for GPT-4o vision.
+    Called when pypdf yields < 150 chars — i.e., the PDF is a scanned document.
+    Returns list of {"b64": str, "ct": "image/png"} dicts.
+    Returns empty list if PyMuPDF is not installed or rendering fails.
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        logger.warning(
+            "design_quotes: PyMuPDF not installed — cannot render scanned PDF for vision; "
+            "run: pip install PyMuPDF>=1.23.0"
+        )
+        return []
+
+    try:
+        doc    = fitz.open(stream=raw, filetype="pdf")
+        result = []
+        for page_num in range(min(max_pages, len(doc))):
+            page      = doc[page_num]
+            mat       = fitz.Matrix(dpi_scale, dpi_scale)
+            pix       = page.get_pixmap(matrix=mat, alpha=False)
+            img_bytes = pix.tobytes("png")
+            # Downscale if rendered page is too large for the vision API (>4 MB encoded)
+            if len(img_bytes) > 4 * 1024 * 1024:
+                mat2      = fitz.Matrix(1.5, 1.5)
+                pix       = page.get_pixmap(matrix=mat2, alpha=False)
+                img_bytes = pix.tobytes("png")
+            b64 = base64.b64encode(img_bytes).decode()
+            result.append({"b64": b64, "ct": "image/png"})
+        doc.close()
+        logger.info("design_quotes: rendered %d PDF page(s) as PNG for vision processing", len(result))
+        return result
+    except Exception as exc:
+        logger.warning("design_quotes: PDF→vision render failed — %s", exc)
+        return []
+
+
 # ── AI helpers ────────────────────────────────────────────────────────────────
 
 def _sanitize_doc_text(text: str) -> str:
@@ -746,10 +834,29 @@ def _sanitize_doc_text(text: str) -> str:
         return text
     # Keep printable ASCII + common Unicode printables; remove control chars except \n \t
     cleaned = "".join(ch if (ch in ("\n", "\t") or (ord(ch) >= 32 and ord(ch) != 127)) else " " for ch in text)
-    # Collapse long runs of blank lines
     import re as _re
     cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
+
+
+def _text_has_item_content(text: str) -> bool:
+    """
+    Heuristic: does extracted PDF text contain actual BOQ item content
+    (not just a typed header / client name / project title)?
+    Used to decide whether a PDF needs the vision path even when pypdf extracted some text.
+    Returns True only when the text is substantive enough to be used directly for extraction.
+    """
+    if not text or len(text.strip()) < 300:
+        return False
+    import re as _re
+    # Must have item-like numeric/unit patterns
+    has_units   = bool(_re.search(r'\b(Nos|SqFt|SqMtr|RFT|Mtr|Lot|LS|Bag|Cft|Kg|Set|Pair)\b', text, _re.I))
+    has_dims    = bool(_re.search(r'\d+\s*[xX×]\s*\d+|\d+\.?\d*\s*(ft|\'|"|mm|cm|m)\b', text))
+    has_rates   = bool(_re.search(r'(rate|price|unit\s*cost|mrp|amount)\s*:?\s*[\d,]+', text, _re.I))
+    # Must have enough content lines (≥6 non-empty lines after the header)
+    content_lines = [l for l in text.split('\n') if len(l.strip()) > 10]
+    has_enough_lines = len(content_lines) >= 6
+    return (has_units or has_dims or has_rates) and has_enough_lines
 
 
 async def _ai_scan(text: str, images: Optional[List[dict]] = None) -> dict:
@@ -1161,13 +1268,56 @@ MANDATORY EXTRACTION RULES — follow every one:
    If no headings exist, use ONE group named after the document subject.
 5. Dimensions: convert everything to feet — mm÷304.8, cm÷30.48, m×3.281 (round to 2 dec).
 6. Quantities: from "Qty", "Nos.", "Units", "Count" columns or inline numbers.
-7. Unit prices: from "Rate", "MRP", "Price/Unit", "Unit Cost" columns.
+7. Unit prices: from "Rate", "MRP", "Price/Unit", "Unit Cost" columns. If NOT explicitly in the document,
+   estimate Standard-grade South Indian market rate (2025) — do NOT leave null.
+   Key benchmarks (INR): Curtain Rod/RFT 250 · UPVC Window/SqFt 520 · False Ceiling PVC/SqFt 100
+   Wardrobe/SqFt 1500 · Kitchen/RFT 2800 · Vitrified Tile/SqFt 120 · Painting/SqFt 40
+   Basin Mixer 7500 · EWC/WC 18000 · Soft-close Hinge 180 · Channel 18" pair 1200
+   Waterproofing/SqFt 65 · Plumbing per bathroom 22000
 8. HSN inference: cp_fittings→8481, sanitary_ware→6910, tiles→6907, hardware→8302,
    electrical→8536, plumbing→3917, civil/construction→6901, painting→3210, glass→7005.
 9. NEVER return an empty rooms array. If the document has ANY readable text, extract at least one item.
 10. If a row in a BOQ table is a heading/subtotal row, skip it (don't create an item for it).
 11. For items without explicit qty, default qty = 1.
-12. Translate non-English item names to English."""
+12. Translate non-English item names to English.
+
+UNIVERSAL EXTRACTION RULES — CRITICAL — apply to ALL input types including plain text, chat messages, voice transcripts, and vague descriptions:
+13. For ANY space/area/room mentioned (kitchen, bedroom, bathroom, living room, dining, hall, office, terrace, balcony, study, gym, utility, puja room, etc.) → create a separate room entry with that name
+14. For ANY work, task, material, service, or scope described → create a line item under the relevant room:
+    • "Modular kitchen / kitchen works" → item_name="Modular Kitchen Works", item_type="other", unit="LS"
+    • "Bathroom renovation / bathroom fitout / complete bathroom" → item_name="Bathroom Renovation Works", item_type="other", unit="LS"
+    • "Flooring / tiles / vitrified" → item_name="Flooring Works", item_type="flooring", unit="SqFt"
+    • "False ceiling / POP / gypsum / grid ceiling" → item_name="False Ceiling Works", item_type="false_ceiling", unit="SqFt"
+    • "Paint / painting / texture / wallpaper" → item_name="Painting Works", item_type="painting", unit="SqFt"
+    • "Electrical / lighting / wiring / fixtures" → item_name="Electrical & Lighting Works", item_type="electrical", unit="LS"
+    • "Wardrobe / storage / shelving" → item_name="Custom Wardrobe / Storage", item_type="furniture", unit="RFT"
+    • "Renovation / fitout / interior" (vague) → item_name="General Interior Works", item_type="other", unit="LS"
+    • "Door / window / glazing / shutter" → item_name="Door / Window Works", item_type="other", unit="Nos"
+    • "Civil / demolition / structural" → item_name="Civil Works", item_type="civil", unit="LS"
+    • "Plumbing / sanitary / drainage" → item_name="Plumbing & Sanitary Works", item_type="plumbing", unit="LS"
+15. Single-sentence inputs: "renovate my kitchen and 2 bathrooms" → create rooms "Kitchen" and "Bathroom 1" + "Bathroom 2" each with a line item
+16. Dimension extraction (mandatory): apply rule 5 to extract from ANY format — "10×12 kitchen" → length_ft=10, width_ft=12 on the Kitchen room's first area item
+17. notes field: always populate with budget, timeline, brand preferences, special requirements, or any context not captured as a line item.
+
+HANDWRITTEN / SCANNED DOCUMENT RULES — apply whenever reading photos, scans, or hand-noted requirement lists:
+18. Indian shorthand room names — ALWAYS expand before creating sections:
+    MBR / M.Bed = Master Bedroom | KBR / K.Bed = Kids Bedroom | Livi / Livi. = Living Room
+    GBR = Guest Bedroom | MBT / M.Bath = Master Bathroom | CBT = Common Bathroom
+    KT = Kitchen | Bal = Balcony | Terr / T = Terrace | DNG = Dining Room
+    Study = Study Room | Util = Utility Room | PWD = Powder Room | Corr = Corridor
+19. Grouped sub-item pattern: when a numbered/bulleted entry (e.g. "9) Curtain Rods all Windows") is followed by sub-entries that list room labels with dimensions (e.g. "6.72 · MBR", "6.92 · Livi", "4.355 · Balcony Door", "5' · KBR"), create ONE item per sub-entry placed under that room's own section. Use the dimension value as length_ft. Do NOT create a generic "Curtain Rods" section — put each curtain rod item under its specific room.
+20. Feet/inch notation: number followed by ' or ft = feet (6.72' → length_ft=6.72); number followed by " or in = convert to feet (14" → 1.17 ft). Decimal feet are fine. Mixed "W×H" format → width_ft × height_ft.
+21. Numbered list items — 1) 2) 9) 10) etc. are SEPARATE items. Do NOT skip any numbered entry, even if it looks like a heading.
+22. Area section grouping: when a numbered entry is clearly an area/room name (e.g. "10) Balcony") and the lines below it are sub-items (UPVC Sliding, Fixed window, Mop Storage…), create a room section named after that area and place all sub-items inside it.
+23. Item-type hints for common handwritten items:
+    Curtain rod / curtain track → item_type="other", inferred_hsn="8302"
+    UPVC Sliding / UPVC Fixed / UPVC window → item_type="aluminium", inferred_hsn="7610"
+    False Ceiling PVC / PVC ceiling → item_type="false_ceiling", inferred_hsn="3925"
+    Cloth hanger / ceiling hanger → item_type="other", inferred_hsn="7326"
+    Mop storage / wall storage / storage unit → item_type="furniture", inferred_hsn="9403"
+    Tulsi stand / garden stand → item_type="other", inferred_hsn="9403"
+    Pipe panelling / wall panelling → item_type="wall_panel", inferred_hsn="3925"
+24. Dimension items (e.g. "UPVC Sliding 8.22 x 7.45"): capture first number as length_ft, second as width_ft or height_ft. For "False Ceiling PVC 3.86 x 10 ft": length_ft=3.86, width_ft=10."""
 
 
 async def _ai_parse_document(text: str) -> dict:
@@ -1246,6 +1396,324 @@ async def _ai_parse_document(text: str) -> dict:
         return demo
 
 
+# ── OCR system prompt — only transcribes, does not structure ─────────────────
+
+_OCR_SYSTEM_PROMPT = """You are an expert OCR system specialised in reading Indian interior design and architecture handwritten documents.
+Transcribe ALL visible text from the document images EXACTLY as written.
+Include: client names, project names, item numbers (1) 2) 9) 10)), item names, room labels, all dimensions, quantities, and notes.
+Preserve the structure — numbered items, sub-entries, and indentation matter.
+Output ONLY the transcribed text. No JSON, no explanations."""
+
+
+# ── Vision structuring prompt — used AFTER OCR transcription ─────────────────
+
+_VISION_STRUCTURE_PROMPT = """You are an expert at converting Indian interior design requirement lists into structured Bill of Quantities (BOQ) JSON.
+
+You will receive a plain-text transcription of a handwritten architect/interior requirements document. Your job is to extract EVERY item into the JSON schema below.
+
+Return ONLY valid JSON — no markdown, no explanation.
+
+Required JSON schema:
+{
+  "client_name": "full name from document header (Mr./Mrs. prefix if present) or null",
+  "project_name": "project / flat / building / society name or null",
+  "project_address": "site address or null",
+  "project_type": "Residential|Commercial|Hospitality|Office|Other",
+  "notes": "budget, timeline, remarks, or any requirements not captured as line items",
+  "rooms": [
+    {
+      "room_name": "Room or area name",
+      "items": [
+        {
+          "item_name": "EXACT item name as written — never use generic names",
+          "description": "dimensions, finish, material, brand, colour, spec",
+          "item_type": "cp_fittings|sanitary_ware|tiles|hardware|flooring|false_ceiling|wall_panel|furniture|electrical|civil|plumbing|aluminium|other",
+          "unit": "RFT|Nos|SqFt|SqMtr|Set|Pair|Mtr|LS|Lot",
+          "qty": 1,
+          "unit_price": 0,
+          "length_ft": null,
+          "width_ft": null,
+          "height_ft": null,
+          "inferred_hsn": "4-digit HSN code"
+        }
+      ]
+    }
+  ]
+}
+
+━━━ MANDATORY RULES ━━━
+
+ROOM NAME EXPANSION — always expand Indian shorthand:
+MBR = Master Bedroom | KBR = Kids Bedroom | Livi / Livi. = Living Room
+GBR = Guest Bedroom | MBT = Master Bathroom | CBT = Common Bathroom
+KT = Kitchen | Bal = Balcony | Terr = Terrace | Study = Study Room
+DNG = Dining | Util = Utility | Corr = Corridor | PWD = Powder Room
+
+GROUPED SUB-ITEMS (most important rule):
+When a parent entry like "Curtain Rods all Windows" is followed by sub-entries with room labels and dimensions, create ONE item per sub-entry under its OWN ROOM section:
+  "- 6.72 · MBR"     → room "Master Bedroom",  item "Curtain Rod",  length_ft=6.72,  unit="RFT"
+  "- 6.92 · Livi"    → room "Living Room",      item "Curtain Rod",  length_ft=6.92,  unit="RFT"
+  "- 4.355 · Balcony Door" → room "Balcony",    item "Curtain Rod — Balcony Door", length_ft=4.355, unit="RFT"
+  "- 5' · KBR"       → room "Kids Bedroom",     item "Curtain Rod",  length_ft=5.0,   unit="RFT"
+
+AREA SECTION ITEMS:
+When a heading like "Balcony" is followed by a list, create a "Balcony" room and put each listed item as a separate items entry:
+  "UPVC Sliding - 8.22 x 7.45"     → item_name="UPVC Sliding Window",    length_ft=8.22, width_ft=7.45, item_type="aluminium", hsn="7610"
+  "Fixed - 4.55 x 7.45"            → item_name="UPVC Fixed Window",       length_ft=4.55, width_ft=7.45, item_type="aluminium", hsn="7610"
+  "Mop Storage - 1 nos"             → item_name="Mop Storage Unit",        qty=1,          item_type="furniture", hsn="9403"
+  "W-M Wall Storage - 1 nos - 3'"   → item_name="Washing Machine Wall Storage", qty=1, length_ft=3.0, item_type="furniture", hsn="9403"
+  "Tulsi Stand Stone - 1 nos"       → item_name="Tulsi Stand Stone",       qty=1,          item_type="other", hsn="6802"
+  "Ceiling Cloth Hanger - 9-5' max" → item_name="Ceiling Cloth Hanger",   length_ft=9.5,  item_type="other", hsn="7326"
+  "Pipe Panelling 14\" x 8\""       → item_name="Pipe Panelling",          length_ft=1.17, width_ft=0.67, item_type="wall_panel", hsn="3925"
+  "False Ceiling PVC - 3.86 x 10'"  → item_name="False Ceiling PVC",       length_ft=3.86, width_ft=10.0, item_type="false_ceiling", hsn="3925"
+
+COMMON ARCHITECT VOCABULARY — always use the EXACT names below (never substitute with generics):
+Storage items: Cloth Storage, Used Cloth Storage, Dressing / Dressing Unit, Mop Storage,
+  W-M Wall Storage, Wall Storage, Shoe Rack, Loft Storage, Under-bed Storage
+Windows / Doors: UPVC Sliding Window, UPVC Fixed Window, UPVC Casement Window,
+  French Door, Sliding Door, Aluminium Window, Mosquito Net / Mesh, SS Railing
+Ceilings: False Ceiling PVC, Gypsum False Ceiling, Grid Ceiling, Stretch Ceiling, POP Cornice
+Décor / Fixtures: Curtain Rod, Curtain Track, Blind / Roller Blind, TV Unit,
+  Mandir / Pooja Unit, Tulsi Stand Stone, Tulsi Stand, Ceiling Cloth Hanger
+Panelling: Pipe Panelling, WPC Wall Panel, Fluted Panel, PVC Panel, Cladding
+Civil / Structural: Demolition, Brick Work, Plastering, Waterproofing, Beam
+Bathroom: Shower Partition, Shower Enclosure, Vanity Unit, Mirror Cabinet
+Kitchen: Modular Kitchen, Chimney, Hob, Counter Top, Loft Cabinet, Tall Unit
+Flooring: Vitrified Tile, Wooden Flooring, Epoxy Flooring, Carpet Tile, Anti-skid Tile
+
+DIMENSION RULES:
+  6.72 or 6.72' → length_ft = 6.72
+  8.22 x 7.45   → length_ft = 8.22, width_ft = 7.45
+  14\" (inches) → feet: 14/12 = 1.17 | 8\" → 0.67
+  9-5' max      → length_ft = 9.5 (max span)
+
+QUANTITY RULES:
+  "1 nos" or "1 no" → qty = 1
+  "2 nos" → qty = 2
+  Dimensions without explicit qty → qty = 1
+
+ITEM TYPE + HSN MAPPING:
+  UPVC window/door → aluminium, 7610
+  Curtain rod/track → other, 8302
+  False ceiling / PVC panel / wall panel → false_ceiling / wall_panel, 3925
+  Cloth hanger / ceiling hanger → other, 7326
+  Storage / wardrobe / TV unit → furniture, 9403
+  Tulsi stand / stone items → other, 6802
+  CP fittings / taps → cp_fittings, 8481
+  Sanitary ware / EWC → sanitary_ware, 6910
+  Tiles / vitrified → tiles, 6907
+  Civil / plastering → civil, 6901
+  Electrical → electrical, 8536
+  Flooring → flooring, 5702
+
+NEVER use generic names like "General Interior Works", "Interior Requirements", or "Various Items".
+Use the EXACT item name from the document. If unclear, use the nearest vocabulary match above.
+NEVER return empty rooms or empty items arrays — every line in the transcription becomes at least one item.
+
+RATE ESTIMATION — MANDATORY:
+Set unit_price for EVERY item. Never leave 0 unless it is a genuinely custom item with no market precedent.
+Use Standard-grade 2025 South India (Bengaluru / Hyderabad) market rates. Adjust ±25% for Premium/Economy.
+
+INTERIOR FIT-OUT:
+Curtain Rod / Track (RFT): 250 · UPVC Sliding Window (SqFt): 550 · UPVC Fixed Window (SqFt): 480
+UPVC Casement Window (SqFt): 520 · SS Railing (RFT): 2200
+False Ceiling PVC (SqFt): 100 · False Ceiling Gypsum (SqFt): 160 · Grid Ceiling (SqFt): 130
+Wardrobe / Storage (SqFt shutters+carcass): 1500 · Modular Kitchen (RFT): 2800
+Loft Cabinet (RFT): 1800 · Counter Top granite (SqFt): 850
+TV Unit (Nos): 22000 · Shoe Rack (Nos): 8000 · Mirror plain (Nos): 4000 · LED Mirror (Nos): 8000
+Mop Storage Unit (Nos): 4500 · W-M Wall Storage (Nos): 8500 · Ceiling Cloth Hanger (Nos): 2500
+Tulsi Stand Stone (Nos): 3500 · Pipe Panelling / WPC Wall Panel (SqFt): 380
+Fluted Panel (SqFt): 450 · Cladding (SqFt): 350
+Vitrified Tile Flooring (SqFt supply+fix): 120 · Wooden Flooring (SqFt): 180
+Painting (SqFt): 40 · Waterproofing (SqFt): 65
+Shower Enclosure / Glass Partition (Nos): 22000 · Vanity Unit (Nos): 18000
+For items not listed: estimate from similar items and your knowledge of South Indian market rates.
+"""
+
+
+async def _ai_ocr_transcribe(images: list, client) -> str:
+    """
+    Pass 1 of 2: Ask GPT-4o vision to transcribe ALL visible text from document images.
+    This is a pure OCR step — no structuring, just reading every single line.
+    Vision models are much more reliable at transcription than at combined read+structure.
+    """
+    MAX_B64_CHARS = 5_400_000
+    image_blocks = []
+    for img in images:
+        if len(img.get("b64", "")) > MAX_B64_CHARS:
+            continue
+        image_blocks.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{img['ct']};base64,{img['b64']}", "detail": "high"},
+        })
+
+    if not image_blocks:
+        return ""
+
+    image_blocks.append({
+        "type": "text",
+        "text": (
+            "Transcribe ALL text visible in these document images, line by line, exactly as written. "
+            "Include: every numbered item (e.g. 9) Curtain Rods...), every sub-entry with dimensions "
+            "(e.g. - 6.72 · MBR), every area heading (e.g. Balcony), every item listed below it "
+            "(UPVC Sliding - 8.22 x 7.45, Mop Storage - 1 nos, etc.), all measurements, all quantities. "
+            "Preserve indentation and numbering. Output plain text only."
+        ),
+    })
+
+    try:
+        resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _OCR_SYSTEM_PROMPT},
+                {"role": "user",   "content": image_blocks},
+            ],
+            max_tokens=2000,
+            temperature=0,
+        )
+        transcription = resp.choices[0].message.content or ""
+        logger.info("design_quotes: OCR pass yielded %d chars", len(transcription))
+        return transcription
+    except Exception as exc:
+        logger.warning("design_quotes: OCR pass failed — %s", exc)
+        return ""
+
+
+async def _ai_structure_transcription(transcription: str, client, header_hint: str = "") -> dict:
+    """
+    Pass 2 of 2: Structure the OCR transcription into BOQ JSON using _VISION_STRUCTURE_PROMPT.
+    This text-only pass is far more reliable than combined vision+structure.
+    """
+    combined = ""
+    if header_hint.strip():
+        combined = f"Document header context:\n{header_hint.strip()[:400]}\n\n"
+    combined += f"Full document transcription:\n{transcription}"
+
+    try:
+        resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _VISION_STRUCTURE_PROMPT},
+                {"role": "user",   "content": combined[:8000]},
+            ],
+            max_tokens=4096,
+            response_format={"type": "json_object"},
+            temperature=0,
+        )
+        raw = resp.choices[0].message.content or ""
+        if not raw.strip():
+            return {}
+        extracted = json.loads(raw)
+        if not isinstance(extracted.get("rooms"), list):
+            extracted["rooms"] = []
+        return extracted
+    except Exception as exc:
+        logger.warning("design_quotes: structure pass failed — %s", exc)
+        return {}
+
+
+async def _ai_parse_document_vision(images: list, text_hint: str = "") -> dict:
+    """
+    Two-pass vision extraction for scanned/handwritten/hybrid PDFs:
+      Pass 1 — OCR: GPT-4o vision reads and transcribes every visible line of text.
+      Pass 2 — Structure: GPT-4o text converts the transcription into BOQ JSON.
+    Separating concerns (reading vs structuring) yields specific item names, not generic fallbacks.
+    Falls back to single-pass if OCR transcription is too short.
+    """
+    from app.core.config import get_settings
+    cfg = get_settings()
+    if not cfg.openai_api_key:
+        return _demo_doc_parse_result()
+
+    MAX_B64_CHARS = 5_400_000
+    image_blocks: list = []
+    for img in images:
+        if len(img.get("b64", "")) > MAX_B64_CHARS:
+            logger.warning("design_quotes: vision image too large (%d b64 chars), skipping", len(img["b64"]))
+            continue
+        image_blocks.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{img['ct']};base64,{img['b64']}", "detail": "high"},
+        })
+
+    if not image_blocks:
+        logger.warning("design_quotes: no valid images after size filter")
+        return _demo_doc_parse_result()
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=90.0)
+
+        # ── Pass 1: OCR transcription (pass raw images, not formatted blocks) ─
+        transcription = await _ai_ocr_transcribe(images, client)
+
+        extracted: dict = {}
+
+        if transcription and len(transcription.strip()) > 30:
+            # ── Pass 2: Structure the transcription ──────────────────────────
+            logger.info("design_quotes: running structure pass on %d-char transcription", len(transcription))
+            extracted = await _ai_structure_transcription(transcription, client, text_hint)
+        else:
+            logger.warning("design_quotes: OCR transcription too short (%d chars) — falling back to single-pass", len(transcription))
+
+        # ── Single-pass fallback: send images directly to structure prompt ───
+        if not extracted or not extracted.get("rooms") or all(
+            len(r.get("items") or []) == 0 for r in extracted.get("rooms", [])
+        ):
+            logger.warning("design_quotes: two-pass returned 0 items — trying single-pass fallback")
+            hint_text = (
+                (f"Typed text from document:\n{text_hint.strip()[:400]}\n\n" if text_hint.strip() else "")
+                + (f"OCR transcription:\n{transcription[:1500]}\n\n" if transcription.strip() else "")
+                + "Extract ALL items from the images into the required JSON. Use EXACT item names from the document."
+            )
+            fallback_content = image_blocks + [{"type": "text", "text": hint_text}]
+            resp_fb = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": _VISION_STRUCTURE_PROMPT},
+                    {"role": "user",   "content": fallback_content},
+                ],
+                max_tokens=4096,
+                response_format={"type": "json_object"},
+            )
+            raw_fb = resp_fb.choices[0].message.content or ""
+            if raw_fb.strip():
+                try:
+                    extracted = json.loads(raw_fb)
+                    if not isinstance(extracted.get("rooms"), list):
+                        extracted["rooms"] = []
+                except Exception:
+                    pass
+
+        # Final fallback: if still no items, keep at least client info with placeholder
+        if not extracted.get("rooms") or all(len(r.get("items") or []) == 0 for r in extracted["rooms"]):
+            logger.warning("design_quotes: vision extraction returned 0 items after retry")
+            extracted.setdefault("rooms", [])
+            if not extracted["rooms"]:
+                extracted["rooms"] = [{
+                    "room_name": "Document Requirements",
+                    "items": [{
+                        "item_name": "Could not read handwriting — please add items manually",
+                        "description": "The document image quality may be too low for AI extraction.",
+                        "item_type": "other", "unit": "LS", "qty": 1,
+                        "unit_price": None, "inferred_hsn": None,
+                    }],
+                }]
+
+        total = sum(len(r.get("items") or []) for r in extracted.get("rooms", []))
+        logger.info("design_quotes: vision extraction complete — %d rooms, %d items",
+                    len(extracted.get("rooms", [])), total)
+
+        return {"extracted": extracted, "data_source": "ai"}
+
+    except Exception as exc:
+        logger.error("design_quotes: parse-document-vision failed — %s", exc)
+        demo = _demo_doc_parse_result()
+        demo["data_source"] = "error"
+        demo["scan_error"] = f"Vision AI extraction failed: {str(exc)[:200]}"
+        return demo
+
+
 def _demo_doc_parse_result() -> dict:
     """Realistic demo result shown when OPENAI_API_KEY is not configured."""
     return {
@@ -1290,11 +1758,13 @@ async def parse_document(
     """
     General-purpose document → quotation BOQ parser.
     Accepts PDF, DOCX, XLSX, CSV, images, or plain text.
-    Uses a permissive AI prompt that extracts ANY item type.
+    Scanned/handwritten PDFs are automatically rendered via PyMuPDF and sent to GPT-4o Vision
+    using the general-purpose document prompt (not the hardware/sanitary scan prompt).
     Also extracts client name, project name, and address from document headers.
     """
-    combined_text = text_input or ""
+    combined_text      = text_input or ""
     images: List[dict] = []
+    is_scanned_doc     = False  # True when ≥1 PDF required vision fallback
     IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
     MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
@@ -1306,6 +1776,7 @@ async def parse_document(
         fn  = (f.filename or "").lower()
 
         if ct.startswith("image/") or fn.endswith(IMAGE_EXTS):
+            # Explicit image file — use as-is for vision
             if len(raw) > MAX_IMAGE_BYTES:
                 raise HTTPException(
                     status_code=413,
@@ -1313,7 +1784,36 @@ async def parse_document(
                 )
             b64 = base64.b64encode(raw).decode()
             images.append({"b64": b64, "ct": ct if ct.startswith("image/") else "image/jpeg"})
+
+        elif fn.endswith(_DOC_EXTS_PDF) or "pdf" in ct:
+            # PDFs ALWAYS go through the vision path (two-pass OCR + structure).
+            # Reason: customer requirement PDFs are handwritten, scanned, or hybrid
+            # (typed header + handwritten body). Many scanning apps (CamScanner, etc.)
+            # embed a garbled OCR text layer that _text_has_item_content() incorrectly
+            # passes, causing the text path to return "General Interior Works" fallbacks.
+            # Vision with two-pass OCR is more reliable for ALL PDF types in this context.
+            pdf_images = _pdf_to_vision_images(raw)
+            if pdf_images:
+                images.extend(pdf_images)
+                is_scanned_doc = True
+                # Extract any typed/digital text as a context hint for the vision prompt
+                doc_text = _extract_document_text(f.filename, raw, f.content_type or "")
+                if doc_text and doc_text.strip():
+                    combined_text = (combined_text
+                                     + f"\n\n[Typed text from {f.filename}]\n"
+                                     + doc_text[:800])
+                logger.info("design_quotes: '%s' → vision/OCR path (%d PDF pages rendered)", f.filename, len(pdf_images))
+            else:
+                # PyMuPDF not available — fall back to text extraction
+                doc_text = _extract_document_text(f.filename, raw, f.content_type or "")
+                if doc_text and doc_text.strip():
+                    combined_text = combined_text + f"\n\n[Document: {f.filename}]\n" + doc_text
+                    logger.warning("design_quotes: PyMuPDF unavailable for '%s' — using text fallback", f.filename)
+                else:
+                    logger.warning("design_quotes: could not extract any content from PDF '%s'", f.filename)
+
         else:
+            # Other document types (DOCX, XLSX, CSV, plain text)
             doc_text = _extract_document_text(f.filename, raw, f.content_type or "")
             if doc_text and doc_text.strip():
                 combined_text = combined_text + f"\n\n[Document: {f.filename}]\n" + doc_text
@@ -1323,13 +1823,15 @@ async def parse_document(
     if not combined_text.strip() and not images:
         raise HTTPException(status_code=400, detail="Provide at least one file or text_input")
 
-    # Images: describe them as text first (reuse _ai_scan for image path)
     if images:
-        # Use the general scan endpoint for image inputs
-        result = await _ai_scan(combined_text, images)
-        return result
+        if is_scanned_doc:
+            # Scanned / handwritten document → use _GENERAL_DOCUMENT_PROMPT with GPT-4o vision
+            return await _ai_parse_document_vision(images, combined_text)
+        else:
+            # Explicit product/room photos → use _INTERIOR_SCAN_PROMPT (hardware/sanitary focused)
+            return await _ai_scan(combined_text, images)
 
-    # Text/document path: use the general document prompt
+    # Text / document path → use _GENERAL_DOCUMENT_PROMPT
     return await _ai_parse_document(combined_text)
 
 

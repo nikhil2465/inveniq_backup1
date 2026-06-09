@@ -36,7 +36,13 @@ const SEC_BTN   = { background:'transparent',border:'1px solid var(--border)',co
 const CLOSE_BTN = { background:'rgba(220,38,38,0.1)',border:'1px solid rgba(220,38,38,0.3)',color:'#dc2626',borderRadius:7,padding:'5px 10px',fontSize:13,cursor:'pointer',fontWeight:700 };
 const PRI_BTN   = { background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,cursor:'pointer',fontWeight:700 };
 const INP       = { width:'100%',background:'var(--input)',border:'1px solid var(--border)',borderRadius:7,padding:'7px 10px',fontSize:13,color:'var(--text)',boxSizing:'border-box' };
+// SEL — for <select> elements: forces light-mode OS dropdown popup, always readable
+const SEL       = { ...INP, colorScheme:'light', background:'#ffffff', color:'#0d1b2e', border:'1.5px solid #d8dce3' };
 const LBL       = { fontSize:11,color:'var(--muted)',fontWeight:600,marginBottom:4,display:'block' };
+// Section card + header — used in both QuoteFormModal and ProposalFormModal for visual grouping
+const FIELD_CARD = { background:'#ffffff',borderRadius:10,border:'1px solid #e4e6eb',padding:'14px 16px',marginBottom:14,boxShadow:'0 1px 3px rgba(13,27,46,0.05)' };
+const SEC_HDR_PRP = { fontSize:10,fontWeight:800,color:'#4338ca',textTransform:'uppercase',letterSpacing:1.1,marginBottom:12,display:'flex',alignItems:'center',gap:7,paddingLeft:9,borderLeft:'3px solid #6366f1' };
+const SEC_HDR_QTE = { fontSize:10,fontWeight:800,color:'#6d28d9',textTransform:'uppercase',letterSpacing:1.1,marginBottom:12,display:'flex',alignItems:'center',gap:7,paddingLeft:9,borderLeft:'3px solid #a855f7' };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
@@ -110,7 +116,7 @@ function EmailModal({ quoteId, isProposal, defaultEmail, defaultName, quoteNumbe
 
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+      <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 420 }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 800, fontSize: 15 }}>📧 Send Email</span>
           <button onClick={onClose} style={CLOSE_BTN}>✕</button>
@@ -156,12 +162,6 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
   const [parsingBrief, setParsingBrief] = useState(false);
   const [showImgSearchForm, setShowImgSearchForm] = useState(false);
   const [imgSearchSec, setImgSearchSec] = useState(0);
-  // File parser states
-  const [showFileParser, setShowFileParser] = useState(false);
-  const [parserFiles, setParserFiles] = useState([]);
-  const [parsingFile, setParsingFile] = useState(false);
-  const [fileParserResult, setFileParserResult] = useState(null);
-  const fileParserRef = useRef();
   const [qbSync, setQbSync] = useState(null); // {count, ageMin, expired}
 
   // QB→DQB import on mount — auto-import fresh data, show banner for expired
@@ -193,7 +193,8 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
 
   const addSection = () => {
     if (!newSecName.trim()) return;
-    setForm(f => ({ ...f, sections: [...f.sections, { section_name: newSecName.trim(), section_order: f.sections.length, section_total: 0, items: [] }] }));
+    const emptyItem = { item_name: '', description: '', unit: 'nos', qty: 1, unit_price: 0, margin_pct: 0, line_total: 0, inferred_hsn: '', inferred_category: '', gst_pct: form.gst_rate ?? 18 };
+    setForm(f => ({ ...f, sections: [...f.sections, { section_name: newSecName.trim(), section_order: f.sections.length, section_total: 0, items: [emptyItem] }] }));
     setNewSecName('');
     setActiveSection(form.sections.length);
   };
@@ -292,76 +293,6 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
     finally { setParsingBrief(false); }
   };
 
-  const parseFile = async () => {
-    if (parserFiles.length === 0) return;
-    // Client-side file size guard (15 MB per file)
-    const oversized = parserFiles.find(f => f.size > 15 * 1024 * 1024);
-    if (oversized) {
-      setFileParserResult({
-        scan_error: `"${oversized.name}" exceeds 15 MB — compress or split it before uploading.`,
-        data_source: 'error',
-      });
-      return;
-    }
-    setParsingFile(true);
-    setFileParserResult(null);
-    try {
-      const fd = new FormData();
-      parserFiles.forEach(f => fd.append('file', f));
-      const r = await fetch('/api/design-quotes/parse-document', { method: 'POST', body: fd });
-      const d = await r.json();
-      setFileParserResult(d);
-    } catch { setFileParserResult(null); }
-    finally { setParsingFile(false); }
-  };
-
-  const addFileSections = (autoFillClient = false) => {
-    if (!fileParserResult?.extracted) return;
-    const ex = fileParserResult.extracted;
-    const rawRooms = ex.rooms || [];
-    const newSecs = rawRooms.map((room, i) => ({
-      section_name: room.room_name || `Section ${i + 1}`,
-      section_order: form.sections.length + i,
-      section_total: 0,
-      items: (room.items || []).map(it => {
-        const base = (it.qty || 1) * (it.unit_price || 0);
-        return {
-          item_name: it.item_name || '',
-          description: [it.description, it.specifications].filter(Boolean).join(' · '),
-          unit: it.unit || 'Nos',
-          qty: it.qty || 1,
-          unit_price: it.unit_price || 0,
-          margin_pct: 0,
-          line_total: base,
-          inferred_hsn: it.inferred_hsn || '',
-          inferred_category: it.item_type || '',
-          gst_pct: inferGstFromHsn(it.inferred_hsn),
-          length_ft: it.length_ft || null,
-          width_ft: it.width_ft || null,
-          height_ft: it.height_ft || null,
-          dim_type: it.dim_type || null,
-        };
-      }),
-    }));
-    setForm(f => {
-      const updates = { sections: [...f.sections, ...newSecs] };
-      if (autoFillClient) {
-        if (!f.client_name.trim() && ex.client_name)    updates.client_name    = ex.client_name;
-        if (!f.client_phone.trim() && ex.client_phone)  updates.client_phone   = ex.client_phone;
-        if (!f.client_email.trim() && ex.client_email)  updates.client_email   = ex.client_email;
-        if (!f.project_name.trim() && ex.project_name)  updates.project_name   = ex.project_name;
-        if (!f.project_address.trim() && ex.project_address) updates.project_address = ex.project_address;
-        if (ex.project_type)  updates.project_type  = ex.project_type;
-        if (ex.designer_name && !f.designer_name.trim()) updates.designer_name = ex.designer_name;
-        if (ex.notes && !f.notes.trim())                updates.notes          = ex.notes;
-      }
-      return { ...f, ...updates };
-    });
-    setShowFileParser(false);
-    setParserFiles([]);
-    setFileParserResult(null);
-  };
-
   const save = async () => {
     if (!form.client_name.trim()) return alert('Client name is required');
     setSaving(true);
@@ -379,20 +310,22 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
 
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 900, maxHeight: '94vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+      <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 900, maxHeight: '94vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontWeight: 900, fontSize: 16 }}>{isEdit ? '✏️ Edit Quote' : '+ New Interior Quote'}</span>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: isEdit ? 'linear-gradient(135deg,#1e3a5f 0%,#4c1d95 100%)' : 'linear-gradient(135deg,#0f2744 0%,#15803d 100%)', borderRadius: '14px 14px 0 0' }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 16, color: '#ffffff' }}>{isEdit ? '✏️ Edit Interior Quote' : '+ New Interior Quote'}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>{isEdit ? 'Update BOQ sections, pricing, and client details' : 'Build room-by-room BOQ with AI assistance · SAC 998331 · GST 18%'}</div>
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { setShowFileParser(true); setShowBriefParser(false); }} style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)' }}>📄 Upload File</button>
-            <button onClick={() => { setShowBriefParser(true); setShowFileParser(false); }} style={{ ...SEC_BTN, color: '#7c3aed', borderColor: 'rgba(124,58,237,0.4)' }}>🤖 Parse Brief</button>
+            <button onClick={() => { setShowBriefParser(true); }} style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.22)', color:'#ffffff', borderRadius:7, padding:'6px 12px', fontSize:12, cursor:'pointer', fontWeight:600 }}>🤖 Parse Brief</button>
             <button onClick={save} disabled={saving} style={{ ...PRI_BTN, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : '💾 Save'}</button>
-            <button onClick={onClose} style={CLOSE_BTN}>✕</button>
+            <button onClick={onClose} style={{ background:'rgba(220,38,38,0.2)', border:'1px solid rgba(220,38,38,0.4)', color:'#fca5a5', borderRadius:7, padding:'5px 10px', fontSize:13, cursor:'pointer', fontWeight:700 }}>✕</button>
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18, background: '#f4f5f7' }}>
 
           {/* QB→DQB sync banner — shown when QB data exists but expired */}
           {qbSync?.expired && (
@@ -419,8 +352,8 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
 
           {/* Brief parser overlay */}
           {showBriefParser && (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>🤖 AI Interior Brief Parser</div>
+            <div style={{ background: '#ffffff', border: '1px solid rgba(139,92,246,0.28)', borderRadius: 10, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(13,27,46,0.05)' }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#6d28d9', marginBottom: 8 }}>🤖 AI Interior Brief Parser</div>
               <textarea style={{ ...INP, height: 100, resize: 'vertical' }} placeholder="Paste client brief, WhatsApp messages, or scope of work…" value={briefText} onChange={e => setBriefText(e.target.value)} />
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button onClick={parseBrief} disabled={parsingBrief} style={{ ...PRI_BTN, opacity: parsingBrief ? 0.6 : 1 }}>{parsingBrief ? 'Parsing…' : '⚡ Parse & Add Sections'}</button>
@@ -429,168 +362,58 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
             </div>
           )}
 
-          {/* File parser overlay */}
-          {showFileParser && (
-            <div style={{ background: 'rgba(8,145,178,0.04)', border: '1px solid rgba(8,145,178,0.25)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, marginBottom: 4, color: '#0891b2' }}>📄 AI Document Parser</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>Upload PDF, Word (.docx), Excel (.xlsx), CSV, or images — AI reads all content including dimensions, quantities, HSN codes, and product details.</div>
-              <input ref={fileParserRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ods,.csv,.txt,image/*" style={{ display: 'none' }} onChange={e => { setParserFiles(Array.from(e.target.files)); setFileParserResult(null); }} />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-                <button onClick={() => fileParserRef.current.click()} style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)' }}>
-                  + Add Files {parserFiles.length > 0 ? `(${parserFiles.length})` : ''}
-                </button>
-                {parserFiles.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {parserFiles.map((f, i) => (
-                      <span key={i} style={{ fontSize: 11, background: 'rgba(8,145,178,0.1)', border: '1px solid rgba(8,145,178,0.25)', borderRadius: 6, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        {FILE_ICON(f.name)} {f.name}
-                        <button onClick={() => setParserFiles(fs => fs.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 11, padding: 0 }}>✕</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {parserFiles.length > 0 && (
-                <button onClick={parseFile} disabled={parsingFile} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: parsingFile ? 0.6 : 1, marginBottom: fileParserResult ? 12 : 0 }}>
-                  {parsingFile ? '⏳ AI Reading File…' : '⚡ Extract & Add to Quote'}
-                </button>
-              )}
-              {fileParserResult?.extracted && (() => {
-                const ex = fileParserResult.extracted;
-                const rooms = ex.rooms || [];
-                const totalItems = rooms.reduce((s, r) => s + (r.items || []).length, 0);
-                const hasClient = !!(ex.client_name || ex.project_name || ex.project_address);
-                const isAi = fileParserResult.data_source === 'ai';
-                const hasError = !!fileParserResult.scan_error;
-                return (
-                  <div style={{ marginTop: 10 }}>
-                    {/* Error / demo banners */}
-                    {hasError && (
-                      <div style={{ fontSize: 11, color: '#dc2626', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
-                        ⚠ {fileParserResult.scan_error}
-                      </div>
-                    )}
-                    {fileParserResult.demo_note && !hasError && (
-                      <div style={{ fontSize: 11, color: '#d97706', background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
-                        🔶 {fileParserResult.demo_note}
-                      </div>
-                    )}
-
-                    {/* Success banner */}
-                    {isAi && totalItems > 0 && (
-                      <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, marginBottom: 10, background: 'rgba(22,163,74,0.06)', border: '1px solid rgba(22,163,74,0.2)', borderRadius: 6, padding: '8px 12px' }}>
-                        ✅ Extracted <strong>{totalItems} items</strong> across <strong>{rooms.length} sections</strong> from your document
-                      </div>
-                    )}
-
-                    {/* 0-items message */}
-                    {isAi && totalItems === 0 && (
-                      <div style={{ fontSize: 11, color: '#d97706', background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
-                        ⚠ AI could not find any BOQ items in this document. It may be a scanned image, or the text may not contain product/item lists. Try a text-based PDF or paste the requirements as text.
-                      </div>
-                    )}
-
-                    {/* Section pills */}
-                    {rooms.length > 0 && (
-                      <div style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {rooms.map((r, i) => (
-                          <span key={i} style={{ background: 'rgba(8,145,178,0.1)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 20, padding: '2px 10px', fontSize: 11, color: '#0891b2', fontWeight: 600 }}>
-                            {r.room_name} <span style={{ opacity: 0.7 }}>({(r.items || []).length})</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Client / project details detected */}
-                    {hasClient && (
-                      <div style={{ background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#0891b2', marginBottom: 6 }}>📋 Client & Project Details Detected</div>
-                        {ex.client_name    && <div style={{ fontSize: 12, marginBottom: 3 }}>👤 <strong>{ex.client_name}</strong>{ex.client_phone ? ` · ${ex.client_phone}` : ''}{ex.client_email ? ` · ${ex.client_email}` : ''}</div>}
-                        {ex.project_name   && <div style={{ fontSize: 12, marginBottom: 3 }}>🏗 {ex.project_name}</div>}
-                        {ex.project_address && <div style={{ fontSize: 12, marginBottom: 3, color: 'var(--muted)' }}>📍 {ex.project_address}</div>}
-                        {ex.notes          && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>{ex.notes.slice(0, 120)}{ex.notes.length > 120 ? '…' : ''}</div>}
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {totalItems > 0 && hasClient && (
-                        <button onClick={() => addFileSections(true)}
-                          style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', fontSize: 12 }}>
-                          ✅ Add Sections + Fill Client Details
-                        </button>
-                      )}
-                      {totalItems > 0 && (
-                        <button onClick={() => addFileSections(false)}
-                          style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)', fontSize: 12 }}>
-                          📋 Add {rooms.length} Section{rooms.length !== 1 ? 's' : ''} Only
-                        </button>
-                      )}
-                      {hasClient && !totalItems && (
-                        <button onClick={() => addFileSections(true)}
-                          style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', fontSize: 12 }}>
-                          👤 Fill Client & Project Details
-                        </button>
-                      )}
-                      <button onClick={() => { setFileParserResult(null); setParserFiles([]); }} style={SEC_BTN}>🔄 Re-upload</button>
-                      <button onClick={() => { setShowFileParser(false); setFileParserResult(null); setParserFiles([]); }} style={SEC_BTN}>Cancel</button>
-                    </div>
-                  </div>
-                );
-              })()}
-              {!fileParserResult && !parsingFile && parserFiles.length === 0 && (
-                <button onClick={() => setShowFileParser(false)} style={{ ...SEC_BTN, marginTop: 4 }}>Cancel</button>
-              )}
-            </div>
-          )}
-
           {/* Client & project info */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div><label style={LBL}>Client Name *</label><input style={INP} value={form.client_name} onChange={e => setF('client_name', e.target.value)} /></div>
-            <div><label style={LBL}>Phone</label><input style={INP} value={form.client_phone} onChange={e => setF('client_phone', e.target.value)} /></div>
-            <div><label style={LBL}>Email</label><input style={INP} value={form.client_email} onChange={e => setF('client_email', e.target.value)} /></div>
-            <div><label style={LBL}>Project Name</label><input style={INP} value={form.project_name} onChange={e => setF('project_name', e.target.value)} /></div>
-            <div><label style={LBL}>Project Type</label>
-              <select style={INP} value={form.project_type} onChange={e => setF('project_type', e.target.value)}>
-                {['Residential','Commercial','Hospitality','Office','Industrial','Other'].map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div><label style={LBL}>Status</label>
-              <select style={INP} value={form.status} onChange={e => setF('status', e.target.value)}>
-                {Object.entries(Q_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
-            <div style={{ gridColumn: '1/-1' }}><label style={LBL}>Project Address</label><input style={INP} value={form.project_address} onChange={e => setF('project_address', e.target.value)} /></div>
-            <div><label style={LBL}>Designer Name</label><input style={INP} value={form.designer_name} onChange={e => setF('designer_name', e.target.value)} /></div>
-            <div><label style={LBL}>Company</label><input style={INP} value={form.designer_company} onChange={e => setF('designer_company', e.target.value)} /></div>
-            <div><label style={LBL}>Payment Terms</label><input style={INP} value={form.payment_terms} onChange={e => setF('payment_terms', e.target.value)} /></div>
-            <div><label style={LBL}>Validity (days)</label><input style={INP} type="number" value={form.validity_days} onChange={e => setF('validity_days', +e.target.value)} /></div>
-            <div><label style={LBL}>GST Rate %</label><input style={INP} type="number" value={form.gst_rate} onChange={e => setF('gst_rate', +e.target.value)} /></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
-              <input type="checkbox" checked={form.include_gst} onChange={e => setF('include_gst', e.target.checked)} id="incgst" />
-              <label htmlFor="incgst" style={{ fontSize: 13, fontWeight: 600 }}>Include GST in total</label>
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_QTE}>👤 Client &amp; Project Details</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div><label style={LBL}>Client Name *</label><input style={INP} value={form.client_name} onChange={e => setF('client_name', e.target.value)} /></div>
+              <div><label style={LBL}>Phone</label><input style={INP} value={form.client_phone} onChange={e => setF('client_phone', e.target.value)} /></div>
+              <div><label style={LBL}>Email</label><input style={INP} value={form.client_email} onChange={e => setF('client_email', e.target.value)} /></div>
+              <div><label style={LBL}>Project Name</label><input style={INP} value={form.project_name} onChange={e => setF('project_name', e.target.value)} /></div>
+              <div><label style={LBL}>Project Type</label>
+                <select style={SEL} value={form.project_type} onChange={e => setF('project_type', e.target.value)}>
+                  {['Residential','Commercial','Hospitality','Office','Industrial','Other'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><label style={LBL}>Status</label>
+                <select style={SEL} value={form.status} onChange={e => setF('status', e.target.value)}>
+                  {Object.entries(Q_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: '1/-1' }}><label style={LBL}>Project Address</label><input style={INP} value={form.project_address} onChange={e => setF('project_address', e.target.value)} /></div>
+              <div><label style={LBL}>Designer Name</label><input style={INP} value={form.designer_name} onChange={e => setF('designer_name', e.target.value)} /></div>
+              <div><label style={LBL}>Company</label><input style={INP} value={form.designer_company} onChange={e => setF('designer_company', e.target.value)} /></div>
+              <div><label style={LBL}>Payment Terms</label><input style={INP} value={form.payment_terms} onChange={e => setF('payment_terms', e.target.value)} /></div>
+              <div><label style={LBL}>Validity (days)</label><input style={INP} type="number" value={form.validity_days} onChange={e => setF('validity_days', +e.target.value)} /></div>
+              <div><label style={LBL}>GST Rate %</label><input style={INP} type="number" value={form.gst_rate} onChange={e => setF('gst_rate', +e.target.value)} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <input type="checkbox" checked={form.include_gst} onChange={e => setF('include_gst', e.target.checked)} id="incgst" />
+                <label htmlFor="incgst" style={{ fontSize: 13, fontWeight: 600, color: '#0d1b2e' }}>Include GST in total</label>
+              </div>
             </div>
           </div>
 
-          {/* Sections */}
-          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>BOQ Sections</div>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-            {form.sections.map((s, i) => (
-              <button key={i} onClick={() => setActiveSection(i)} style={{ ...SEC_BTN, background: activeSection === i ? 'rgba(168,85,247,0.12)' : 'transparent', color: activeSection === i ? '#a855f7' : 'var(--muted)', borderColor: activeSection === i ? '#a855f7' : 'var(--border)' }}>
-                {s.section_name}
-              </button>
-            ))}
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input style={{ ...INP, width: 140 }} placeholder="Section name…" value={newSecName} onChange={e => setNewSecName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSection()} />
-              <button onClick={addSection} style={PRI_BTN}>+ Add</button>
+          {/* BOQ Sections */}
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_QTE}>📋 BOQ Sections</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              {form.sections.map((s, i) => (
+                <button key={i} onClick={() => setActiveSection(i)} style={{ ...SEC_BTN, background: activeSection === i ? 'rgba(168,85,247,0.12)' : '#f4f5f7', color: activeSection === i ? '#a855f7' : '#3d4f6b', borderColor: activeSection === i ? '#a855f7' : '#d8dce3', fontWeight: activeSection === i ? 700 : 500, boxShadow: activeSection === i ? '0 0 0 2px rgba(168,85,247,0.15)' : 'none', transition: 'all 0.12s' }}>
+                  {s.section_name}
+                </button>
+              ))}
+              <div style={{ display: 'flex', gap: 6, marginLeft: 4 }}>
+                <input style={{ ...INP, width: 150, background: '#f4f5f7', border: '1.5px solid #d8dce3', color: '#0d1b2e' }} placeholder="New section name…" value={newSecName} onChange={e => setNewSecName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSection()} />
+                <button onClick={addSection} style={{ ...PRI_BTN, padding: '7px 14px', fontSize: 12 }}>+ Add</button>
+              </div>
             </div>
           </div>
 
           {/* Active section items */}
           {sec && (
-            <div style={{ background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)', padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ fontWeight: 700 }}>{sec.section_name}</span>
+            <div style={{ background: '#ffffff', borderRadius: 10, border: '1px solid #e4e6eb', padding: 14, marginBottom: 14, boxShadow: '0 1px 3px rgba(13,27,46,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
+                <span style={{ fontWeight: 800, fontSize: 13, color: '#0d1b2e', display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 9, borderLeft: '3px solid #a855f7' }}>{sec.section_name}</span>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => { setImgSearchSec(activeSection); setShowImgSearchForm(true); }} style={{ ...SEC_BTN, color: '#a855f7', borderColor: 'rgba(168,85,247,0.4)' }}>📷 Search by Photo</button>
                   <button onClick={() => addItem(activeSection)} style={{ ...SEC_BTN, color: '#16a34a' }}>+ Add Item</button>
@@ -600,9 +423,9 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
               <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 820 }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <tr style={{ background: 'linear-gradient(135deg,#0a1628 0%,#162236 100%)' }}>
                     {['Item Name','Unit','Qty','Unit Price','Margin%','GST %','Base Total',''].map(h => (
-                      <th key={h} style={{ padding: '4px 6px', textAlign: h === 'GST %' || h === 'Base Total' ? 'center' : 'left', color: h === 'GST %' ? '#d97706' : 'var(--muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={h} style={{ padding: '8px 6px', textAlign: h === 'GST %' || h === 'Base Total' ? 'center' : 'left', color: h === 'GST %' ? '#fbbf24' : 'rgba(255,255,255,0.7)', fontWeight: 700, whiteSpace: 'nowrap', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -621,7 +444,7 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
                       <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 85 }} type="number" value={it.unit_price} onChange={e => updateItem(activeSection, ii, 'unit_price', e.target.value)} /></td>
                       <td style={{ padding: '4px 4px' }}><input style={{ ...INP, width: 60 }} type="number" value={it.margin_pct} onChange={e => updateItem(activeSection, ii, 'margin_pct', e.target.value)} /></td>
                       <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                        <select style={{ ...INP, width: 72, textAlign: 'center', color: '#d97706', fontWeight: 700, background: 'rgba(217,119,6,0.07)', borderColor: 'rgba(217,119,6,0.3)' }}
+                        <select style={{ ...INP, width: 72, textAlign: 'center', color: '#b45309', fontWeight: 800, background: '#fffbeb', border: '1.5px solid rgba(217,119,6,0.45)', colorScheme: 'light', cursor: 'pointer' }}
                           value={it.gst_pct ?? form.gst_rate ?? 18}
                           onChange={e => updateItem(activeSection, ii, 'gst_pct', Number(e.target.value))}>
                           {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
@@ -670,9 +493,10 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
           )}
 
           {/* Grand total summary */}
-          <div style={{ marginTop: 16, background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)', padding: 14 }}>
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_QTE}>📊 Quote Summary</div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
-              <div style={{ fontSize: 13 }}>Base Subtotal: <strong>{fmtC(subtotal)}</strong></div>
+              <div style={{ fontSize: 13, color: '#3d4f6b' }}>Base Subtotal: <strong style={{ color: '#0d1b2e' }}>{fmtC(subtotal)}</strong></div>
               {form.include_gst && Object.entries(gstBreakdown).sort(([a],[b]) => +a - +b).map(([rate, amt]) => (
                 <div key={rate} style={{ fontSize: 12, color: '#d97706' }}>GST @{rate}%: <strong>{fmtC(amt)}</strong></div>
               ))}
@@ -684,9 +508,12 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
           </div>
 
           {/* Notes & Terms */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-            <div><label style={LBL}>Notes</label><textarea style={{ ...INP, height: 70, resize: 'vertical' }} value={form.notes} onChange={e => setF('notes', e.target.value)} /></div>
-            <div><label style={LBL}>Terms & Conditions</label><textarea style={{ ...INP, height: 70, resize: 'vertical' }} value={form.terms} onChange={e => setF('terms', e.target.value)} /></div>
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_QTE}>📝 Notes &amp; Terms</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><label style={LBL}>Notes</label><textarea style={{ ...INP, height: 70, resize: 'vertical' }} value={form.notes} onChange={e => setF('notes', e.target.value)} /></div>
+              <div><label style={LBL}>Terms &amp; Conditions</label><textarea style={{ ...INP, height: 70, resize: 'vertical' }} value={form.terms} onChange={e => setF('terms', e.target.value)} /></div>
+            </div>
           </div>
         </div>
       </div>
@@ -824,7 +651,7 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
 
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+      <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
@@ -847,6 +674,35 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
             <button onClick={shareWhatsApp} style={{ ...SEC_BTN, color: '#16a34a', borderColor: 'rgba(37,211,102,0.4)', fontWeight: 700 }}>📱 WhatsApp</button>
             <button onClick={handlePrint} style={{ ...SEC_BTN, color: '#a855f7', borderColor: 'rgba(168,85,247,0.4)' }}>🖨 Print</button>
             <button onClick={() => setShowEmail(true)} style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)' }}>📧 Email</button>
+            <button onClick={() => {
+              const allItems = [];
+              (quote.sections || []).forEach(sec => {
+                (sec.items || []).forEach(item => {
+                  allItems.push({
+                    product_name: item.item_name || '',
+                    category: item.inferred_category || '',
+                    room: sec.section_name || '',
+                    quantity: item.qty || 1,
+                    unit: item.unit || 'Nos',
+                    unit_price: item.unit_price || 0,
+                    hsn_code: item.inferred_hsn || '',
+                    specifications: item.description || '',
+                    inferred_category: item.inferred_category || '',
+                    inferred_hsn: item.inferred_hsn || '',
+                    gst_pct: item.gst_pct ?? 18,
+                  });
+                });
+              });
+              localStorage.setItem('inveniq_dqb_to_qb', JSON.stringify({
+                ts: Date.now(),
+                source: 'DQB',
+                client_name: quote.client_name || '',
+                project_name: quote.project_name || '',
+                project_address: quote.project_address || '',
+                items: allItems,
+              }));
+              alert(`${allItems.length} item${allItems.length !== 1 ? 's' : ''} sent to Quotation Builder!\nOpen Quotation Builder to create a supplier quote from these items.`);
+            }} style={{ ...SEC_BTN, color: '#f59e0b', borderColor: 'rgba(245,158,11,0.4)' }}>🛒 Send to QB</button>
             <button onClick={onEdit} style={SEC_BTN}>✏️ Edit</button>
             <button onClick={onClose} style={CLOSE_BTN}>✕</button>
           </div>
@@ -978,27 +834,38 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
 
 // ── WhatsAppScannerModal ──────────────────────────────────────────────────────
 function WhatsAppScannerModal({ onClose, onCreateQuote }) {
-  const [mode, setMode]         = useState('text'); // 'text' | 'file'
+  const [mode, setMode]         = useState('text'); // 'text' | 'doc'
   const [text, setText]         = useState('');
   const [files, setFiles]       = useState([]);
   const [scanning, setScanning] = useState(false);
   const [result, setResult]     = useState(null);
   const [collapsed, setCollapsed] = useState({});
+  const [parseStep, setParseStep] = useState(0); // 0=idle 1=ocr 2=structuring (doc mode only)
   const fileRef = useRef();
 
   const scan = async () => {
     setScanning(true);
     try {
       if (mode === 'text' && !text.trim()) { setScanning(false); return; }
-      if (mode === 'image' && files.length === 0 && !text.trim()) { setScanning(false); return; }
+      if (mode === 'doc' && files.length === 0 && !text.trim()) { setScanning(false); return; }
       const fd = new FormData();
       if (text.trim()) fd.append('text_input', text);
       files.forEach(f => fd.append('file', f));
-      const r = await fetch('/api/design-quotes/scan', { method: 'POST', body: fd });
-      const d = await r.json();
-      setResult(d);
+      if (mode === 'doc') {
+        setParseStep(1);
+        const stepTimer = setTimeout(() => setParseStep(2), 9000);
+        try {
+          const r = await fetch('/api/design-quotes/parse-document', { method: 'POST', body: fd });
+          const d = await r.json();
+          setResult(d);
+        } finally { clearTimeout(stepTimer); }
+      } else {
+        const r = await fetch('/api/design-quotes/scan', { method: 'POST', body: fd });
+        const d = await r.json();
+        setResult(d);
+      }
     } catch { setResult(null); }
-    finally { setScanning(false); }
+    finally { setScanning(false); setParseStep(0); }
   };
 
   const saveToCatalog = async (item) => {
@@ -1012,7 +879,28 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
   const useResult = () => {
     if (!result?.extracted) return;
     const ex = result.extracted;
-    const sections = (ex.rooms || []).map((room, i) => ({
+    let rawRooms = ex.rooms || [];
+
+    // Fallback: AI returned no rooms — synthesize a "General Requirements" section
+    // so the quotation form always opens with at least one pre-filled section
+    if (rawRooms.length === 0) {
+      const fallbackDesc = [ex.notes, ex.budget_indication].filter(Boolean).join(' · ');
+      rawRooms = [{
+        room_name: 'General Requirements',
+        items: [{
+          item_name: ex.project_name ? `${ex.project_name} — Project Scope` : 'Project Requirements',
+          description: fallbackDesc || 'As per client discussion',
+          specifications: fallbackDesc || '',
+          item_type: 'other',
+          unit: 'Lot',
+          qty: 1,
+          unit_price: 0,
+          inferred_hsn: '',
+        }],
+      }];
+    }
+
+    const sections = rawRooms.map((room, i) => ({
       section_name: room.room_name, section_order: i, section_total: 0,
       items: (room.items || []).map(it => ({
         item_name: it.item_name || '',
@@ -1035,32 +923,33 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
       client_name: ex.client_name || '', client_phone: ex.client_phone || '',
       client_email: ex.client_email || '', project_name: ex.project_name || '',
       project_address: ex.project_address || '', project_type: ex.project_type || 'Residential',
+      designer_name: ex.designer_name || '',
       notes: ex.notes || '', sections,
     });
   };
 
-  // Check image sizes before scan
-  const oversized = files.filter(f => f.size > 4 * 1024 * 1024);
+  // Size limit: 15 MB for documents/PDFs, 4 MB for images
+  const oversized = files.filter(f => f.size > (mode === 'doc' ? 15 : 4) * 1024 * 1024);
 
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 800, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+      <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 800, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'linear-gradient(135deg,rgba(8,145,178,0.08),transparent)' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'linear-gradient(135deg,#0f2744 0%,#15803d 100%)', borderRadius: '14px 14px 0 0' }}>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 15 }}>📱 WhatsApp / Document / Image Scanner</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Paste text, upload files (PDF, Word, Excel) or photos — AI reads everything and builds your BOQ</div>
+            <div style={{ fontWeight: 900, fontSize: 15, color: '#ffffff' }}>📱 WhatsApp / Document / Image Scanner</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Paste text, upload files (PDF, Word, Excel) or photos — AI reads everything and builds your BOQ</div>
           </div>
-          <button onClick={onClose} style={CLOSE_BTN}>✕</button>
+          <button onClick={onClose} style={{ background:'rgba(220,38,38,0.2)', border:'1px solid rgba(220,38,38,0.4)', color:'#fca5a5', borderRadius:7, padding:'5px 10px', fontSize:13, cursor:'pointer', fontWeight:700 }}>✕</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
 
           {/* Mode tabs */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
-            {[['text','💬 Text / WhatsApp'], ['file','📄 Files / Photos']].map(([m, l]) => (
-              <button key={m} onClick={() => { setMode(m); }} style={{ ...SEC_BTN, background: mode === m ? 'rgba(8,145,178,0.12)' : 'transparent', color: mode === m ? '#0891b2' : 'var(--muted)', borderColor: mode === m ? '#0891b2' : 'var(--border)', fontWeight: mode === m ? 700 : 600 }}>{l}</button>
+            {[['text','💬 Text / WhatsApp'], ['doc','📄 AI Document Parser']].map(([m, l]) => (
+              <button key={m} onClick={() => { setMode(m); setResult(null); }} style={{ ...SEC_BTN, background: mode === m ? 'rgba(8,145,178,0.12)' : 'transparent', color: mode === m ? '#0891b2' : 'var(--muted)', borderColor: mode === m ? '#0891b2' : 'var(--border)', fontWeight: mode === m ? 700 : 600 }}>{l}</button>
             ))}
           </div>
 
@@ -1070,20 +959,23 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
               value={text} onChange={e => setText(e.target.value)} />
           )}
 
-          {mode === 'file' && (
+          {mode === 'doc' && (
             <div>
+              <div style={{ background: 'rgba(8,145,178,0.05)', border: '1px solid rgba(8,145,178,0.18)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+                Upload any customer requirement file — handwritten PDFs, scanned documents, Word, Excel, CSV, or photos. AI reads every line and auto-fills rooms, items, dimensions &amp; HSN codes.
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
                 <input ref={fileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ods,.csv,.txt,image/*" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
                 <button onClick={() => fileRef.current.click()} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', padding: '8px 16px', fontSize: 12 }}>
                   📎 Add Files ({files.length})
                 </button>
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>PDF · Word · Excel · CSV · Images (max 4 MB per image)</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>PDF · Word · Excel · CSV · Images (max 15 MB)</span>
               </div>
 
               {/* Oversized warning */}
               {oversized.length > 0 && (
                 <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 10 }}>
-                  ⚠ {oversized.map(f => f.name).join(', ')} {oversized.length === 1 ? 'is' : 'are'} over 4 MB (images only). Please compress or reduce resolution before uploading.
+                  ⚠ {oversized.map(f => f.name).join(', ')} {oversized.length === 1 ? 'is' : 'are'} over 15 MB. Please compress or split before uploading.
                 </div>
               )}
 
@@ -1094,7 +986,7 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
                     return (
                       <div key={i} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         {isImg ? (
-                          <img src={URL.createObjectURL(f)} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: `2px solid ${f.size > 4*1024*1024 ? '#dc2626' : 'var(--border)'}` }} />
+                          <img src={URL.createObjectURL(f)} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: `2px solid ${f.size > 15*1024*1024 ? '#dc2626' : 'var(--border)'}` }} />
                         ) : (
                           <div style={{ width: 80, height: 80, borderRadius: 8, border: '2px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontSize: 28 }}>
                             {FILE_ICON(f.name)}
@@ -1116,10 +1008,45 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
           <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
             <button onClick={scan} disabled={scanning || oversized.length > 0}
               style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: (scanning || oversized.length > 0) ? 0.5 : 1, fontSize: 13, padding: '10px 22px' }}>
-              {scanning ? '⏳ AI Reading…' : mode === 'file' ? '⚡ Parse Files & Extract' : '⚡ Scan & Extract'}
+              {scanning && mode === 'doc'
+                ? parseStep === 2 ? '🧠 Step 2/2: Building BOQ…' : '📖 Step 1/2: Reading Document…'
+                : scanning ? '⏳ AI Reading…'
+                : mode === 'doc' ? '⚡ Extract & Build Quote' : '⚡ Scan & Extract'}
             </button>
-            {scanning && <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>GPT-4o is analysing your requirements…</span>}
+            {scanning && mode !== 'doc' && <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>GPT-4o is analysing your requirements…</span>}
           </div>
+          {scanning && mode === 'doc' && (
+            <div style={{ fontSize: 11, color: '#0891b2', background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.15)', borderRadius: 7, padding: '8px 12px', marginTop: 8 }}>
+              {parseStep === 2
+                ? '🧠 Structuring extracted text into room-wise BOQ sections…'
+                : '📖 AI is reading every line of the document — handwriting, dimensions, item names…'}
+              <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>This takes 15–25 seconds for scanned/handwritten documents</span>
+            </div>
+          )}
+
+          {/* Scanner empty state */}
+          {!result && !scanning && (
+            <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '0 16px' }}>
+              <div style={{ fontSize: 52, marginBottom: 14, lineHeight: 1 }}>🤖</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', marginBottom: 8, fontFamily:"'Inter',-apple-system,sans-serif", letterSpacing: '-0.3px' }}>AI Scanner Ready</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.65, marginBottom: 22, maxWidth: 300 }}>
+                Paste a WhatsApp message or upload files — AI extracts room-by-room requirements and builds your complete BOQ in seconds.
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'center', marginBottom: 22 }}>
+                {['⚡ Room detection', '📐 Dimensions', '🧠 HSN inference', '✓ GST-ready BOQ'].map(f => (
+                  <span key={f} style={{ fontSize: 11, background: 'rgba(124,58,237,0.08)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 20, padding: '5px 13px', fontWeight: 600, whiteSpace: 'nowrap' }}>{f}</span>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, width: '100%', maxWidth: 300 }}>
+                {[['10+','Room types'],['< 5s','AI extract'],['18%','GST ready']].map(([v,l]) => (
+                  <div key={l} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', fontFamily:"'JetBrains Mono','Courier New',monospace" }}>{v}</div>
+                    <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, marginTop: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Results area */}
           {result?.extracted && (
@@ -1145,23 +1072,45 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
               )}
 
               {/* AI source badge */}
-              {result.data_source === 'ai' && (
-                <div style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#16a34a', marginBottom: 12, fontWeight: 700 }}>
-                  ✅ Live AI extraction — {(result.extracted.rooms || []).reduce((s, r) => s + (r.items||[]).length, 0)} items extracted from your {result.extracted.rooms?.length || 0} room(s)
-                </div>
-              )}
+              {result.data_source === 'ai' && (() => {
+                const totalItems = (result.extracted.rooms || []).reduce((s, r) => s + (r.items||[]).length, 0);
+                const roomCount = result.extracted.rooms?.length || 0;
+                return (
+                  <div style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#16a34a', marginBottom: 12, fontWeight: 700 }}>
+                    {totalItems > 0
+                      ? `✅ Live AI extraction — ${totalItems} items across ${roomCount} room(s)`
+                      : '✅ Live AI extraction — project details captured below'}
+                  </div>
+                );
+              })()}
 
               {/* Result header + summary */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 14 }}>{result.extracted.project_name || 'Extracted Requirements'}</div>
                   {result.extracted.client_name && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Client: {result.extracted.client_name}{result.extracted.no_of_units ? ` · ${result.extracted.no_of_units} units` : ''}{result.extracted.no_of_bathrooms_per_unit ? ` · ${result.extracted.no_of_bathrooms_per_unit} baths/unit` : ''}</div>}
+                  {result.extracted.project_address && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{result.extracted.project_address}</div>}
                 </div>
                 {/* ALWAYS shown — primary CTA */}
                 <button onClick={useResult} style={{ ...PRI_BTN, fontSize: 13, padding: '10px 22px', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', boxShadow: '0 4px 14px rgba(124,58,237,0.4)' }}>
                   ✅ Create Quotation →
                 </button>
               </div>
+
+              {/* Empty-rooms message — shown when AI extracted client/project info but no room items */}
+              {(result.extracted.rooms || []).length === 0 && !result.scan_error && (
+                <div style={{ background: 'rgba(124,58,237,0.05)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 8, padding: '14px 16px', marginBottom: 10 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#7c3aed', marginBottom: 5 }}>📋 Project details extracted — no specific products identified</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.65 }}>
+                    The document doesn&apos;t contain specific product names or SKUs. Click <strong style={{ color: 'var(--text)' }}>Create Quotation →</strong> to open a pre-filled form — a &quot;General Requirements&quot; section will be added so you can start filling in items immediately.
+                  </div>
+                  {(result.extracted.notes || result.extracted.budget_indication) && (
+                    <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--card)', borderRadius: 6, fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, borderLeft: '3px solid rgba(124,58,237,0.4)' }}>
+                      {[result.extracted.notes, result.extracted.budget_indication].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {(result.extracted.rooms || []).map((room, ri) => (
                 <div key={ri} style={{ background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 10, overflow: 'hidden' }}>
@@ -1229,7 +1178,7 @@ function DqbImageSearchModal({ sectionName, onClose, onAddItem }) {
 
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 820, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+      <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 820, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontWeight: 900, fontSize: 15 }}>📷 Search by Photo{sectionName ? ` — ${sectionName}` : ''}</span>
           <button onClick={onClose} style={CLOSE_BTN}>✕</button>
@@ -1358,19 +1307,22 @@ function ProposalFormModal({ proposal, onClose, onSaved }) {
 
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 780, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontWeight: 900, fontSize: 16 }}>{isEdit ? '✏️ Edit Proposal' : '+ New Architect Proposal'}</span>
+      <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 780, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: isEdit ? 'linear-gradient(135deg,#1e3a5f 0%,#3730a3 100%)' : 'linear-gradient(135deg,#0f2744 0%,#6366f1 100%)', borderRadius: '14px 14px 0 0' }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 16, color: '#ffffff' }}>{isEdit ? '✏️ Edit Architect Proposal' : '📐 New Architect Proposal'}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Fee % · Per Sqft · Lump Sum · Phase scheduling · SAC 998331 · GST 18%</div>
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowBrief(true)} style={{ ...SEC_BTN, color: '#6366f1', borderColor: 'rgba(99,102,241,0.4)' }}>🤖 Parse Brief</button>
+            <button onClick={() => setShowBrief(true)} style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.22)', color:'#ffffff', borderRadius:7, padding:'6px 12px', fontSize:12, cursor:'pointer', fontWeight:600 }}>🤖 Parse Brief</button>
             <button onClick={save} disabled={saving} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#6366f1,#818cf8)', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : '💾 Save'}</button>
-            <button onClick={onClose} style={CLOSE_BTN}>✕</button>
+            <button onClick={onClose} style={{ background:'rgba(220,38,38,0.2)', border:'1px solid rgba(220,38,38,0.4)', color:'#fca5a5', borderRadius:7, padding:'5px 10px', fontSize:13, cursor:'pointer', fontWeight:700 }}>✕</button>
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18, background: '#f4f5f7' }}>
           {showBrief && (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>🤖 AI Architect Brief Parser</div>
+            <div style={{ background: '#ffffff', border: '1px solid rgba(99,102,241,0.28)', borderRadius: 10, padding: 14, marginBottom: 14, boxShadow: '0 1px 3px rgba(13,27,46,0.05)' }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#4338ca', marginBottom: 8 }}>🤖 AI Architect Brief Parser</div>
               <textarea style={{ ...INP, height: 90 }} placeholder="Describe the project…" value={briefText} onChange={e => setBriefText(e.target.value)} />
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button onClick={parseBrief} disabled={parsing} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#6366f1,#818cf8)', opacity: parsing ? 0.6 : 1 }}>{parsing ? 'Parsing…' : '⚡ Parse'}</button>
@@ -1379,81 +1331,91 @@ function ProposalFormModal({ proposal, onClose, onSaved }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-            <div><label style={LBL}>Client Name *</label><input style={INP} value={form.client_name} onChange={e => setF('client_name', e.target.value)} /></div>
-            <div><label style={LBL}>Phone</label><input style={INP} value={form.client_phone} onChange={e => setF('client_phone', e.target.value)} /></div>
-            <div><label style={LBL}>Email</label><input style={INP} value={form.client_email} onChange={e => setF('client_email', e.target.value)} /></div>
-            <div style={{ gridColumn: '1/-1' }}><label style={LBL}>Project Name</label><input style={INP} value={form.project_name} onChange={e => setF('project_name', e.target.value)} /></div>
-            <div><label style={LBL}>Project Type</label>
-              <select style={INP} value={form.project_type} onChange={e => setF('project_type', e.target.value)}>
-                {['residential','commercial','institutional','landscape','renovation','interior_only'].map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div><label style={LBL}>Typology</label>
-              <select style={INP} value={form.typology} onChange={e => setF('typology', e.target.value)}>
-                {['villa','row_house','apartment','duplex','office','retail','hotel','school','hospital','other'].map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div><label style={LBL}>Status</label>
-              <select style={INP} value={form.status} onChange={e => setF('status', e.target.value)}>
-                {Object.entries(P_STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_PRP}>👤 Client &amp; Project Details</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div><label style={LBL}>Client Name *</label><input style={INP} value={form.client_name} onChange={e => setF('client_name', e.target.value)} /></div>
+              <div><label style={LBL}>Phone</label><input style={INP} value={form.client_phone} onChange={e => setF('client_phone', e.target.value)} /></div>
+              <div><label style={LBL}>Email</label><input style={INP} value={form.client_email} onChange={e => setF('client_email', e.target.value)} /></div>
+              <div style={{ gridColumn: '1/-1' }}><label style={LBL}>Project Name</label><input style={INP} value={form.project_name} onChange={e => setF('project_name', e.target.value)} /></div>
+              <div><label style={LBL}>Project Type</label>
+                <select style={SEL} value={form.project_type} onChange={e => setF('project_type', e.target.value)}>
+                  {['residential','commercial','institutional','landscape','renovation','interior_only'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><label style={LBL}>Typology</label>
+                <select style={SEL} value={form.typology} onChange={e => setF('typology', e.target.value)}>
+                  {['villa','row_house','apartment','duplex','office','retail','hotel','school','hospital','other'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><label style={LBL}>Status</label>
+                <select style={SEL} value={form.status} onChange={e => setF('status', e.target.value)}>
+                  {Object.entries(P_STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* Plot dimensions */}
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Plot & Area</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10, marginBottom: 10 }}>
-            <div><label style={LBL}>Length</label><input style={INP} type="number" value={form.plot_length} onChange={e => setF('plot_length', e.target.value)} /></div>
-            <div><label style={LBL}>Width</label><input style={INP} type="number" value={form.plot_width} onChange={e => setF('plot_width', e.target.value)} /></div>
-            <div><label style={LBL}>Unit</label>
-              <select style={INP} value={form.plot_unit} onChange={e => setF('plot_unit', e.target.value)}>
-                <option>feet</option><option>meter</option>
-              </select>
+          {/* Plot & Area */}
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_PRP}>📐 Plot &amp; Area</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10, marginBottom: areaCalc ? 12 : 0 }}>
+              <div><label style={LBL}>Length</label><input style={INP} type="number" value={form.plot_length} onChange={e => setF('plot_length', e.target.value)} /></div>
+              <div><label style={LBL}>Width</label><input style={INP} type="number" value={form.plot_width} onChange={e => setF('plot_width', e.target.value)} /></div>
+              <div><label style={LBL}>Unit</label>
+                <select style={SEL} value={form.plot_unit} onChange={e => setF('plot_unit', e.target.value)}>
+                  <option>feet</option><option>meter</option>
+                </select>
+              </div>
+              <div><label style={LBL}>Floors</label><input style={INP} type="number" value={form.floors} onChange={e => setF('floors', +e.target.value)} /></div>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}><button onClick={calcAreas} style={{ ...SEC_BTN, width: '100%', borderColor: 'rgba(99,102,241,0.4)', color: '#4338ca', fontWeight: 700 }}>⚡ Calculate</button></div>
             </div>
-            <div><label style={LBL}>Floors</label><input style={INP} type="number" value={form.floors} onChange={e => setF('floors', +e.target.value)} /></div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}><button onClick={calcAreas} style={{ ...SEC_BTN, width: '100%' }}>Calculate</button></div>
-          </div>
-          {areaCalc && (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-              {[['Site Area', areaCalc.site_area_sqft], ['Built-Up', areaCalc.builtup_area_sqft], ['Carpet', areaCalc.carpet_area_sqft]].map(([l, v]) => (
-                <div key={l} style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
-                  <div style={{ color: '#6366f1', fontWeight: 700, fontSize: 16 }}>{Number(v).toLocaleString('en-IN')}</div>
-                  <div style={{ color: 'var(--muted)' }}>{l} (sqft)</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Fee */}
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Fee Structure</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 14 }}>
-            <div><label style={LBL}>Fee Model</label>
-              <select style={INP} value={form.fee_model} onChange={e => setF('fee_model', e.target.value)}>
-                <option value="percentage">Percentage</option>
-                <option value="per_sqft">Per Sqft</option>
-                <option value="lump_sum">Lump Sum</option>
-              </select>
-            </div>
-            <div><label style={LBL}>{form.fee_model === 'percentage' ? 'Fee %' : form.fee_model === 'per_sqft' ? '₹/sqft' : 'Amount ₹'}</label><input style={INP} type="number" value={form.fee_rate} onChange={e => setF('fee_rate', +e.target.value)} /></div>
-            {form.fee_model === 'percentage' && <div><label style={LBL}>Construction Cost ₹</label><input style={INP} type="number" value={form.construction_cost} onChange={e => setF('construction_cost', e.target.value)} /></div>}
-            <div><label style={LBL}>GST %</label><input style={INP} type="number" value={form.gst_pct} onChange={e => setF('gst_pct', +e.target.value)} /></div>
+            {areaCalc && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                {[['Site Area', areaCalc.site_area_sqft], ['Built-Up', areaCalc.builtup_area_sqft], ['Carpet', areaCalc.carpet_area_sqft]].map(([l, v]) => (
+                  <div key={l} style={{ background: 'rgba(99,102,241,0.07)', border: '1.5px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '8px 14px', fontSize: 12, minWidth: 120 }}>
+                    <div style={{ color: '#4338ca', fontWeight: 800, fontSize: 18 }}>{Number(v).toLocaleString('en-IN')}</div>
+                    <div style={{ color: '#5e748a', marginTop: 2 }}>{l} (sqft)</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, fontSize: 13, marginBottom: 14, background: 'var(--bg)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
-            <span>Total Fee: <strong style={{ color: '#6366f1' }}>{fmtC(totalFee)}</strong></span>
-            <span>GST @{form.gst_pct}%: <strong>{fmtC(gstAmt)}</strong></span>
-            <span>Payable: <strong style={{ fontSize: 15, color: '#6366f1' }}>{fmtC(totalFee + gstAmt)}</strong></span>
+          {/* Fee Structure */}
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_PRP}>💰 Fee Structure</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 12 }}>
+              <div><label style={LBL}>Fee Model</label>
+                <select style={SEL} value={form.fee_model} onChange={e => setF('fee_model', e.target.value)}>
+                  <option value="percentage">Percentage</option>
+                  <option value="per_sqft">Per Sqft</option>
+                  <option value="lump_sum">Lump Sum</option>
+                </select>
+              </div>
+              <div><label style={LBL}>{form.fee_model === 'percentage' ? 'Fee %' : form.fee_model === 'per_sqft' ? '₹/sqft' : 'Amount ₹'}</label><input style={INP} type="number" value={form.fee_rate} onChange={e => setF('fee_rate', +e.target.value)} /></div>
+              {form.fee_model === 'percentage' && <div><label style={LBL}>Construction Cost ₹</label><input style={INP} type="number" value={form.construction_cost} onChange={e => setF('construction_cost', e.target.value)} /></div>}
+              <div><label style={LBL}>GST %</label><input style={INP} type="number" value={form.gst_pct} onChange={e => setF('gst_pct', +e.target.value)} /></div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 20, fontSize: 13, background: '#f4f5f7', padding: '10px 14px', borderRadius: 8, border: '1px solid #e4e6eb' }}>
+              <span style={{ color: '#5e748a' }}>Total Fee: <strong style={{ color: '#4338ca', fontSize: 14 }}>{fmtC(totalFee)}</strong></span>
+              <span style={{ color: '#5e748a' }}>GST @{form.gst_pct}%: <strong style={{ color: '#0d1b2e' }}>{fmtC(gstAmt)}</strong></span>
+              <span style={{ color: '#5e748a' }}>Payable: <strong style={{ fontSize: 16, color: '#4338ca' }}>{fmtC(totalFee + gstAmt)}</strong></span>
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={LBL}>Validity (days)</label><input style={INP} type="number" value={form.validity_days} onChange={e => setF('validity_days', +e.target.value)} /></div>
-            <div><label style={LBL}>Complexity</label>
-              <select style={INP} value={form.complexity} onChange={e => setF('complexity', e.target.value)}>
-                <option>simple</option><option>medium</option><option>complex</option>
-              </select>
+          {/* Validity, Complexity & Notes */}
+          <div style={FIELD_CARD}>
+            <div style={SEC_HDR_PRP}>⚙️ Settings &amp; Notes</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><label style={LBL}>Validity (days)</label><input style={INP} type="number" value={form.validity_days} onChange={e => setF('validity_days', +e.target.value)} /></div>
+              <div><label style={LBL}>Complexity</label>
+                <select style={SEL} value={form.complexity} onChange={e => setF('complexity', e.target.value)}>
+                  <option>simple</option><option>medium</option><option>complex</option>
+                </select>
+              </div>
+              <div style={{ gridColumn: '1/-1' }}><label style={LBL}>Notes</label><textarea style={{ ...INP, height: 60 }} value={form.notes} onChange={e => setF('notes', e.target.value)} /></div>
             </div>
-            <div style={{ gridColumn: '1/-1' }}><label style={LBL}>Notes</label><textarea style={{ ...INP, height: 60 }} value={form.notes} onChange={e => setF('notes', e.target.value)} /></div>
           </div>
         </div>
       </div>
@@ -1553,7 +1515,7 @@ function ProposalDetailModal({ proposal: initialProposal, onClose, onEdit, onSta
 
   return (
     <div style={MODAL_BG} onClick={onClose}>
-      <div style={{ ...MODAL_BOX, maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+      <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontWeight: 800, fontSize: 16 }}>{proposal.proposal_number}</span>
@@ -1682,13 +1644,14 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
     try {
       const params = new URLSearchParams();
       if (statusFilter) params.set('status', statusFilter);
+      if (search) params.set('search', search);
       const r = await fetch(`/api/design-quotes/architect/proposals?${params}`);
       const d = await r.json();
       setProposals(d.proposals || []);
       setDataSource(d.data_source || 'demo');
     } catch { /* keep existing */ }
     finally { setLoading(false); }
-  }, [statusFilter]);
+  }, [statusFilter, search]);
 
   useEffect(() => { setLoading(true); if (tab === 'quotes') fetchQuotes(); else fetchProposals(); }, [tab, fetchQuotes, fetchProposals]);
 
@@ -1820,16 +1783,14 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
       </div>
 
       {/* ══ BODY ══ */}
-      <div style={{ padding:'0 40px 40px', background:'var(--card)', borderLeft:'1px solid var(--border)', borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', marginBottom:24 }}>
+      <div className="dqs-content" style={{ padding:'0 40px 40px', background:'#f4f5f7', borderLeft:'1px solid #d8dce3', borderRight:'1px solid #d8dce3', borderBottom:'1px solid #d8dce3', marginBottom:24 }}>
 
         {/* Toolbar */}
         <div style={{ display:'flex',gap:10,alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap' }}>
-          {tab === 'quotes' && (
-            <div style={{ position:'relative',flex:'1 1 240px',maxWidth:300 }}>
-              <span style={{ position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'var(--muted)',fontSize:13,pointerEvents:'none' }}>🔍</span>
-              <input style={{ ...INP,paddingLeft:34,fontSize:12.5,borderRadius:8 }} placeholder="Search client, project, quote#…" value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-          )}
+          <div style={{ position:'relative',flex:'1 1 240px',maxWidth:300 }}>
+            <span style={{ position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'var(--muted)',fontSize:13,pointerEvents:'none' }}>🔍</span>
+            <input style={{ ...INP,paddingLeft:34,fontSize:12.5,borderRadius:8,background:'#ffffff',border:'1.5px solid #d8dce3',color:'#0d1b2e' }} placeholder={tab==='quotes'?'Search client, project, quote#…':'Search client, project, proposal#…'} value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
           <div style={{ display:'flex',gap:5,flexWrap:'wrap' }}>
             {[['','All'],...Object.entries(tab==='quotes'?Q_STATUS:P_STATUS).map(([k,v])=>[k,v.label])].map(([k,lbl]) => {
               const v=(tab==='quotes'?Q_STATUS:P_STATUS)[k]||{};
@@ -1862,14 +1823,14 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
             ) : (
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                 <thead>
-                  <tr style={{ borderBottom:'2px solid var(--border)' }}>
+                  <tr style={{ background:'linear-gradient(135deg,#0a1628 0%,#162236 100%)' }}>
                     {mergeMode && <th style={{ padding:'11px 10px', width:36 }}></th>}
-                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Quote</th>
-                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Client & Project</th>
-                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Status</th>
-                    <th style={{ padding:'11px 14px', textAlign:'right', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Value</th>
-                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Validity</th>
-                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Rooms</th>
+                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Quote</th>
+                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Client & Project</th>
+                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Status</th>
+                    <th style={{ padding:'11px 14px', textAlign:'right', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Value</th>
+                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Validity</th>
+                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Rooms</th>
                     <th style={{ padding:'11px 14px', width:140 }}></th>
                   </tr>
                 </thead>
@@ -1877,6 +1838,13 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
                   {quotes.map(q => {
                     const expired = q.valid_till && new Date(q.valid_till) < new Date() && !['APPROVED','COMPLETED','CANCELLED'].includes(q.status);
                     const sc = Q_STATUS[q.status] || Q_STATUS.DRAFT;
+                    const daysSince = q.created_at ? Math.floor((new Date() - new Date(q.created_at)) / 86400000) : null;
+                    const ageStyle = daysSince === null ? null :
+                      daysSince <= 2  ? { bg:'rgba(22,163,74,.1)',  tc:'#16a34a', bc:'rgba(22,163,74,.25)',  lbl:'NEW' } :
+                      daysSince <= 7  ? { bg:'rgba(139,92,246,.1)', tc:'#8b5cf6', bc:'rgba(139,92,246,.25)', lbl:`${daysSince}d` } :
+                      daysSince <= 30 ? { bg:'#f0f1f4',             tc:'#5e748a', bc:'#d8dce3',              lbl:`${daysSince}d` } :
+                      daysSince <= 90 ? { bg:'rgba(217,119,6,.07)', tc:'#d97706', bc:'rgba(217,119,6,.2)',   lbl:`${Math.floor(daysSince/7)}w` } :
+                                        { bg:'rgba(220,38,38,.07)', tc:'#dc2626', bc:'rgba(220,38,38,.2)',   lbl:`${Math.floor(daysSince/30)}m` };
                     return (
                       <tr key={q.id}
                         onClick={() => !mergeMode && setViewQuote(q)}
@@ -1895,7 +1863,10 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
                           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                             <div style={{ width:4, height:38, borderRadius:4, background: sc.color, flexShrink:0 }} />
                             <div>
-                              <div style={{ fontWeight:800, fontSize:13, color:'#9333ea', letterSpacing:'-0.2px' }}>{q.quote_number}</div>
+                              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                                <div style={{ fontWeight:800, fontSize:13, color:'#9333ea', letterSpacing:'-0.2px' }}>{q.quote_number}</div>
+                                {ageStyle && <span style={{ fontSize:8, borderRadius:3, padding:'1px 5px', fontWeight:700, fontFamily:"'JetBrains Mono','Courier New',monospace", whiteSpace:'nowrap', lineHeight:'14px', background:ageStyle.bg, color:ageStyle.tc, border:`1px solid ${ageStyle.bc}` }}>{ageStyle.lbl}</span>}
+                              </div>
                               <div style={{ fontSize:11, color:'var(--muted)', marginTop:1 }}>{q.created_at || '—'}</div>
                             </div>
                           </div>
@@ -1952,13 +1923,13 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
             ) : (
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                 <thead>
-                  <tr style={{ borderBottom:'2px solid var(--border)' }}>
-                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Proposal</th>
-                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Client & Project</th>
-                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Status</th>
-                    <th style={{ padding:'11px 14px', textAlign:'right', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Total Fee</th>
-                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Validity</th>
-                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'var(--muted)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Phases</th>
+                  <tr style={{ background:'linear-gradient(135deg,#0a1628 0%,#162236 100%)' }}>
+                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Proposal</th>
+                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Client & Project</th>
+                    <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Status</th>
+                    <th style={{ padding:'11px 14px', textAlign:'right', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Total Fee</th>
+                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Validity</th>
+                    <th style={{ padding:'11px 14px', textAlign:'center', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Phases</th>
                     <th style={{ padding:'11px 14px', width:120 }}></th>
                   </tr>
                 </thead>
