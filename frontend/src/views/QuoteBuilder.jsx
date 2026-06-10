@@ -2146,6 +2146,10 @@ function QuoteRow({ q, onView, onEdit, onAskAI, onClone, isSelected, onToggleSel
             <button className="qb-view-btn" style={{ background:'rgba(8,145,178,0.1)', color:'#0891b2', border:'1px solid rgba(8,145,178,0.3)', fontWeight:700 }}
               onClick={e => { e.stopPropagation(); onQuickStatus(q, 'SENT'); }} title="Mark as Sent to customer">📤</button>
           )}
+          {onQuickStatus && q.status === 'SENT' && (
+            <button className="qb-view-btn" style={{ background:'rgba(6,182,212,0.1)', color:'#0284c7', border:'1px solid rgba(2,132,199,0.3)', fontWeight:700, fontSize:10, padding:'3px 8px' }}
+              onClick={e => { e.stopPropagation(); onQuickStatus(q, 'NEGOTIATING'); }} title="Customer has responded — mark as Negotiating">⇄ Neg.</button>
+          )}
           {onQuickStatus && (q.status === 'SENT' || q.status === 'NEGOTIATING') && (<>
             <button className="qb-view-btn" style={{ background:'rgba(22,163,74,0.1)', color:'#16a34a', border:'1px solid rgba(22,163,74,0.3)', fontWeight:700 }}
               onClick={e => { e.stopPropagation(); onQuickStatus(q, 'WON'); }} title="Mark as Won">✓</button>
@@ -4923,7 +4927,11 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                     isSelected={selectedIds.includes(q.quote_id)}
                     onToggleSelect={toggleSelect}
                     onQuickStatus={handleQuickStatus}
-                    onAskAI={onGoChat ? (q) => onGoChat(`Analyse quotation ${q.quote_number} for ${q.customer_name} — value: ${fmtL(q.total)}, margin: ${q.avg_margin_pct || 0}%, status: ${q.status}, valid till: ${q.valid_till}. What is my win probability, what negotiation strategy should I use, and what follow-up should I do today?`) : null}
+                    onAskAI={onGoChat ? (q) => onGoChat(
+                      (q.status === 'SENT' || q.status === 'NEGOTIATING')
+                        ? `Write a personalised WhatsApp follow-up message for my customer ${q.customer_name} about quotation ${q.quote_number} (₹${(q.total||0).toLocaleString('en-IN')}). The quote is in "${q.status}" status and has been open for ${Math.floor((Date.now() - new Date(q.created_at||Date.now()))/86400000)} days. Make it professional, friendly, and gently push toward closing the deal.`
+                        : `Analyse quotation ${q.quote_number} for ${q.customer_name} — value: ${fmtL(q.total)}, margin: ${q.avg_margin_pct || 0}%, status: ${q.status}, valid till: ${q.valid_till}. What is my win probability, what negotiation strategy should I use, and what follow-up should I do today?`
+                    ) : null}
                   />
                 ))}
               </tbody>

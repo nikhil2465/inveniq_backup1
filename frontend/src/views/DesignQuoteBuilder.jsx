@@ -1840,10 +1840,16 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
 
   // ── Inline approval action (from list row) ──
   const handleInlineApproval = useCallback(async (quoteId, action) => {
+    let notes = '';
+    if (action === 'REJECT') {
+      const reason = window.prompt('Reason for returning to draft (optional):');
+      if (reason === null) return; // user cancelled
+      notes = reason.trim();
+    }
     try {
       const r = await fetch(`/api/design-quotes/${quoteId}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...(notes ? { notes } : {}) }),
       });
       const d = await r.json();
       if (r.ok) {
@@ -2060,7 +2066,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
             ['quotes',    '🏠 Interior Quotations', quotes.length],
             ['proposals', '📐 Architect Proposals',  proposals.length],
           ].map(([t,lbl,cnt]) => (
-            <button key={t} onClick={() => { setTab(t); setStatusFilter(''); setSearch(''); }} style={{
+            <button key={t} onClick={() => { setTab(t); setStatusFilter(''); setSearch(''); if (['grand_total','total_fee'].includes(sortBy)) setSortBy('created_at'); }} style={{
               background: tab===t ? 'var(--card)' : 'transparent',
               color: tab===t ? '#0d9488' : 'rgba(255,255,255,0.45)',
               border: tab===t ? '1px solid var(--border)' : '1px solid transparent',
@@ -2110,8 +2116,8 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
             style={{ fontSize:11.5, fontWeight:600, border:'1.5px solid var(--border)', borderRadius:8, padding:'5px 10px', background:'#ffffff', color:'var(--muted)', cursor:'pointer', flexShrink:0 }}>
             <option value="created_at:desc">Date ↓</option>
             <option value="created_at:asc">Date ↑</option>
-            <option value="grand_total:desc">Value ↓</option>
-            <option value="grand_total:asc">Value ↑</option>
+            <option value={tab === 'proposals' ? 'total_fee:desc' : 'grand_total:desc'}>Value ↓</option>
+            <option value={tab === 'proposals' ? 'total_fee:asc' : 'grand_total:asc'}>Value ↑</option>
             <option value="client_name:asc">Client A–Z</option>
             <option value="status:asc">Status</option>
           </select>
@@ -2205,6 +2211,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                       daysSince <= 30 ? { bg:'#f0f1f4',             tc:'#5e748a', bc:'#d8dce3',              lbl:`${daysSince}d` } :
                       daysSince <= 90 ? { bg:'rgba(217,119,6,.07)', tc:'#d97706', bc:'rgba(217,119,6,.2)',   lbl:`${Math.floor(daysSince/7)}w` } :
                                         { bg:'rgba(220,38,38,.07)', tc:'#dc2626', bc:'rgba(220,38,38,.2)',   lbl:`${Math.floor(daysSince/30)}m` };
+                    const isPendingApproval = ['PENDING_L1','PENDING_L2','PENDING_L3'].includes(q.status);
                     return (
                       <tr key={q.id}
                         onClick={() => !mergeMode && setViewQuote(q)}
@@ -2223,9 +2230,12 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                             <div style={{ width:4, height:38, borderRadius:4, background: sc.color, flexShrink:0 }} />
                             <div>
-                              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
                                 <div style={{ fontWeight:800, fontSize:13, color:'#0d9488', letterSpacing:'-0.2px' }}>{q.quote_number}</div>
                                 {ageStyle && <span style={{ fontSize:8, borderRadius:3, padding:'1px 5px', fontWeight:700, fontFamily:"'JetBrains Mono','Courier New',monospace", whiteSpace:'nowrap', lineHeight:'14px', background:ageStyle.bg, color:ageStyle.tc, border:`1px solid ${ageStyle.bc}` }}>{ageStyle.lbl}</span>}
+                                {isPendingApproval && daysSince !== null && daysSince >= 3 && (
+                                  <span style={{ fontSize:8, borderRadius:3, padding:'1px 5px', fontWeight:800, fontFamily:"'JetBrains Mono','Courier New',monospace", whiteSpace:'nowrap', lineHeight:'14px', background:'rgba(220,38,38,0.07)', color:'#dc2626', border:'1px solid rgba(220,38,38,0.2)' }}>⏳ {daysSince}d pending</span>
+                                )}
                               </div>
                               <div style={{ fontSize:11, color:'var(--muted)', marginTop:1 }}>{q.created_at || '—'}</div>
                             </div>
@@ -2276,10 +2286,11 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                                 );
                               });
                             })()}
-                            {/* View & Send shortcut for approved quotes */}
-                            {q.status === 'APPROVED' && (
+                            {/* View & Send + Create Proposal shortcuts for APPROVED quotes */}
+                            {q.status === 'APPROVED' && (<>
                               <button onClick={() => setViewQuote(q)} style={{ ...SEC_BTN, padding:'3px 7px', fontSize:10, fontWeight:700, color:'#0891b2', background:'rgba(8,145,178,0.1)', borderColor:'rgba(8,145,178,0.3)' }} title="View & Send to Client">📧 Send</button>
-                            )}
+                              <button onClick={() => { setEditProposal({ client_name: q.client_name, project_name: q.project_name }); setShowProposalForm(true); }} style={{ ...SEC_BTN, padding:'3px 7px', fontSize:10, fontWeight:700, color:'#6366f1', background:'rgba(99,102,241,0.1)', borderColor:'rgba(99,102,241,0.3)' }} title="Create Architect Fee Proposal from this Quote">📐 Proposal</button>
+                            </>)}
                             <button onClick={() => setViewQuote(q)} style={{ ...SEC_BTN, padding:'4px 10px' }} title="View">👁</button>
                             <button onClick={() => { setEditQuote(q); setShowForm(true); }} style={{ ...SEC_BTN, padding:'4px 10px' }} title="Edit">✏️</button>
                             <button onClick={() => cloneQuote(q.id)} style={{ ...SEC_BTN, padding:'4px 10px' }} title="Clone">📋</button>
