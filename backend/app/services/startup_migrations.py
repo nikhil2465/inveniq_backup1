@@ -164,6 +164,34 @@ CREATE TABLE IF NOT EXISTS journal_entries (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+QUOTE_APPROVAL_HISTORY_DDL = """
+CREATE TABLE IF NOT EXISTS quote_approval_history (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    quote_id    BIGINT UNSIGNED NOT NULL,
+    level       TINYINT         NOT NULL,
+    action      VARCHAR(30)     NOT NULL,
+    actor_role  VARCHAR(50)     DEFAULT '',
+    actor_name  VARCHAR(100)    DEFAULT '',
+    notes       TEXT            DEFAULT '',
+    ai_rec      TEXT            DEFAULT '',
+    created_at  DATETIME        DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_quote_id  (quote_id),
+    INDEX idx_level     (level),
+    INDEX idx_created   (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+DESIGN_QUOTES_APPROVAL_ALTERS = [
+    # Extend status ENUM to include 3-level internal approval statuses
+    "ALTER TABLE design_quotes MODIFY COLUMN status "
+    "ENUM('DRAFT','SENT','APPROVED','REVISION','IN_PROGRESS','COMPLETED','CANCELLED',"
+    "'PENDING_L1','PENDING_L2','PENDING_L3') DEFAULT 'DRAFT'",
+    # Track which approval cycle we are on (increments each time L3 returns to L1)
+    "ALTER TABLE design_quotes ADD COLUMN IF NOT EXISTS approval_cycle  TINYINT  DEFAULT 0",
+    # Store name of who last acted on the approval (for quick display)
+    "ALTER TABLE design_quotes ADD COLUMN IF NOT EXISTS last_approver   VARCHAR(100) DEFAULT ''",
+]
+
 ALL_MIGRATIONS = [
     ("stock_movements",        STOCK_MOVEMENTS_DDL),
     ("audit_log",              AUDIT_LOG_DDL),
@@ -172,6 +200,7 @@ ALL_MIGRATIONS = [
     ("refresh_tokens",         REFRESH_TOKENS_DDL),
     ("landing_cost_sheets",    LANDING_COST_SHEETS_DDL),
     ("journal_entries",        JOURNAL_ENTRIES_DDL),
+    ("quote_approval_history", QUOTE_APPROVAL_HISTORY_DDL),
     # v3.3 — production readiness
     ("sales_invoices",         """CREATE TABLE IF NOT EXISTS sales_invoices (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, invoice_number VARCHAR(50) UNIQUE NOT NULL,
@@ -262,7 +291,7 @@ async def run_all(pool) -> dict:
             logger.error("startup_migrations: ✗ %s — %s", table_name, exc)
 
     # 2. ALTER TABLE additions (best-effort — some DBs may not support IF NOT EXISTS)
-    for stmt in PO_GRN_SCHEMA_ADDITIONS:
+    for stmt in PO_GRN_SCHEMA_ADDITIONS + DESIGN_QUOTES_APPROVAL_ALTERS:
         try:
             async with pool.acquire() as conn:
                 async with conn.cursor() as cur:

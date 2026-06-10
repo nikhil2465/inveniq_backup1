@@ -395,7 +395,7 @@ export default function App() {
             {activeView === 'pr'            && <PurchaseRequisition  onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'qc'            && <QCInspection         onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'invoicematch'  && <InvoiceMatching      onGoChat={goChat} dbStatus={dbStatus} period={period} />}
-            {activeView === 'designquote'  && <DesignQuoteBuilder   onGoChat={goChat} dbStatus={dbStatus} />}
+            {activeView === 'designquote'  && <DesignQuoteBuilder   onGoChat={goChat} dbStatus={dbStatus} currentUser={authState.user} />}
             {activeView === 'invoices'     && <Invoices             onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'reports'      && <Reports              onGoChat={goChat} dbStatus={dbStatus} period={period} />}
           </ErrorBoundary>

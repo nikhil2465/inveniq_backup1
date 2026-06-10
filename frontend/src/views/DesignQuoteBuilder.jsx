@@ -4,14 +4,48 @@ import SkeletonView from '../components/SkeletonLoader';
 
 // ── Status configs ──────────────────────────────────────────────────────────
 const Q_STATUS = {
-  DRAFT:       { label: 'Draft',       color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
-  SENT:        { label: 'Sent',        color: '#0891b2', bg: 'rgba(8,145,178,0.12)' },
-  APPROVED:    { label: 'Approved',    color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
-  REVISION:    { label: 'Revision',    color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
-  IN_PROGRESS: { label: 'In Progress', color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
-  COMPLETED:   { label: 'Completed',   color: '#059669', bg: 'rgba(5,150,105,0.12)' },
-  CANCELLED:   { label: 'Cancelled',   color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
+  DRAFT:       { label: 'Draft',           color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+  PENDING_L1:  { label: '⏳ Pending L1',   color: '#d97706', bg: 'rgba(217,119,6,0.14)' },
+  PENDING_L2:  { label: '⏳ Pending L2',   color: '#ea580c', bg: 'rgba(234,88,12,0.14)' },
+  PENDING_L3:  { label: '⏳ Pending L3',   color: '#dc2626', bg: 'rgba(220,38,38,0.14)' },
+  APPROVED:    { label: '✅ Approved',      color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
+  SENT:        { label: 'Sent to Client',  color: '#0891b2', bg: 'rgba(8,145,178,0.12)' },
+  REVISION:    { label: 'Revision',        color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+  IN_PROGRESS: { label: 'In Progress',     color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
+  COMPLETED:   { label: 'Completed',       color: '#059669', bg: 'rgba(5,150,105,0.12)' },
+  CANCELLED:   { label: 'Cancelled',       color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
 };
+
+// ── Approval workflow helpers ─────────────────────────────────────────────────
+const APPROVAL_LEVEL_LABEL = { PENDING_L1: 'L1 — Sales Manager', PENDING_L2: 'L2 — CFO', PENDING_L3: 'L3 — Admin' };
+const ACTION_LABEL = {
+  SUBMIT: '📤 Submit for Approval', APPROVE: '✅ Approve', ESCALATE_L2: '⬆️ Escalate to L2',
+  ESCALATE_L3: '⬆️ Escalate to L3', APPROVE_RETURN_L1: '✅ Approve → Return to L1', REJECT: '↩️ Return to Draft',
+};
+const ACTION_COLOR = {
+  SUBMIT: '#d97706', APPROVE: '#16a34a', ESCALATE_L2: '#ea580c',
+  ESCALATE_L3: '#dc2626', APPROVE_RETURN_L1: '#7c3aed', REJECT: '#6b7280',
+};
+const ACTION_HISTORY_LABEL = {
+  SUBMIT: '📤 Submitted', APPROVE: '✅ Approved', ESCALATE_L2: '⬆️ Escalated to L2',
+  ESCALATE_L3: '⬆️ Escalated to L3', APPROVE_RETURN_L1: '🔄 L3 Approved → Returned to L1', REJECT: '↩️ Returned to Draft',
+};
+
+// What actions are available per (status, role)
+function getAllowedActions(status, role) {
+  if (status === 'DRAFT' && ['architect','sales_manager','cfo','admin'].includes(role))
+    return ['SUBMIT'];
+  if (status === 'PENDING_L1' && ['sales_manager','admin'].includes(role))
+    return ['APPROVE','ESCALATE_L2','REJECT'];
+  if (status === 'PENDING_L2' && ['cfo','admin'].includes(role))
+    return ['APPROVE','ESCALATE_L3','REJECT'];
+  if (status === 'PENDING_L3' && role === 'admin')
+    return ['APPROVE_RETURN_L1','REJECT'];
+  return [];
+}
+
+// Form status dropdown should only show non-workflow statuses
+const Q_STATUS_FORM_OPTIONS = ['DRAFT','SENT','REVISION','IN_PROGRESS','COMPLETED','CANCELLED'];
 const P_STATUS = {
   DRAFT:     { label: 'Draft',     color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
   SENT:      { label: 'Sent',      color: '#0891b2', bg: 'rgba(8,145,178,0.12)' },
@@ -37,10 +71,10 @@ const CLOSE_BTN = { background:'rgba(220,38,38,0.1)',border:'1px solid rgba(220,
 const PRI_BTN   = { background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,cursor:'pointer',fontWeight:700 };
 const INP       = { width:'100%',background:'var(--input)',border:'1px solid var(--border)',borderRadius:7,padding:'7px 10px',fontSize:13,color:'var(--text)',boxSizing:'border-box' };
 // SEL — for <select> elements: forces light-mode OS dropdown popup, always readable
-const SEL       = { ...INP, colorScheme:'light', background:'#ffffff', color:'#0d1b2e', border:'1.5px solid #d8dce3' };
+const SEL       = { ...INP, colorScheme:'light', background:'#ffffff', color:'#0d1b2e', border:'1.5px solid #e4deff' };
 const LBL       = { fontSize:11,color:'var(--muted)',fontWeight:600,marginBottom:4,display:'block' };
 // Section card + header — used in both QuoteFormModal and ProposalFormModal for visual grouping
-const FIELD_CARD = { background:'#ffffff',borderRadius:10,border:'1px solid #e4e6eb',padding:'14px 16px',marginBottom:14,boxShadow:'0 1px 3px rgba(13,27,46,0.05)' };
+const FIELD_CARD = { background:'#ffffff',borderRadius:10,border:'1px solid #e8e3ff',padding:'14px 16px',marginBottom:14,boxShadow:'0 1px 4px rgba(109,40,217,0.06)' };
 const SEC_HDR_PRP = { fontSize:10,fontWeight:800,color:'#4338ca',textTransform:'uppercase',letterSpacing:1.1,marginBottom:12,display:'flex',alignItems:'center',gap:7,paddingLeft:9,borderLeft:'3px solid #6366f1' };
 const SEC_HDR_QTE = { fontSize:10,fontWeight:800,color:'#6d28d9',textTransform:'uppercase',letterSpacing:1.1,marginBottom:12,display:'flex',alignItems:'center',gap:7,paddingLeft:9,borderLeft:'3px solid #a855f7' };
 
@@ -325,7 +359,7 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 18, background: '#f4f5f7' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18, background: '#f7f5ff' }}>
 
           {/* QB→DQB sync banner — shown when QB data exists but expired */}
           {qbSync?.expired && (
@@ -377,7 +411,7 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
               </div>
               <div><label style={LBL}>Status</label>
                 <select style={SEL} value={form.status} onChange={e => setF('status', e.target.value)}>
-                  {Object.entries(Q_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  {Q_STATUS_FORM_OPTIONS.map(k => <option key={k} value={k}>{Q_STATUS[k]?.label || k}</option>)}
                 </select>
               </div>
               <div style={{ gridColumn: '1/-1' }}><label style={LBL}>Project Address</label><input style={INP} value={form.project_address} onChange={e => setF('project_address', e.target.value)} /></div>
@@ -398,12 +432,12 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
             <div style={SEC_HDR_QTE}>📋 BOQ Sections</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {form.sections.map((s, i) => (
-                <button key={i} onClick={() => setActiveSection(i)} style={{ ...SEC_BTN, background: activeSection === i ? 'rgba(168,85,247,0.12)' : '#f4f5f7', color: activeSection === i ? '#a855f7' : '#3d4f6b', borderColor: activeSection === i ? '#a855f7' : '#d8dce3', fontWeight: activeSection === i ? 700 : 500, boxShadow: activeSection === i ? '0 0 0 2px rgba(168,85,247,0.15)' : 'none', transition: 'all 0.12s' }}>
+                <button key={i} onClick={() => setActiveSection(i)} style={{ ...SEC_BTN, background: activeSection === i ? 'rgba(168,85,247,0.12)' : '#f7f5ff', color: activeSection === i ? '#a855f7' : '#3d4f6b', borderColor: activeSection === i ? '#a855f7' : '#e4deff', fontWeight: activeSection === i ? 700 : 500, boxShadow: activeSection === i ? '0 0 0 2px rgba(168,85,247,0.15)' : 'none', transition: 'all 0.12s' }}>
                   {s.section_name}
                 </button>
               ))}
               <div style={{ display: 'flex', gap: 6, marginLeft: 4 }}>
-                <input style={{ ...INP, width: 150, background: '#f4f5f7', border: '1.5px solid #d8dce3', color: '#0d1b2e' }} placeholder="New section name…" value={newSecName} onChange={e => setNewSecName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSection()} />
+                <input style={{ ...INP, width: 150, background: '#f7f5ff', border: '1.5px solid #e4deff', color: '#0d1b2e' }} placeholder="New section name…" value={newSecName} onChange={e => setNewSecName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSection()} />
                 <button onClick={addSection} style={{ ...PRI_BTN, padding: '7px 14px', fontSize: 12 }}>+ Add</button>
               </div>
             </div>
@@ -548,11 +582,64 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
 }
 
 // ── QuoteDetailModal (P0-5: client approval workflow) ─────────────────────────
-function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange }) {
-  const [quote, setQuote]           = useState(initialQuote);
-  const [updating, setUpdating]     = useState(false);
-  const [showEmail, setShowEmail]   = useState(false);
+function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange, currentUser }) {
+  const [quote, setQuote]             = useState(initialQuote);
+  const [updating, setUpdating]       = useState(false);
+  const [showEmail, setShowEmail]     = useState(false);
+  const [approvalHistory, setApprovalHistory] = useState([]);
+  const [approvalNotes, setApprovalNotes]     = useState('');
+  const [aiRec, setAiRec]                     = useState(null);
+  const [loadingAiRec, setLoadingAiRec]       = useState(false);
   const printRef = useRef();
+
+  const myRole = currentUser?.role || 'architect';
+  const allowedActions = getAllowedActions(quote.status, myRole);
+  const isPendingApproval = ['PENDING_L1','PENDING_L2','PENDING_L3'].includes(quote.status);
+
+  useEffect(() => {
+    fetch(`/api/design-quotes/${quote.id}/approval-history`)
+      .then(r => r.json()).then(d => setApprovalHistory(d.history || [])).catch(() => {});
+  }, [quote.id]);
+
+  const refreshHistory = async () => {
+    try {
+      const r = await fetch(`/api/design-quotes/${quote.id}/approval-history`);
+      const d = await r.json();
+      setApprovalHistory(d.history || []);
+    } catch {}
+  };
+
+  const fetchAiRec = async () => {
+    setLoadingAiRec(true);
+    try {
+      const r = await fetch(`/api/design-quotes/${quote.id}/ai-approval-recommendation`, { method: 'POST' });
+      const d = await r.json();
+      setAiRec(d);
+    } catch {}
+    finally { setLoadingAiRec(false); }
+  };
+
+  const handleApprovalAction = async (action) => {
+    setUpdating(true);
+    try {
+      const r = await fetch(`/api/design-quotes/${quote.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, notes: approvalNotes }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        const newStatus = d.new_status || d.status;
+        setQuote(q => ({ ...q, status: newStatus, approval_cycle: d.approval_cycle ?? q.approval_cycle }));
+        onStatusChange(quote.id, newStatus);
+        setApprovalNotes('');
+        await refreshHistory();
+      } else {
+        alert(d.detail || 'Action failed. You may not have permission.');
+      }
+    } catch { alert('Network error — please retry.'); }
+    finally { setUpdating(false); }
+  };
 
   const handlePrint = () => {
     const w = window.open('', '_blank');
@@ -619,31 +706,6 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
     w.document.close(); w.print();
   };
 
-  // P0-5: Client approval workflow
-  const sendForApproval = async () => {
-    setUpdating(true);
-    try {
-      await fetch(`/api/design-quotes/${quote.id}/status`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'SENT' }),
-      });
-      setQuote(q => ({ ...q, status: 'SENT' }));
-      onStatusChange(quote.id, 'SENT');
-    } finally { setUpdating(false); }
-  };
-
-  const markApproved = async () => {
-    setUpdating(true);
-    try {
-      await fetch(`/api/design-quotes/${quote.id}/status`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'APPROVED' }),
-      });
-      setQuote(q => ({ ...q, status: 'APPROVED' }));
-      onStatusChange(quote.id, 'APPROVED');
-    } finally { setUpdating(false); }
-  };
-
   const shareWhatsApp = () => {
     const text = `*Design Quote — ${quote.quote_number}*\nInvenIQ Design Studio\n\n*Client:* ${quote.client_name || '—'}\n*Project:* ${quote.project_name || '—'}\n*Rooms:* ${(quote.sections || []).length}\n\n*Total (incl. GST):* ₹${Number(quote.grand_total||0).toLocaleString('en-IN')}\n\nPlease review and confirm to proceed.\nRegards, InvenIQ Design Studio`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
@@ -656,20 +718,28 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
         {/* Header */}
         <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontWeight: 800, fontSize: 16 }}>{quote.quote_number}</span>
+            <span style={{ fontWeight: 800, fontSize: 16, fontFamily:"'Plus Jakarta Sans','Inter',-apple-system,sans-serif" }}>{quote.quote_number}</span>
             <StatusBadge status={quote.status} cfg={Q_STATUS} />
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>· {quote.client_name}</span>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {/* P0-5: Approval buttons */}
-            {quote.status === 'DRAFT' && (
-              <button onClick={sendForApproval} disabled={updating} style={{ ...SEC_BTN, color: '#d97706', borderColor: 'rgba(217,119,6,0.4)', fontWeight: 700 }}>📤 Send for Approval</button>
-            )}
-            {quote.status === 'SENT' && (
-              <button onClick={markApproved} disabled={updating} style={{ ...SEC_BTN, color: '#16a34a', borderColor: 'rgba(22,163,74,0.4)', fontWeight: 700 }}>✅ Mark Approved</button>
-            )}
+            {/* Role-aware approval workflow buttons */}
+            {allowedActions.map(action => (
+              <button key={action} onClick={() => handleApprovalAction(action)} disabled={updating}
+                style={{ ...SEC_BTN, color: ACTION_COLOR[action], borderColor: ACTION_COLOR[action]+'55', fontWeight: 700, opacity: updating ? 0.6 : 1 }}>
+                {updating ? '…' : ACTION_LABEL[action]}
+              </button>
+            ))}
             {quote.status === 'APPROVED' && (
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.3)', borderRadius: 6, padding: '4px 10px' }}>✅ Client Approved</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.3)', borderRadius: 6, padding: '4px 10px' }}>✅ Approved</span>
+            )}
+            {isPendingApproval && (
+              <span style={{ fontSize: 11, color: '#d97706', background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', borderRadius: 6, padding: '4px 10px', fontWeight: 600 }}>
+                {APPROVAL_LEVEL_LABEL[quote.status]}
+              </span>
+            )}
+            {(quote.approval_cycle > 0) && (
+              <span style={{ fontSize: 11, color: '#7c3aed', background: 'rgba(124,58,237,0.09)', borderRadius: 6, padding: '3px 8px', fontWeight: 700 }}>🔄 Cycle {quote.approval_cycle + 1}</span>
             )}
             <button onClick={shareWhatsApp} style={{ ...SEC_BTN, color: '#16a34a', borderColor: 'rgba(37,211,102,0.4)', fontWeight: 700 }}>📱 WhatsApp</button>
             <button onClick={handlePrint} style={{ ...SEC_BTN, color: '#a855f7', borderColor: 'rgba(168,85,247,0.4)' }}>🖨 Print</button>
@@ -732,6 +802,94 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
               <div style={{ fontSize: 12 }}>Designer: <strong>{quote.designer_name || '—'}</strong></div>
             </div>
           </div>
+
+          {/* ── Approval action panel (managers with allowed actions) ── */}
+          {allowedActions.length > 0 && (
+            <div style={{ background: 'rgba(217,119,6,0.05)', border: '1.5px solid rgba(217,119,6,0.25)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontWeight: 700, fontSize: 13, color: '#d97706' }}>⚡ Approval Decision</span>
+                <span style={{ fontSize: 11, color: '#6b7280', background: 'var(--bg)', borderRadius: 20, padding: '2px 9px', border: '1px solid var(--border)' }}>{APPROVAL_LEVEL_LABEL[quote.status] || quote.status}</span>
+                {!aiRec && (
+                  <button onClick={fetchAiRec} disabled={loadingAiRec} style={{ marginLeft: 'auto', fontSize: 11, color: '#7c3aed', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}>
+                    {loadingAiRec ? '🤖 Analysing…' : '🤖 Get AI Recommendation'}
+                  </button>
+                )}
+              </div>
+              {aiRec && (
+                <div style={{ background: aiRec.recommendation === 'APPROVE' ? 'rgba(22,163,74,0.07)' : 'rgba(234,88,12,0.07)', border: `1px solid ${aiRec.recommendation === 'APPROVE' ? 'rgba(22,163,74,0.3)' : 'rgba(234,88,12,0.3)'}`, borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 800, fontSize: 12, color: aiRec.recommendation === 'APPROVE' ? '#16a34a' : '#ea580c' }}>
+                      🤖 AI: {aiRec.recommendation === 'APPROVE' ? '✅ Recommend Approve' : '⬆️ Recommend Escalate'}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>Confidence: {Math.round((aiRec.confidence || 0) * 100)}%</span>
+                    <button onClick={() => setAiRec(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--muted)' }}>✕</button>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: 6 }}>{aiRec.reasoning}</div>
+                  {(aiRec.risk_factors || []).length > 0 && (
+                    <div style={{ fontSize: 11, color: '#ea580c' }}>⚠️ Risk factors: {aiRec.risk_factors.join(', ')}</div>
+                  )}
+                </div>
+              )}
+              <textarea
+                value={approvalNotes}
+                onChange={e => setApprovalNotes(e.target.value)}
+                placeholder="Optional notes for this decision (visible in approval history)…"
+                rows={2}
+                style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '8px 10px', borderRadius: 7, border: '1px solid rgba(217,119,6,0.3)', background: 'var(--card)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                {allowedActions.map(action => (
+                  <button key={action} onClick={() => handleApprovalAction(action)} disabled={updating}
+                    style={{ fontSize: 13, fontWeight: 700, padding: '7px 18px', borderRadius: 7, cursor: 'pointer', border: `1.5px solid ${ACTION_COLOR[action]}55`, background: `${ACTION_COLOR[action]}11`, color: ACTION_COLOR[action], opacity: updating ? 0.6 : 1, transition: 'all 0.12s' }}>
+                    {updating ? '…' : ACTION_LABEL[action]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Approval history timeline ── */}
+          {approvalHistory.length > 0 && (
+            <div style={{ marginBottom: 18, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.4 }}>📋 Approval History</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {approvalHistory.map((h, i) => {
+                  const isLast = i === approvalHistory.length - 1;
+                  const actionCfg = {
+                    SUBMIT:           { color: '#d97706', label: '📤 Submitted for Approval' },
+                    APPROVE:          { color: '#16a34a', label: '✅ Approved' },
+                    ESCALATE_L2:      { color: '#ea580c', label: '⬆️ Escalated to L2 (CFO)' },
+                    ESCALATE_L3:      { color: '#dc2626', label: '⬆️ Escalated to L3 (Admin)' },
+                    APPROVE_RETURN_L1:{ color: '#7c3aed', label: '🔄 L3 Approved — Returned to L1' },
+                    REJECT:           { color: '#6b7280', label: '↩️ Returned to Draft' },
+                  }[h.action] || { color: '#6b7280', label: h.action };
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 12, position: 'relative' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: actionCfg.color+'18', border: `2px solid ${actionCfg.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, zIndex: 1 }}>
+                          {h.level === 'L1' ? '①' : h.level === 'L2' ? '②' : h.level === 'L3' ? '③' : '●'}
+                        </div>
+                        {!isLast && <div style={{ width: 2, flex: 1, background: 'var(--border)', minHeight: 16, margin: '2px 0' }} />}
+                      </div>
+                      <div style={{ paddingBottom: isLast ? 0 : 14, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: 12, color: actionCfg.color }}>{actionCfg.label}</span>
+                          <span style={{ fontSize: 10, color: 'var(--muted)', background: 'var(--card)', borderRadius: 10, padding: '1px 7px', border: '1px solid var(--border)' }}>
+                            {h.actor_name || h.actor_role || 'System'} · {h.level}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{h.created_at}</div>
+                        {h.notes && <div style={{ fontSize: 11, color: 'var(--text)', marginTop: 3, fontStyle: 'italic' }}>"{h.notes}"</div>}
+                        {h.ai_rec && (
+                          <div style={{ fontSize: 10, color: '#7c3aed', marginTop: 2 }}>🤖 AI recommendation at time: {h.ai_rec}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Sections */}
           {(quote.sections || []).map((sec, si) => (
@@ -1319,7 +1477,7 @@ function ProposalFormModal({ proposal, onClose, onSaved }) {
             <button onClick={onClose} style={{ background:'rgba(220,38,38,0.2)', border:'1px solid rgba(220,38,38,0.4)', color:'#fca5a5', borderRadius:7, padding:'5px 10px', fontSize:13, cursor:'pointer', fontWeight:700 }}>✕</button>
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 18, background: '#f4f5f7' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18, background: '#f7f5ff' }}>
           {showBrief && (
             <div style={{ background: '#ffffff', border: '1px solid rgba(99,102,241,0.28)', borderRadius: 10, padding: 14, marginBottom: 14, boxShadow: '0 1px 3px rgba(13,27,46,0.05)' }}>
               <div style={{ fontWeight: 800, fontSize: 13, color: '#4338ca', marginBottom: 8 }}>🤖 AI Architect Brief Parser</div>
@@ -1397,7 +1555,7 @@ function ProposalFormModal({ proposal, onClose, onSaved }) {
               {form.fee_model === 'percentage' && <div><label style={LBL}>Construction Cost ₹</label><input style={INP} type="number" value={form.construction_cost} onChange={e => setF('construction_cost', e.target.value)} /></div>}
               <div><label style={LBL}>GST %</label><input style={INP} type="number" value={form.gst_pct} onChange={e => setF('gst_pct', +e.target.value)} /></div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 20, fontSize: 13, background: '#f4f5f7', padding: '10px 14px', borderRadius: 8, border: '1px solid #e4e6eb' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 20, fontSize: 13, background: '#f0eeff', padding: '10px 14px', borderRadius: 8, border: '1px solid #e4deff' }}>
               <span style={{ color: '#5e748a' }}>Total Fee: <strong style={{ color: '#4338ca', fontSize: 14 }}>{fmtC(totalFee)}</strong></span>
               <span style={{ color: '#5e748a' }}>GST @{form.gst_pct}%: <strong style={{ color: '#0d1b2e' }}>{fmtC(gstAmt)}</strong></span>
               <span style={{ color: '#5e748a' }}>Payable: <strong style={{ fontSize: 16, color: '#4338ca' }}>{fmtC(totalFee + gstAmt)}</strong></span>
@@ -1518,7 +1676,7 @@ function ProposalDetailModal({ proposal: initialProposal, onClose, onEdit, onSta
       <div className="dqs-modal-scope" style={{ ...MODAL_BOX, maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontWeight: 800, fontSize: 16 }}>{proposal.proposal_number}</span>
+            <span style={{ fontWeight: 800, fontSize: 16, fontFamily:"'Plus Jakarta Sans','Inter',-apple-system,sans-serif" }}>{proposal.proposal_number}</span>
             <StatusBadge status={proposal.status} cfg={P_STATUS} />
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>· {proposal.client_name}</span>
           </div>
@@ -1609,7 +1767,7 @@ function ProposalDetailModal({ proposal: initialProposal, onClose, onEdit, onSta
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
+export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) {
   const [tab, setTab]             = useState('quotes');
   const [quotes, setQuotes]       = useState([]);
   const [proposals, setProposals] = useState([]);
@@ -1626,6 +1784,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
   const [viewProposal, setViewProposal]           = useState(null);
   const [mergeMode, setMergeMode]                 = useState(false);
   const [mergeIds, setMergeIds]                   = useState([]);
+  const [pendingApprovals, setPendingApprovals]   = useState([]);
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -1654,6 +1813,13 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
   }, [statusFilter, search]);
 
   useEffect(() => { setLoading(true); if (tab === 'quotes') fetchQuotes(); else fetchProposals(); }, [tab, fetchQuotes, fetchProposals]);
+
+  useEffect(() => {
+    const role = currentUser?.role;
+    if (!role || !['sales_manager','cfo','admin'].includes(role)) return;
+    fetch('/api/design-quotes/pending-approvals')
+      .then(r => r.json()).then(d => setPendingApprovals(d.quotes || [])).catch(() => {});
+  }, [currentUser]);
 
   const deleteQuote = async (id) => {
     if (!window.confirm('Delete this quote?')) return;
@@ -1697,7 +1863,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
     <div style={{ minHeight:'100vh', background:'var(--bg)', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
 
       {/* ══ HERO ══ */}
-      <div style={{ background:'#09000f', padding:'36px 40px 0', position:'relative', overflow:'hidden' }}>
+      <div style={{ background:'linear-gradient(160deg,#110c2a 0%,#0a0618 100%)', padding:'36px 40px 0', position:'relative', overflow:'hidden' }}>
 
         {/* Single large ambient glow — top right */}
         <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(139,92,246,0.28) 0%,rgba(109,40,217,0.12) 40%,transparent 70%)',pointerEvents:'none' }} />
@@ -1712,8 +1878,8 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
             {/* Icon mark */}
             <div style={{ width:58,height:58,borderRadius:16,background:'rgba(139,92,246,0.15)',border:'1px solid rgba(139,92,246,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0,boxShadow:'0 0 0 1px rgba(139,92,246,0.1), 0 8px 32px rgba(109,40,217,0.4)' }}>🎨</div>
             <div>
-              <div style={{ fontSize:30,fontWeight:900,color:'#ffffff',letterSpacing:'-1px',lineHeight:1,marginBottom:6 }}>Design Quote Studio</div>
-              <div style={{ fontSize:12,color:'rgba(255,255,255,0.42)',letterSpacing:0.4,fontWeight:500 }}>Interior Fit-Out BOQ &nbsp;·&nbsp; Architect Fee Proposals &nbsp;·&nbsp; GST-Ready Prints</div>
+              <div style={{ fontSize:30,fontWeight:900,color:'#ffffff',letterSpacing:'-1px',lineHeight:1,marginBottom:6,fontFamily:"'Plus Jakarta Sans','Inter',-apple-system,sans-serif" }}>Design Quote Studio</div>
+              <div style={{ fontSize:12,color:'rgba(255,255,255,0.46)',letterSpacing:0.5,fontWeight:500,fontFamily:"'Inter',-apple-system,sans-serif" }}>Interior Fit-Out BOQ &nbsp;·&nbsp; Architect Fee Proposals &nbsp;·&nbsp; GST-Ready Prints</div>
               <div style={{ display:'flex',alignItems:'center',gap:10,marginTop:8 }}>
                 <DataSourceBadge source={dataSource} />
                 <span style={{ fontSize:10,color:'rgba(139,92,246,0.7)',fontWeight:700,letterSpacing:0.6,background:'rgba(139,92,246,0.12)',padding:'2px 8px',borderRadius:20,border:'1px solid rgba(139,92,246,0.25)' }}>SAC 998331 · GST 18%</span>
@@ -1761,8 +1927,8 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
                 <span style={{ fontSize:13 }}>{k.icon}</span>
                 <span style={{ fontSize:9,color:'rgba(255,255,255,0.38)',fontWeight:700,textTransform:'uppercase',letterSpacing:1.2 }}>{k.label}</span>
               </div>
-              <div style={{ fontSize:22,fontWeight:900,color:'#f5f3ff',lineHeight:1,letterSpacing:'-0.8px' }}>{k.value}</div>
-              <div style={{ fontSize:10,color:'rgba(255,255,255,0.28)',marginTop:5,letterSpacing:0.3 }}>{k.sub}</div>
+              <div style={{ fontSize:22,fontWeight:900,color:'#f5f3ff',lineHeight:1,letterSpacing:'-0.8px',fontFamily:"'Plus Jakarta Sans','JetBrains Mono',monospace" }}>{k.value}</div>
+              <div style={{ fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:5,letterSpacing:0.3,fontFamily:"'Inter',-apple-system,sans-serif" }}>{k.sub}</div>
             </div>
           ))}
         </div>
@@ -1783,13 +1949,13 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
       </div>
 
       {/* ══ BODY ══ */}
-      <div className="dqs-content" style={{ padding:'0 40px 40px', background:'#f4f5f7', borderLeft:'1px solid #d8dce3', borderRight:'1px solid #d8dce3', borderBottom:'1px solid #d8dce3', marginBottom:24 }}>
+      <div className="dqs-content" style={{ padding:'0 40px 40px', background:'#f7f5ff', borderLeft:'1px solid #e4deff', borderRight:'1px solid #e4deff', borderBottom:'1px solid #e4deff', marginBottom:24 }}>
 
         {/* Toolbar */}
         <div style={{ display:'flex',gap:10,alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap' }}>
           <div style={{ position:'relative',flex:'1 1 240px',maxWidth:300 }}>
             <span style={{ position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'var(--muted)',fontSize:13,pointerEvents:'none' }}>🔍</span>
-            <input style={{ ...INP,paddingLeft:34,fontSize:12.5,borderRadius:8,background:'#ffffff',border:'1.5px solid #d8dce3',color:'#0d1b2e' }} placeholder={tab==='quotes'?'Search client, project, quote#…':'Search client, project, proposal#…'} value={search} onChange={e => setSearch(e.target.value)} />
+            <input style={{ ...INP,paddingLeft:34,fontSize:12.5,borderRadius:8,background:'#ffffff',border:'1.5px solid #e4deff',color:'#0d1b2e' }} placeholder={tab==='quotes'?'Search client, project, quote#…':'Search client, project, proposal#…'} value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div style={{ display:'flex',gap:5,flexWrap:'wrap' }}>
             {[['','All'],...Object.entries(tab==='quotes'?Q_STATUS:P_STATUS).map(([k,v])=>[k,v.label])].map(([k,lbl]) => {
@@ -1806,6 +1972,29 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
             {tab==='quotes'?`${quotes.length} quote${quotes.length!==1?'s':''}`:`${proposals.length} proposal${proposals.length!==1?'s':''}`}
           </span>
         </div>
+
+        {/* ── Pending approvals banner (managers only) ── */}
+        {pendingApprovals.length > 0 && tab === 'quotes' && (
+          <div style={{ margin: '10px 0 2px', background: 'rgba(217,119,6,0.06)', border: '1.5px solid rgba(217,119,6,0.3)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 18 }}>⏳</span>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontWeight: 800, fontSize: 13, color: '#d97706' }}>
+                {pendingApprovals.length} quote{pendingApprovals.length !== 1 ? 's' : ''} awaiting your approval
+              </span>
+              <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>
+                {pendingApprovals.map(q => q.quote_number).join(', ')}
+              </span>
+            </div>
+            <button onClick={() => {
+              const role = currentUser?.role;
+              if (role === 'cfo') setStatusFilter('PENDING_L2');
+              else if (role === 'admin') setStatusFilter('');
+              else setStatusFilter('PENDING_L1');
+            }} style={{ fontSize: 12, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.35)', borderRadius: 7, padding: '5px 14px', cursor: 'pointer' }}>
+              View Pending →
+            </button>
+          </div>
+        )}
 
         {/* ── Quotes list ── */}
         {tab === 'quotes' && (
@@ -1999,7 +2188,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus }) {
 
       {/* Modals */}
       {showForm        && <QuoteFormModal quote={editQuote} onClose={() => { setShowForm(false); setEditQuote(null); }} onSaved={() => { setShowForm(false); setEditQuote(null); fetchQuotes(); }} />}
-      {viewQuote       && <QuoteDetailModal quote={viewQuote} onClose={() => setViewQuote(null)} onEdit={() => { setEditQuote(viewQuote); setShowForm(true); setViewQuote(null); }} onStatusChange={(id, st) => { setQuotes(qs => qs.map(q => q.id === id ? { ...q, status: st } : q)); setViewQuote(v => v && v.id === id ? { ...v, status: st } : v); }} />}
+      {viewQuote       && <QuoteDetailModal quote={viewQuote} currentUser={currentUser} onClose={() => setViewQuote(null)} onEdit={() => { setEditQuote(viewQuote); setShowForm(true); setViewQuote(null); }} onStatusChange={(id, st) => { setQuotes(qs => qs.map(q => q.id === id ? { ...q, status: st } : q)); setViewQuote(v => v && v.id === id ? { ...v, status: st } : v); setPendingApprovals(pa => pa.filter(q => q.id !== id)); }} />}
       {showScanner     && <WhatsAppScannerModal onClose={() => setShowScanner(false)} onCreateQuote={(q) => { setShowScanner(false); setEditQuote({ ...q, id: null }); setShowForm(true); }} />}
       {showProposalForm && <ProposalFormModal proposal={editProposal} onClose={() => { setShowProposalForm(false); setEditProposal(null); }} onSaved={() => { setShowProposalForm(false); setEditProposal(null); fetchProposals(); }} />}
       {viewProposal    && <ProposalDetailModal proposal={viewProposal} onClose={() => setViewProposal(null)} onEdit={() => { setEditProposal(viewProposal); setShowProposalForm(true); setViewProposal(null); }} onStatusChange={(id, st) => { setProposals(ps => ps.map(p => p.id === id ? { ...p, status: st } : p)); setViewProposal(v => v && v.id === id ? { ...v, status: st } : v); }} />}

@@ -16,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Design Quotes"])
@@ -2029,25 +2029,363 @@ async def update_quote(quote_id: int, body: dict):
     return {"id": quote_id, "data_source": "demo"}
 
 
-@router.put("/design-quotes/{quote_id}/status")
-async def update_quote_status(quote_id: int, body: dict):
-    _init_demo()
-    status = body.get("status", "DRAFT")
+# ── Approval workflow constants ───────────────────────────────────────────────
+# L1 = sales_manager, L2 = cfo, L3 = admin
+# Transition table: (current_status, actor_role) → allowed_actions
+_APPROVAL_TRANSITIONS = {
+    # Any authenticated user may submit a DRAFT for internal approval
+    ("DRAFT",      "architect"):     ["SUBMIT"],
+    ("DRAFT",      "sales_manager"): ["SUBMIT"],
+    ("DRAFT",      "cfo"):           ["SUBMIT"],
+    ("DRAFT",      "admin"):         ["SUBMIT"],
+    # L1 (sales_manager): approve or escalate to L2
+    ("PENDING_L1", "sales_manager"): ["APPROVE", "ESCALATE_L2"],
+    ("PENDING_L1", "admin"):         ["APPROVE", "ESCALATE_L2"],
+    # L2 (cfo): approve or escalate to L3
+    ("PENDING_L2", "cfo"):           ["APPROVE", "ESCALATE_L3"],
+    ("PENDING_L2", "admin"):         ["APPROVE", "ESCALATE_L3"],
+    # L3 (admin only): approve → returns to L1 for final sign-off; or reject
+    ("PENDING_L3", "admin"):         ["APPROVE_RETURN_L1", "REJECT"],
+    # Reject is available to any approver at any pending level
+    ("PENDING_L1", "sales_manager"): ["APPROVE", "ESCALATE_L2", "REJECT"],
+    ("PENDING_L1", "admin"):         ["APPROVE", "ESCALATE_L2", "REJECT"],
+    ("PENDING_L2", "cfo"):           ["APPROVE", "ESCALATE_L3", "REJECT"],
+    ("PENDING_L2", "admin"):         ["APPROVE", "ESCALATE_L3", "REJECT"],
+}
 
+_ACTION_TO_STATUS = {
+    "SUBMIT":           "PENDING_L1",
+    "APPROVE":          "APPROVED",
+    "ESCALATE_L2":      "PENDING_L2",
+    "ESCALATE_L3":      "PENDING_L3",
+    "APPROVE_RETURN_L1":"PENDING_L1",
+    "REJECT":           "DRAFT",
+}
+
+_LEVEL_FOR_STATUS = {"PENDING_L1": 1, "PENDING_L2": 2, "PENDING_L3": 3}
+
+_ROLE_LABEL = {
+    "architect": "Architect", "sales_manager": "Sales Manager",
+    "cfo": "CFO", "admin": "Admin",
+}
+
+
+def _get_actor_from_request(request: Request) -> dict:
+    """Extract actor role + display name from JWT in Authorization header. Returns defaults on failure."""
+    try:
+        from app.core.auth import decode_token
+        auth_header = request.headers.get("authorization", "")
+        token = auth_header.replace("Bearer ", "").strip()
+        if not token:
+            return {"role": "architect", "name": "Unknown User"}
+        payload = decode_token(token)
+        return {
+            "role": payload.get("role", "architect"),
+            "name": payload.get("display_name") or payload.get("sub", "Unknown"),
+        }
+    except Exception:
+        return {"role": "architect", "name": "Unknown User"}
+
+
+async def _record_approval_history(pool, quote_id: int, level: int, action: str,
+                                   actor_role: str, actor_name: str,
+                                   notes: str = "", ai_rec: str = "") -> None:
+    if not pool:
+        return
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """INSERT INTO quote_approval_history
+                       (quote_id, level, action, actor_role, actor_name, notes, ai_rec)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                    (quote_id, level, action, actor_role, actor_name, notes, ai_rec)
+                )
+                await conn.commit()
+    except Exception as exc:
+        logger.warning("design_quotes: approval history insert failed — %s", exc)
+
+
+@router.put("/design-quotes/{quote_id}/status")
+async def update_quote_status(quote_id: int, body: dict, request: Request):
+    """
+    Role-aware, 3-level internal approval engine for design quotations.
+    Transition rules:
+      DRAFT        → PENDING_L1  (any user: Submit for Approval)
+      PENDING_L1   → APPROVED    (L1/admin: Approve)
+                   → PENDING_L2  (L1/admin: Escalate to L2)
+      PENDING_L2   → APPROVED    (L2/admin: Approve)
+                   → PENDING_L3  (L2/admin: Escalate to L3)
+      PENDING_L3   → PENDING_L1  (admin: L3 Approves → back to L1 for final)
+      any PENDING  → DRAFT       (reject → back to drafter)
+    Once L3 returns to L1 and L1 approves → APPROVED (cycle complete).
+    """
+    _init_demo()
+    actor = _get_actor_from_request(request)
+    actor_role = actor["role"]
+    actor_name = actor["name"]
+    action     = body.get("action", "")
+    notes      = body.get("notes", "")
+
+    # ── Fetch current status ───────────────────────────────────────────────────
+    current_status = "DRAFT"
+    approval_cycle = 0
     pool = await _get_db_pool()
     if pool:
         try:
             async with pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    await cur.execute("UPDATE design_quotes SET status=%s WHERE id=%s", (status, quote_id))
+                    await cur.execute(
+                        "SELECT status, COALESCE(approval_cycle,0) FROM design_quotes WHERE id=%s",
+                        (quote_id,)
+                    )
+                    row = await cur.fetchone()
+                    if row:
+                        current_status, approval_cycle = row[0], row[1] or 0
+        except Exception as exc:
+            logger.warning("design_quotes: fetch status failed — %s", exc)
+    else:
+        q = _demo_quotes.get(quote_id, {})
+        current_status = q.get("status", "DRAFT")
+        approval_cycle = q.get("approval_cycle", 0)
+
+    # ── Validate action is allowed for this role + current status ──────────────
+    allowed = _APPROVAL_TRANSITIONS.get((current_status, actor_role), [])
+    # admin override: always allowed to approve any pending quote
+    if actor_role == "admin" and current_status.startswith("PENDING"):
+        if "APPROVE" not in allowed:
+            allowed = list(allowed) + ["APPROVE"]
+
+    if action not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{actor_role}' cannot perform '{action}' on a quote with status '{current_status}'. "
+                   f"Allowed actions: {allowed or ['none']}",
+        )
+
+    # ── Compute new status ─────────────────────────────────────────────────────
+    new_status = _ACTION_TO_STATUS.get(action, current_status)
+
+    # When L3 returns to L1, increment the approval cycle counter
+    if action == "APPROVE_RETURN_L1":
+        approval_cycle += 1
+
+    level = _LEVEL_FOR_STATUS.get(current_status, 0)
+    if action == "SUBMIT":
+        level = 0  # submission recorded at level 0
+
+    # ── Persist ────────────────────────────────────────────────────────────────
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "UPDATE design_quotes SET status=%s, approval_cycle=%s, last_approver=%s WHERE id=%s",
+                        (new_status, approval_cycle, actor_name, quote_id)
+                    )
                     await conn.commit()
-            return {"id": quote_id, "status": status, "data_source": "live"}
+            await _record_approval_history(
+                pool, quote_id, level, action, actor_role, actor_name, notes
+            )
+            return {"id": quote_id, "status": new_status, "action": action,
+                    "actor": actor_name, "approval_cycle": approval_cycle,
+                    "data_source": "live"}
         except Exception as exc:
             logger.warning("design_quotes: status update DB failed — %s", exc)
 
+    # Demo fallback
     if quote_id in _demo_quotes:
-        _demo_quotes[quote_id]["status"] = status
-    return {"id": quote_id, "status": status, "data_source": "demo"}
+        _demo_quotes[quote_id]["status"] = new_status
+        _demo_quotes[quote_id]["approval_cycle"] = approval_cycle
+        _demo_quotes[quote_id]["last_approver"] = actor_name
+    return {"id": quote_id, "status": new_status, "action": action,
+            "actor": actor_name, "approval_cycle": approval_cycle,
+            "data_source": "demo"}
+
+
+@router.get("/design-quotes/{quote_id}/approval-history")
+async def get_approval_history(quote_id: int):
+    """Return the full approval trail for a quote."""
+    pool = await _get_db_pool()
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        """SELECT level, action, actor_role, actor_name, notes, ai_rec, created_at
+                           FROM quote_approval_history WHERE quote_id=%s ORDER BY created_at ASC""",
+                        (quote_id,)
+                    )
+                    cols = ["level","action","actor_role","actor_name","notes","ai_rec","created_at"]
+                    rows = await cur.fetchall()
+                    history = [dict(zip(cols, r)) for r in rows]
+                    for h in history:
+                        if hasattr(h["created_at"], "isoformat"):
+                            h["created_at"] = h["created_at"].isoformat()
+            return {"quote_id": quote_id, "history": history, "data_source": "live"}
+        except Exception as exc:
+            logger.warning("design_quotes: approval history fetch failed — %s", exc)
+    return {"quote_id": quote_id, "history": [], "data_source": "demo"}
+
+
+@router.post("/design-quotes/{quote_id}/ai-approval-recommendation")
+async def ai_approval_recommendation(quote_id: int, request: Request):
+    """
+    AI-powered approval recommendation for managers.
+    Analyzes quote value, margin, complexity, and rates vs market benchmarks.
+    Returns: recommendation (APPROVE/ESCALATE), confidence, reasoning, risk_factors.
+    """
+    pool = await _get_db_pool()
+    quote = None
+
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("SELECT * FROM design_quotes WHERE id=%s", (quote_id,))
+                    cols = [d[0] for d in cur.description]
+                    row  = await cur.fetchone()
+                    if row:
+                        quote = dict(zip(cols, row))
+                        quote["sections"] = json.loads(quote.get("sections_json") or "[]")
+        except Exception as exc:
+            logger.warning("design_quotes: AI rec fetch failed — %s", exc)
+
+    if not quote:
+        quote = _demo_quotes.get(quote_id) or {}
+
+    if not quote:
+        raise HTTPException(status_code=404, detail="Quote not found")
+
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        return {
+            "recommendation": "APPROVE",
+            "confidence": 65,
+            "reasoning": "AI analysis unavailable (no API key). Standard review recommended.",
+            "risk_factors": [],
+            "data_source": "demo",
+        }
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key, timeout=30.0)
+
+        sections = quote.get("sections") or []
+        num_sections = len(sections)
+        num_items = sum(len(s.get("items", [])) for s in sections)
+        grand_total = float(quote.get("grand_total") or 0)
+        gst_rate    = float(quote.get("gst_rate") or 18)
+        project_type = quote.get("project_type", "Residential")
+        client_name  = quote.get("client_name", "Unknown")
+
+        section_summary = "; ".join(
+            f"{s.get('section_name','Section')} ({len(s.get('items',[]))} items, ₹{s.get('section_total',0):,.0f})"
+            for s in sections[:8]
+        )
+
+        prompt = f"""You are a senior interior design studio manager reviewing a client quotation before approval.
+
+Quote Summary:
+- Client: {client_name}
+- Project: {quote.get('project_name','—')} ({project_type})
+- Sections: {num_sections} rooms / {num_items} items
+- Grand Total: ₹{grand_total:,.0f} (incl. {gst_rate}% GST)
+- Section breakdown: {section_summary or 'No sections'}
+- Payment Terms: {quote.get('payment_terms','—')}
+
+Evaluate this quotation and provide an approval recommendation. Consider:
+1. Quote value appropriateness for the project type and scope
+2. Number of rooms/sections vs typical {project_type.lower()} fit-out
+3. Any unusual or missing items for this scope
+4. Financial risk for the studio
+
+Respond in this exact JSON format:
+{{
+  "recommendation": "APPROVE" or "ESCALATE",
+  "confidence": 0-100,
+  "reasoning": "2-3 sentence explanation",
+  "risk_factors": ["factor1", "factor2"],
+  "value_assessment": "LOW/STANDARD/HIGH",
+  "notes_for_approver": "one actionable sentence"
+}}"""
+
+        resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            response_format={"type": "json_object"},
+        )
+        raw = resp.choices[0].message.content or "{}"
+        result = json.loads(raw)
+        result["data_source"] = "ai"
+        result["quote_id"] = quote_id
+        return result
+    except Exception as exc:
+        logger.warning("design_quotes: AI recommendation failed — %s", exc)
+        return {
+            "recommendation": "APPROVE",
+            "confidence": 60,
+            "reasoning": f"AI analysis encountered an error ({type(exc).__name__}). Please review manually.",
+            "risk_factors": [],
+            "data_source": "error",
+        }
+
+
+@router.get("/design-quotes/pending-approvals")
+async def get_pending_approvals(request: Request):
+    """Return quotes pending the calling user's approval level."""
+    actor = _get_actor_from_request(request)
+    role  = actor["role"]
+
+    # Determine which statuses this role can act on
+    pending_statuses = []
+    if role in ("sales_manager", "admin"):
+        pending_statuses.append("PENDING_L1")
+    if role in ("cfo", "admin"):
+        pending_statuses.append("PENDING_L2")
+    if role == "admin":
+        pending_statuses.append("PENDING_L3")
+
+    if not pending_statuses:
+        return {"quotes": [], "total": 0, "role": role, "data_source": "live"}
+
+    placeholders = ",".join(["%s"] * len(pending_statuses))
+    pool = await _get_db_pool()
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        f"SELECT id, quote_number, client_name, project_name, status, "
+                        f"grand_total, created_at, COALESCE(approval_cycle,0), COALESCE(last_approver,'') "
+                        f"FROM design_quotes WHERE status IN ({placeholders}) ORDER BY created_at ASC",
+                        pending_statuses
+                    )
+                    cols = ["id","quote_number","client_name","project_name","status",
+                            "grand_total","created_at","approval_cycle","last_approver"]
+                    rows = await cur.fetchall()
+                    quotes = []
+                    for r in rows:
+                        d = dict(zip(cols, r))
+                        if hasattr(d["created_at"], "isoformat"):
+                            d["created_at"] = d["created_at"].isoformat()
+                        d["grand_total"] = float(d["grand_total"] or 0)
+                        quotes.append(d)
+            return {"quotes": quotes, "total": len(quotes), "role": role, "data_source": "live"}
+        except Exception as exc:
+            logger.warning("design_quotes: pending approvals fetch failed — %s", exc)
+
+    # Demo fallback
+    _init_demo()
+    pending = [
+        {"id": k, **{f: v for f, v in q.items() if f in
+                    ("quote_number","client_name","project_name","status","grand_total","created_at")},
+         "approval_cycle": q.get("approval_cycle", 0), "last_approver": q.get("last_approver", "")}
+        for k, q in _demo_quotes.items()
+        if q.get("status") in pending_statuses
+    ]
+    return {"quotes": pending, "total": len(pending), "role": role, "data_source": "demo"}
 
 
 @router.delete("/design-quotes/{quote_id}")

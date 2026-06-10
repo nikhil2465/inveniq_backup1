@@ -15,6 +15,7 @@ ROLE_MODULES: dict[str, str | list[str]] = {
         "louvers", "claims", "quotes", "discounts", "pos",
         "projects", "demand", "catalog", "freight", "schemes",
         "salesreturn", "damage", "invoices", "reports",
+        "designquote",
         "chatbot", "about", "settings",
     ],
 
@@ -23,6 +24,7 @@ ROLE_MODULES: dict[str, str | list[str]] = {
         "orders", "credit", "claims", "freight", "procurement",
         "pogrn", "demand", "schemes", "salesreturn", "landingcost",
         "damage", "invoicematch", "invoices", "reports",
+        "designquote",
         "chatbot", "about", "settings", "tally",
     ],
 

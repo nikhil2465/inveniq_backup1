@@ -1202,7 +1202,7 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
     onClose();
   };
 
-  const S = { background: '#ffffff', border: '1.5px solid #d8dce3', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#0d1b2e', width: '100%', boxSizing: 'border-box', colorScheme: 'light' };
+  const S = { background: '#ffffff', border: '1.5px solid #c7d6e8', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#0d1b2e', width: '100%', boxSizing: 'border-box', colorScheme: 'light' };
   const TIER_COLOR = { 'Exact Match': '#16a34a', 'Strong Match': '#2563eb', 'Near Match': '#d97706' };
 
   return (
@@ -4529,7 +4529,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
           { icon:'⏰', label:'Expiring',   value: kpis.quotes_expiring || 0,      sub:'follow up today',                         accent: (kpis.quotes_expiring || 0) > 0 ? '#fde68a' : '#bfdbfe', click: () => onGoChat?.('Which of my quotes are expiring this week? Give me a follow-up WhatsApp script for each customer.') },
         ];
         return (
-          <div style={{ background:'#000e1f', padding:'36px 40px 0', position:'relative', overflow:'hidden', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
+          <div style={{ background:'linear-gradient(160deg,#0c1526 0%,#091020 100%)', padding:'36px 40px 0', position:'relative', overflow:'hidden', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
             <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(59,130,246,0.28) 0%,rgba(29,78,216,0.12) 40%,transparent 70%)',pointerEvents:'none' }} />
             <div style={{ position:'absolute',bottom:-80,left:-60,width:360,height:360,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(14,165,233,0.09) 0%,transparent 65%)',pointerEvents:'none' }} />
             <div style={{ position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(59,130,246,0.1) 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
@@ -4539,8 +4539,8 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
               <div style={{ display:'flex',alignItems:'center',gap:18 }}>
                 <div style={{ width:58,height:58,borderRadius:16,background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0,boxShadow:'0 0 0 1px rgba(59,130,246,0.1), 0 8px 32px rgba(29,78,216,0.4)' }}>📋</div>
                 <div>
-                  <div style={{ fontSize:30,fontWeight:900,color:'#ffffff',letterSpacing:'-1px',lineHeight:1,marginBottom:6 }}>Quotation Builder</div>
-                  <div style={{ fontSize:12,color:'rgba(255,255,255,0.42)',letterSpacing:0.4,fontWeight:500 }}>AI-Powered · Hardware & Sanitary Ware · Building Materials · GST-Ready Prints</div>
+                  <div style={{ fontSize:30,fontWeight:900,color:'#ffffff',letterSpacing:'-1px',lineHeight:1,marginBottom:6,fontFamily:"'Plus Jakarta Sans','Inter',-apple-system,sans-serif" }}>Quotation Builder</div>
+                  <div style={{ fontSize:12,color:'rgba(255,255,255,0.46)',letterSpacing:0.5,fontWeight:500,fontFamily:"'Inter',-apple-system,sans-serif" }}>AI-Powered · Hardware & Sanitary Ware · Building Materials · GST-Ready Prints</div>
                   <div style={{ display:'flex',alignItems:'center',gap:10,marginTop:8 }}>
                     <DataSourceBadge source={data?.data_source} />
                     {kpis.quotes_expiring > 0 && (
@@ -4627,8 +4627,8 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                     <span style={{ fontSize:12 }}>{k.icon}</span>
                     <span style={{ fontSize:9,color:'rgba(255,255,255,0.35)',fontWeight:700,textTransform:'uppercase',letterSpacing:1.2 }}>{k.label}</span>
                   </div>
-                  <div style={{ fontSize:20,fontWeight:900,color:'#eff6ff',lineHeight:1,letterSpacing:'-0.7px' }}>{k.value}</div>
-                  <div style={{ fontSize:10,color:'rgba(255,255,255,0.28)',marginTop:5,letterSpacing:0.2 }}>{k.sub}</div>
+                  <div style={{ fontSize:20,fontWeight:900,color:'#eff6ff',lineHeight:1,letterSpacing:'-0.7px',fontFamily:"'Plus Jakarta Sans','JetBrains Mono',monospace" }}>{k.value}</div>
+                  <div style={{ fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:5,letterSpacing:0.3,fontFamily:"'Inter',-apple-system,sans-serif" }}>{k.sub}</div>
                 </div>
               ))}
             </div>
