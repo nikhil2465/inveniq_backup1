@@ -858,16 +858,16 @@ function MergeQuotesModal({ quotes, selectedIds, onClose, onOpenInEditor, onMerg
         </div>
 
         {/* Source quotes summary */}
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0, background: 'rgba(37,99,235,0.03)' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0, background: 'rgba(217,119,6,0.03)' }}>
           {selected.map((q, i) => (
             <div key={q.quote_id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', background: 'var(--hover)', borderRadius: 7, border: '1px solid var(--border)', fontSize: 12 }}>
-              {i === 0 && <span style={{ fontSize: 9, fontWeight: 800, background: '#2563eb', color: '#fff', borderRadius: 3, padding: '1px 5px' }}>BASE</span>}
-              <span style={{ fontWeight: 700, color: '#2563eb', fontFamily: 'var(--mono)' }}>{q.quote_number}</span>
+              {i === 0 && <span style={{ fontSize: 9, fontWeight: 800, background: '#d97706', color: '#fff', borderRadius: 3, padding: '1px 5px' }}>BASE</span>}
+              <span style={{ fontWeight: 700, color: '#d97706', fontFamily: 'var(--mono)' }}>{q.quote_number}</span>
               <span style={{ color: 'var(--text2)' }}>{q.customer_name}</span>
               <span style={{ color: 'var(--text3)' }}>{(q.line_items || []).length} items · {fmtL(q.grand_total)}</span>
             </div>
           ))}
-          <div style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 13, alignSelf: 'center', color: '#2563eb' }}>
+          <div style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 13, alignSelf: 'center', color: '#d97706' }}>
             Combined: {fmtL(totalValue)}
           </div>
         </div>
@@ -884,7 +884,7 @@ function MergeQuotesModal({ quotes, selectedIds, onClose, onOpenInEditor, onMerg
                 <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: 11, color: 'var(--text3)', width: 80 }}>UNIT PRICE</th>
                 <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: 11, color: 'var(--text3)', width: 50 }}>DISC%</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: 11, color: 'var(--text3)', width: 80 }}>AMOUNT</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: '#2563eb', width: 90 }}>FROM</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: '#d97706', width: 90 }}>FROM</th>
               </tr>
             </thead>
             <tbody>
@@ -906,7 +906,7 @@ function MergeQuotesModal({ quotes, selectedIds, onClose, onOpenInEditor, onMerg
                     <td style={{ padding: '8px 10px', textAlign: 'center', color: disc > 0 ? '#d97706' : 'var(--text3)' }}>{disc > 0 ? `${disc}%` : '—'}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontFamily: 'var(--mono)' }}>{amt > 0 ? fmt(amt) : '—'}</td>
                     <td style={{ padding: '8px 10px' }}>
-                      <span style={{ fontSize: 10, background: 'rgba(37,99,235,0.1)', color: '#2563eb', borderRadius: 4, padding: '2px 6px', fontWeight: 600, fontFamily: 'var(--mono)' }}>{li._from}</span>
+                      <span style={{ fontSize: 10, background: 'rgba(217,119,6,0.1)', color: '#d97706', borderRadius: 4, padding: '2px 6px', fontWeight: 600, fontFamily: 'var(--mono)' }}>{li._from}</span>
                     </td>
                   </tr>
                 );
@@ -926,11 +926,11 @@ function MergeQuotesModal({ quotes, selectedIds, onClose, onOpenInEditor, onMerg
               Cancel
             </button>
             <button onClick={handleSaveDraft} disabled={saving}
-              style={{ padding: '7px 16px', background: 'var(--hover)', color: '#2563eb', border: '1px solid rgba(37,99,235,0.4)', borderRadius: 7, cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13, opacity: saving ? 0.6 : 1 }}>
+              style={{ padding: '7px 16px', background: 'var(--hover)', color: '#d97706', border: '1px solid rgba(217,119,6,0.4)', borderRadius: 7, cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13, opacity: saving ? 0.6 : 1 }}>
               {saving ? '⏳ Saving…' : '📋 Save as Draft'}
             </button>
             <button onClick={handleOpenEditor}
-              style={{ padding: '8px 18px', background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+              style={{ padding: '8px 18px', background: 'linear-gradient(135deg,#78350f,#d97706)', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
               ✏️ Open in Editor →
             </button>
           </div>
@@ -1023,7 +1023,7 @@ function WinLossReasonModal({ status, quote, onConfirm, onClose }) {
 // ── Pipeline Kanban View ───────────────────────────────────────────────────────
 const KANBAN_COLS = [
   { key: 'DRAFT',       label: 'Draft',       color: '#6b7280', bg: '#f3f4f6' },
-  { key: 'SENT',        label: 'Sent',         color: '#2563eb', bg: '#dbeafe' },
+  { key: 'SENT',        label: 'Sent',         color: '#d97706', bg: '#fef3c7' },
   { key: 'NEGOTIATING', label: 'Negotiating',  color: '#d97706', bg: '#fef3c7' },
   { key: 'WON',         label: 'Won',          color: '#16a34a', bg: '#dcfce7' },
   { key: 'LOST',        label: 'Lost',         color: '#dc2626', bg: '#fee2e2' },
@@ -1203,7 +1203,7 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
   };
 
   const S = { background: '#ffffff', border: '1.5px solid #c7d6e8', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#0d1b2e', width: '100%', boxSizing: 'border-box', colorScheme: 'light' };
-  const TIER_COLOR = { 'Exact Match': '#16a34a', 'Strong Match': '#2563eb', 'Near Match': '#d97706' };
+  const TIER_COLOR = { 'Exact Match': '#16a34a', 'Strong Match': '#0d9488', 'Near Match': '#d97706' };
 
   return (
     <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1100,display:'flex',alignItems:'center',justifyContent:'center',padding:16 }} onClick={onClose}>
@@ -1222,7 +1222,7 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
         <div style={{ flex:1,overflowY:'auto',padding:18 }}>
           <div style={{ display:'flex',gap:6,marginBottom:16,flexWrap:'wrap' }}>
             {[['search','Search by Name / Code'],['smart','Smart Match (any field)'],['ai','AI: Describe Requirement'],['upload','Upload New File']].map(([m,lbl]) => (
-              <button key={m} onClick={() => setMode(m)} style={{ fontSize:11,fontWeight:700,padding:'5px 14px',borderRadius:20,cursor:'pointer',border:'1.5px solid var(--border)',background:mode===m?'rgba(37,99,235,0.1)':'transparent',color:mode===m?'#2563eb':'var(--text2)' }}>{lbl}</button>
+              <button key={m} onClick={() => setMode(m)} style={{ fontSize:11,fontWeight:700,padding:'5px 14px',borderRadius:20,cursor:'pointer',border:'1.5px solid var(--border)',background:mode===m?'rgba(217,119,6,0.1)':'transparent',color:mode===m?'#d97706':'var(--text2)' }}>{lbl}</button>
             ))}
           </div>
 
@@ -1244,7 +1244,7 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
                   </select>
                 </div>
                 <div style={{ display:'flex',alignItems:'flex-end' }}>
-                  <button onClick={doSearch} disabled={loading} style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',border:'none',borderRadius:8,padding:'7px 18px',fontSize:12,cursor:'pointer',fontWeight:700,opacity:loading?0.6:1 }}>
+                  <button onClick={doSearch} disabled={loading} style={{ background:'linear-gradient(135deg,#b45309,#d97706)',color:'#fff',border:'none',borderRadius:8,padding:'7px 18px',fontSize:12,cursor:'pointer',fontWeight:700,opacity:loading?0.6:1 }}>
                     {loading ? 'Searching...' : 'Search'}
                   </button>
                 </div>
@@ -1283,7 +1283,7 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
                 placeholder={'Examples:\n"Soft-close hinges for 10-door kitchen, full overlay"\n"Jaquar CP fittings for 3 bathrooms, standard range"\n"Drawer slides 400mm and 500mm, 20 pairs each"'}
                 value={reqText} onChange={e => setReqText(e.target.value)} />
               <button onClick={buildFromReq} disabled={reqLoading || !reqText.trim()}
-                style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',border:'none',borderRadius:8,padding:'8px 20px',fontSize:12,cursor:'pointer',fontWeight:700,marginTop:8,opacity:(reqLoading||!reqText.trim())?0.5:1 }}>
+                style={{ background:'linear-gradient(135deg,#b45309,#d97706)',color:'#fff',border:'none',borderRadius:8,padding:'8px 20px',fontSize:12,cursor:'pointer',fontWeight:700,marginTop:8,opacity:(reqLoading||!reqText.trim())?0.5:1 }}>
                 {reqLoading ? 'AI Working...' : 'Build Product List with AI'}
               </button>
             </div>
@@ -1295,7 +1295,7 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
               <div style={{ fontSize:11,color:'var(--text2)',marginBottom:10 }}>Auto-detected columns: Item Code, Item Name, Category, Size, Finish, PCS/Set, SPU, MRP, HSN Code, Brand, Unit</div>
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{ display:'none' }} onChange={e => setUploadFile(e.target.files[0])} />
               <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-                <button onClick={() => fileRef.current.click()} style={{ background:'rgba(37,99,235,0.1)',color:'#2563eb',border:'1px solid rgba(37,99,235,0.3)',borderRadius:8,padding:'7px 16px',fontSize:12,cursor:'pointer',fontWeight:700 }}>Choose File</button>
+                <button onClick={() => fileRef.current.click()} style={{ background:'rgba(217,119,6,0.1)',color:'#d97706',border:'1px solid rgba(217,119,6,0.3)',borderRadius:8,padding:'7px 16px',fontSize:12,cursor:'pointer',fontWeight:700 }}>Choose File</button>
                 {uploadFile && <span style={{ fontSize:12,color:'var(--text2)' }}>{uploadFile.name}</span>}
                 {uploadFile && <button onClick={doUpload} disabled={uploading} style={{ background:'linear-gradient(135deg,#059669,#10b981)',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,cursor:'pointer',fontWeight:700 }}>{uploading?'Uploading...':'Upload'}</button>}
               </div>
@@ -1335,12 +1335,12 @@ function ProductFileLookupModal({ onClose, onAddLines }) {
                 </thead>
                 <tbody>
                   {results.map((r, i) => (
-                    <tr key={i} onClick={() => toggleRow(i)} style={{ borderBottom:'1px solid var(--border)',cursor:'pointer',background:selected[i]!==undefined?'rgba(37,99,235,0.05)':'transparent' }}>
+                    <tr key={i} onClick={() => toggleRow(i)} style={{ borderBottom:'1px solid var(--border)',cursor:'pointer',background:selected[i]!==undefined?'rgba(217,119,6,0.05)':'transparent' }}>
                       <td style={{ padding:'7px 8px' }}><input type="checkbox" checked={selected[i]!==undefined} onChange={()=>toggleRow(i)} onClick={e=>e.stopPropagation()} /></td>
                       <td style={{ padding:'7px 8px' }}>
                         {r._tier && <span style={{ fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:10,background:(TIER_COLOR[r._tier]||'#6b7280')+'18',color:TIER_COLOR[r._tier]||'#6b7280',border:'1px solid '+(TIER_COLOR[r._tier]||'#6b7280')+'30',whiteSpace:'nowrap' }}>{r._tier}</span>}
                       </td>
-                      <td style={{ padding:'7px 8px',fontWeight:700,color:'#2563eb',fontFamily:'monospace',fontSize:11 }}>{r.item_code||'—'}</td>
+                      <td style={{ padding:'7px 8px',fontWeight:700,color:'#d97706',fontFamily:'monospace',fontSize:11 }}>{r.item_code||'—'}</td>
                       <td style={{ padding:'7px 8px',fontWeight:600,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{r.item_name||r.product_name||'—'}</td>
                       <td style={{ padding:'7px 8px',color:'var(--text2)',fontSize:11 }}>{r.category||'—'}</td>
                       <td style={{ padding:'7px 8px',color:'var(--text2)',fontSize:11,maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{r.size||'—'}</td>
@@ -1487,7 +1487,7 @@ function ImageSearchModal({ onClose, onAddProduct }) {
     <div className="qb-modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="qb-modal" style={{ maxWidth: 680, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', borderTop: 'none', borderRadius: '12px 12px 0 0', flexShrink: 0 }}>
+        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg,#78350f,#d97706)', borderTop: 'none', borderRadius: '12px 12px 0 0', flexShrink: 0 }}>
           <div>
             <div className="qb-modal-title" style={{ color: '#fff', fontSize: 15 }}>📷 Visual Product Search — Hardware & Sanitary</div>
             <div className="qb-modal-sub" style={{ color: 'rgba(255,255,255,.75)' }}>Upload {images.length > 1 ? `${images.length} images` : 'product photos'} — AI identifies & matches to catalog</div>
@@ -1896,7 +1896,7 @@ const BRANDS_BY_CAT = {
 // ── Quote Variants / Pricing Tiers ────────────────────────────────────────────
 const QUOTE_VARIANTS = [
   { key: 'economy',  label: 'Economy',  mult: 0.82, color: '#16a34a', icon: '💚', desc: 'Indian economy brands — Essco, Parryware entry, Ebco, Prince pipes' },
-  { key: 'standard', label: 'Standard', mult: 1.00, color: '#2563eb', icon: '🔵', desc: 'Mid-segment — Jaquar Florentine, Hindware, Hettich, Astral' },
+  { key: 'standard', label: 'Standard', mult: 1.00, color: '#d97706', icon: '🔵', desc: 'Mid-segment — Jaquar Florentine, Hindware, Hettich, Astral' },
   { key: 'premium',  label: 'Premium',  mult: 1.45, color: '#7c3aed', icon: '💜', desc: 'Top Indian + entry European — Jaquar Artize, Kohler, Grohe Eurosmart, Hafele' },
   { key: 'luxury',   label: 'Luxury',   mult: 2.20, color: '#b45309', icon: '🏆', desc: 'Full European/Japanese — Grohe Allure, TOTO, Duravit, Blum' },
 ];
@@ -2084,7 +2084,7 @@ function QuoteRow({ q, onView, onEdit, onAskAI, onClone, isSelected, onToggleSel
   const daysSince = q.created_at ? Math.floor((new Date() - new Date(q.created_at)) / 86400000) : null;
   const ageStyle  = daysSince === null ? null :
     daysSince <= 2  ? { bg:'rgba(22,163,74,.1)',   tc:'#16a34a', bc:'rgba(22,163,74,.25)',   lbl:'NEW' } :
-    daysSince <= 7  ? { bg:'rgba(37,99,235,.08)',  tc:'#2563eb', bc:'rgba(37,99,235,.2)',    lbl:`${daysSince}d` } :
+    daysSince <= 7  ? { bg:'rgba(217,119,6,.08)',  tc:'#d97706', bc:'rgba(217,119,6,.2)',    lbl:`${daysSince}d` } :
     daysSince <= 30 ? { bg:'#f0f1f4',              tc:'#5e748a', bc:'#d8dce3',               lbl:`${daysSince}d` } :
     daysSince <= 90 ? { bg:'rgba(217,119,6,.07)',  tc:'#d97706', bc:'rgba(217,119,6,.2)',    lbl:`${Math.floor(daysSince/7)}w` } :
                      { bg:'rgba(220,38,38,.07)',    tc:'#dc2626', bc:'rgba(220,38,38,.2)',    lbl:`${Math.floor(daysSince/30)}m` };
@@ -2775,7 +2775,7 @@ Keep it concise and actionable. Include the quote number.`;
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="qb-action-btn"
-              style={{ background: 'linear-gradient(135deg,#0f4c81,#1a6ba0)', color: '#fff', border: 'none', fontWeight: 700 }}
+              style={{ background: 'linear-gradient(135deg,#92400e,#1a6ba0)', color: '#fff', border: 'none', fontWeight: 700 }}
               onClick={() => setShowEmailDialog(true)}>
               📧 Send Email
             </button>
@@ -2952,7 +2952,7 @@ function PrintPreviewModal({ f, lines, subtotal, gstAmount, total, onClose, onSa
   return (
     <div className="qb-modal-overlay" style={{ alignItems: 'center' }}>
       <div className="qb-modal" ref={previewRef} style={{ maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', ...previewDragStyle }}>
-        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #0f4c81 100%)', borderTop: 'none', borderRadius: '12px 12px 0 0', flexShrink: 0 }}>
+        <div className="qb-modal-header" style={{ background: 'linear-gradient(135deg, #78350f 0%, #92400e 100%)', borderTop: 'none', borderRadius: '12px 12px 0 0', flexShrink: 0 }}>
           <div>
             <div className="qb-modal-title" style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>🖨 Print Preview</div>
             <div className="qb-modal-sub" style={{ color: 'rgba(255,255,255,.75)', fontSize: 12, marginTop: 2 }}>
@@ -3152,7 +3152,7 @@ function EmailQuoteModal({ quoteId, quoteNumber, contactEmail, contactPerson, cu
   return (
     <div className="qb-modal-overlay">
       <div className="pc-add-modal" ref={emailRef} style={{ maxWidth: 520, ...emailDragStyle }}>
-        <div style={{ background: 'linear-gradient(135deg, #0f4c81 0%, #1a6ba0 100%)', borderRadius: '12px 12px 0 0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ background: 'linear-gradient(135deg, #92400e 0%, #1a6ba0 100%)', borderRadius: '12px 12px 0 0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>📧 Send Quotation by Email</div>
             <div style={{ color: 'rgba(255,255,255,.75)', fontSize: 12, marginTop: 2 }}>
@@ -3692,7 +3692,7 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
         {/* ── Professional Modal Header ── */}
         <div className="qb-modal-header" style={{
           background: editQuote
-            ? 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)'
+            ? 'linear-gradient(135deg, #78350f 0%, #d97706 100%)'
             : 'linear-gradient(135deg, #0f2744 0%, #15803d 100%)',
           borderTop: 'none',
           borderRadius: '12px 12px 0 0',
@@ -4118,7 +4118,7 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
                 className="qb-add-line-btn"
                 onClick={() => setShowProductLookup(true)}
                 title="Search Ebco, Sanjay Hardware and other product files by code, name, size, finish or MRP"
-                style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', borderColor: 'transparent' }}>
+                style={{ background: 'linear-gradient(135deg, #b45309, #d97706)', color: '#fff', borderColor: 'transparent' }}>
                 Product File Lookup
               </button>
             </div>
@@ -4363,7 +4363,7 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {draftSaved && (
               <button className="qb-draft-btn"
-                style={{ borderColor: '#0f4c81', color: '#0f4c81', background: '#eff6ff' }}
+                style={{ borderColor: '#92400e', color: '#92400e', background: '#fffbeb' }}
                 onClick={() => setShowEmailDialog(true)}>
                 📧 Send Email
               </button>
@@ -4374,7 +4374,7 @@ function NewQuoteForm({ products, onClose, onCreated, initialData, initialLines,
               {editQuote ? '📋 Preview & Save Changes' : '📋 Preview & Save Draft'}
             </button>
             <button className="qb-save-btn" onClick={handleSave} disabled={saving || !f.customer_name}
-              style={{ background: editQuote ? 'linear-gradient(135deg, #1e3a5f, #2563eb)' : undefined }}>
+              style={{ background: editQuote ? 'linear-gradient(135deg, #78350f, #d97706)' : undefined }}>
               {saving ? (editQuote ? 'Updating…' : 'Creating…') : editQuote ? '✓ Update Quotation' : '✓ Create Quotation'}
             </button>
           </div>
@@ -4526,18 +4526,18 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
           { icon:'🎯', label:'Win Rate',   value: winRate !== null ? `${winRate}%` : '—', sub:'Won ÷ (Won+Lost)',                accent: winRate >= 50 ? '#86efac' : winRate >= 30 ? '#fde68a' : '#fda4af', click: () => onGoChat?.('My quotation win rate — what specific improvements can I make to close more deals?') },
           { icon:'📊', label:'Avg Margin', value: `${kpis.avg_margin_pct || 0}%`, sub:'Floor 14% · Target 20%',                  accent:'#c4b5fd', click: () => onGoChat?.(`My average margin is ${kpis.avg_margin_pct || 0}%. Which product categories are dragging it below target?`) },
           { icon:'💼', label:'Avg Deal',   value: fmtL(avgDeal),                  sub:'active pipeline avg',                     accent:'#67e8f9', click: () => onGoChat?.(`My average deal size is ${fmtL(avgDeal)}. How can I increase it through upselling and product mix improvements?`) },
-          { icon:'⏰', label:'Expiring',   value: kpis.quotes_expiring || 0,      sub:'follow up today',                         accent: (kpis.quotes_expiring || 0) > 0 ? '#fde68a' : '#bfdbfe', click: () => onGoChat?.('Which of my quotes are expiring this week? Give me a follow-up WhatsApp script for each customer.') },
+          { icon:'⏰', label:'Expiring',   value: kpis.quotes_expiring || 0,      sub:'follow up today',                         accent: (kpis.quotes_expiring || 0) > 0 ? '#fde68a' : '#fde68a', click: () => onGoChat?.('Which of my quotes are expiring this week? Give me a follow-up WhatsApp script for each customer.') },
         ];
         return (
-          <div style={{ background:'linear-gradient(160deg,#0c1526 0%,#091020 100%)', padding:'36px 40px 0', position:'relative', overflow:'hidden', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
-            <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(59,130,246,0.28) 0%,rgba(29,78,216,0.12) 40%,transparent 70%)',pointerEvents:'none' }} />
+          <div style={{ background:'linear-gradient(160deg,#1c1610 0%,#100d08 100%)', padding:'36px 40px 0', position:'relative', overflow:'hidden', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
+            <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(245,158,11,0.28) 0%,rgba(29,78,216,0.12) 40%,transparent 70%)',pointerEvents:'none' }} />
             <div style={{ position:'absolute',bottom:-80,left:-60,width:360,height:360,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(14,165,233,0.09) 0%,transparent 65%)',pointerEvents:'none' }} />
-            <div style={{ position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(59,130,246,0.1) 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
+            <div style={{ position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(245,158,11,0.1) 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
 
             {/* Title row */}
             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:16,position:'relative',zIndex:1 }}>
               <div style={{ display:'flex',alignItems:'center',gap:18 }}>
-                <div style={{ width:58,height:58,borderRadius:16,background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0,boxShadow:'0 0 0 1px rgba(59,130,246,0.1), 0 8px 32px rgba(29,78,216,0.4)' }}>📋</div>
+                <div style={{ width:58,height:58,borderRadius:16,background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0,boxShadow:'0 0 0 1px rgba(245,158,11,0.1), 0 8px 32px rgba(29,78,216,0.4)' }}>📋</div>
                 <div>
                   <div style={{ fontSize:30,fontWeight:900,color:'#ffffff',letterSpacing:'-1px',lineHeight:1,marginBottom:6,fontFamily:"'Plus Jakarta Sans','Inter',-apple-system,sans-serif" }}>Quotation Builder</div>
                   <div style={{ fontSize:12,color:'rgba(255,255,255,0.46)',letterSpacing:0.5,fontWeight:500,fontFamily:"'Inter',-apple-system,sans-serif" }}>AI-Powered · Hardware & Sanitary Ware · Building Materials · GST-Ready Prints</div>
@@ -4583,7 +4583,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                   {showKanban ? '📋 List' : '🗂 Kanban'}
                 </button>
                 <button className="btn-primary" onClick={() => { setEditQuote(null); setShowForm(true); }}
-                  style={{ background:'linear-gradient(135deg,#1d4ed8,#3b82f6)',color:'#fff',border:'none',borderRadius:9,padding:'10px 24px',fontSize:13,cursor:'pointer',fontWeight:800,boxShadow:'0 4px 20px rgba(59,130,246,0.55)',letterSpacing:'-0.2px' }}>
+                  style={{ background:'linear-gradient(135deg,#b45309,#f59e0b)',color:'#fff',border:'none',borderRadius:9,padding:'10px 24px',fontSize:13,cursor:'pointer',fontWeight:800,boxShadow:'0 4px 20px rgba(245,158,11,0.55)',letterSpacing:'-0.2px' }}>
                   + New Quotation
                 </button>
               </div>
@@ -4591,9 +4591,9 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
 
             {/* AI strip */}
             {onGoChat && (
-              <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:20,background:'rgba(59,130,246,0.07)',border:'1px solid rgba(59,130,246,0.18)',borderRadius:10,padding:'10px 18px',position:'relative',zIndex:1,flexWrap:'wrap' }}>
+              <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:20,background:'rgba(245,158,11,0.07)',border:'1px solid rgba(245,158,11,0.18)',borderRadius:10,padding:'10px 18px',position:'relative',zIndex:1,flexWrap:'wrap' }}>
                 <div style={{ display:'flex',alignItems:'center',gap:10 }}>
-                  <div style={{ width:30,height:30,borderRadius:8,background:'rgba(59,130,246,0.2)',border:'1px solid rgba(59,130,246,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0 }}>🤖</div>
+                  <div style={{ width:30,height:30,borderRadius:8,background:'rgba(245,158,11,0.2)',border:'1px solid rgba(245,158,11,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0 }}>🤖</div>
                   <div>
                     <div style={{ fontSize:12,fontWeight:700,color:'#fff',letterSpacing:'-0.1px' }}>Quote Intelligence Active</div>
                     <div style={{ fontSize:10.5,color:'rgba(255,255,255,0.45)',marginTop:2 }}>
@@ -4610,7 +4610,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                     ['🏗 Pipeline Health',   'Give me a complete pipeline health check — at-risk deals, margin analysis, top 3 most likely to close this month.'],
                     ['💡 Pricing Strategy',  'Based on my won and lost deals, what is the optimal pricing strategy by customer type (contractor vs builder vs designer)?'],
                   ].map(([lbl, q]) => (
-                    <button key={lbl} onClick={() => onGoChat(q)} style={{ background:'rgba(59,130,246,0.12)',color:'rgba(255,255,255,0.75)',border:'1px solid rgba(59,130,246,0.22)',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap' }}>{lbl}</button>
+                    <button key={lbl} onClick={() => onGoChat(q)} style={{ background:'rgba(245,158,11,0.12)',color:'rgba(255,255,255,0.75)',border:'1px solid rgba(245,158,11,0.22)',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap' }}>{lbl}</button>
                   ))}
                 </div>
               </div>
@@ -4627,7 +4627,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                     <span style={{ fontSize:12 }}>{k.icon}</span>
                     <span style={{ fontSize:9,color:'rgba(255,255,255,0.35)',fontWeight:700,textTransform:'uppercase',letterSpacing:1.2 }}>{k.label}</span>
                   </div>
-                  <div style={{ fontSize:20,fontWeight:900,color:'#eff6ff',lineHeight:1,letterSpacing:'-0.7px',fontFamily:"'Plus Jakarta Sans','JetBrains Mono',monospace" }}>{k.value}</div>
+                  <div style={{ fontSize:20,fontWeight:900,color:'#fffbeb',lineHeight:1,letterSpacing:'-0.7px',fontFamily:"'Plus Jakarta Sans','JetBrains Mono',monospace" }}>{k.value}</div>
                   <div style={{ fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:5,letterSpacing:0.3,fontFamily:"'Inter',-apple-system,sans-serif" }}>{k.sub}</div>
                 </div>
               ))}
@@ -4702,9 +4702,9 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
         {/* Status stats strip */}
         <div className="qb-stats-strip">
           {[
-            { key:'ALL',         label:'All',         accent:'#3b82f6' },
+            { key:'ALL',         label:'All',         accent:'#f59e0b' },
             { key:'DRAFT',       label:'Draft',       accent:'#f59e0b' },
-            { key:'SENT',        label:'Sent',        accent:'#3b82f6' },
+            { key:'SENT',        label:'Sent',        accent:'#f59e0b' },
             { key:'NEGOTIATING', label:'Negotiating', accent:'#06b6d4' },
             { key:'WON',         label:'Won',         accent:'#22c55e' },
             { key:'LOST',        label:'Lost',        accent:'#ef4444' },
@@ -4746,7 +4746,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
             </button>
             {selectedIds.length >= 2 && (
               <button onClick={() => setShowMergeModal(true)}
-                style={{ padding:'7px 14px',background:'linear-gradient(135deg,#1e3a5f,#2563eb)',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:12,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(37,99,235,.3)' }}>
+                style={{ padding:'7px 14px',background:'linear-gradient(135deg,#78350f,#d97706)',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:12,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(217,119,6,.3)' }}>
                 🔀 Merge {selectedIds.length}
               </button>
             )}
