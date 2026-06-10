@@ -2066,7 +2066,7 @@ function MarginBar({ pct }) {
 }
 
 // ── Quote List Row ─────────────────────────────────────────────────────────────
-function QuoteRow({ q, onView, onEdit, onAskAI, onClone, isSelected, onToggleSelect }) {
+function QuoteRow({ q, onView, onEdit, onAskAI, onClone, isSelected, onToggleSelect, onQuickStatus }) {
   const isExpiring = q.status === 'SENT' || q.status === 'NEGOTIATING';
   const daysLeft   = q.valid_till ? Math.ceil((new Date(q.valid_till) - new Date()) / 86400000) : null;
 
@@ -2135,10 +2135,23 @@ function QuoteRow({ q, onView, onEdit, onAskAI, onClone, isSelected, onToggleSel
             {followupUrgent ? '🔔' : '📅'} Follow-up {followupDays === 0 ? 'today' : followupDays < 0 ? `${Math.abs(followupDays)}d ago` : `in ${followupDays}d`}
           </div>
         )}
+        {(q.status === 'SENT' || q.status === 'NEGOTIATING') && daysSince > 14 && (
+          <div style={{ fontSize: 9, marginTop: 2, fontWeight: 700, color: '#ea580c', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 2 }}>⚠ Stale {daysSince}d</div>
+        )}
       </td>
       <td>
         <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="qb-view-btn" onClick={e => { e.stopPropagation(); onView(q); }}>View →</button>
+          {onQuickStatus && q.status === 'DRAFT' && (
+            <button className="qb-view-btn" style={{ background:'rgba(8,145,178,0.1)', color:'#0891b2', border:'1px solid rgba(8,145,178,0.3)', fontWeight:700 }}
+              onClick={e => { e.stopPropagation(); onQuickStatus(q, 'SENT'); }} title="Mark as Sent to customer">📤</button>
+          )}
+          {onQuickStatus && (q.status === 'SENT' || q.status === 'NEGOTIATING') && (<>
+            <button className="qb-view-btn" style={{ background:'rgba(22,163,74,0.1)', color:'#16a34a', border:'1px solid rgba(22,163,74,0.3)', fontWeight:700 }}
+              onClick={e => { e.stopPropagation(); onQuickStatus(q, 'WON'); }} title="Mark as Won">✓</button>
+            <button className="qb-view-btn" style={{ background:'rgba(220,38,38,0.07)', color:'#dc2626', border:'1px solid rgba(220,38,38,0.25)', fontWeight:700 }}
+              onClick={e => { e.stopPropagation(); onQuickStatus(q, 'LOST'); }} title="Mark as Lost">✗</button>
+          </>)}
           {onEdit && EDITABLE_STATUSES.includes(q.status) && (
             <button className="qb-view-btn"
               style={{ background: 'var(--g5)', color: 'var(--brand)', border: '1px solid var(--g4)', fontWeight: 700 }}
@@ -4405,6 +4418,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
   const [showKanban,    setShowKanban]      = useState(false);
   const [sortBy,  setSortBy]  = useState('created_at');
   const [sortDir, setSortDir] = useState('desc');
+  const [dateFilter, setDateFilter] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const [dqbSync, setDqbSync] = useState(null); // {count, ageMin, expired, stored}
 
@@ -4476,6 +4490,18 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
     setShowForm(true);
   };
 
+  const handleQuickStatus = useCallback(async (q, newStatus) => {
+    const label = newStatus === 'WON' ? 'Won ✅' : newStatus === 'LOST' ? 'Lost ✗' : newStatus;
+    if (['WON','LOST'].includes(newStatus) && !window.confirm(`Mark ${q.quote_number} as ${label}?`)) return;
+    try {
+      await fetch(`/api/quotes/${q.quote_id}/status`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setData(prev => ({ ...prev, quotes: (prev?.quotes || []).map(x => x.quote_id === q.quote_id ? { ...x, status: newStatus } : x) }));
+    } catch { /* silently update UI even if API fails */ }
+  }, []);
+
   const filteredQuotes = useMemo(() => {
     const base = (data?.quotes || []).filter(q => {
       const matchStatus = statusFilter === 'ALL' || q.status === statusFilter;
@@ -4484,7 +4510,15 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
         || q.quote_number.toLowerCase().includes(search.toLowerCase())
         || (q.project_name || '').toLowerCase().includes(search.toLowerCase())
         || (q.customer_phone || '').includes(search);
-      return matchStatus && matchSearch;
+      let matchDate = true;
+      if (dateFilter && q.created_at) {
+        const cutoff = new Date();
+        if (dateFilter === '7d') cutoff.setDate(cutoff.getDate() - 7);
+        else if (dateFilter === '30d') cutoff.setDate(cutoff.getDate() - 30);
+        else if (dateFilter === '90d') cutoff.setDate(cutoff.getDate() - 90);
+        matchDate = new Date(q.created_at) >= cutoff;
+      }
+      return matchStatus && matchSearch && matchDate;
     });
     return [...base].sort((a, b) => {
       let av = a[sortBy]; let bv = b[sortBy];
@@ -4498,9 +4532,9 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
       }
       return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
     });
-  }, [data, statusFilter, search, sortBy, sortDir]);
+  }, [data, statusFilter, search, sortBy, sortDir, dateFilter]);
 
-  useEffect(() => { setPage(1); }, [statusFilter, search, sortBy, sortDir]);
+  useEffect(() => { setPage(1); }, [statusFilter, search, sortBy, sortDir, dateFilter]);
   const pagedQuotes = filteredQuotes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const kpis = data?.kpis || {};
@@ -4735,9 +4769,18 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
           <input className="qb-mainsearch"
             placeholder="🔍  Search by customer, quote #, project name or phone…"
             value={search} onChange={e => setSearch(e.target.value)} />
+          {/* Date filter pills */}
+          <div style={{ display:'flex',gap:4,alignItems:'center',flexShrink:0 }}>
+            {[['','All Time'],['7d','7 Days'],['30d','30 Days'],['90d','90 Days']].map(([v,lbl]) => (
+              <button key={v} onClick={() => setDateFilter(dateFilter === v ? '' : v)}
+                style={{ padding:'5px 10px', fontSize:11, fontWeight:700, borderRadius:20, cursor:'pointer', whiteSpace:'nowrap', background: dateFilter===v ? 'rgba(217,119,6,0.12)' : 'transparent', color: dateFilter===v ? 'var(--brand)' : 'var(--text2)', border: dateFilter===v ? '1.5px solid rgba(217,119,6,0.4)' : '1.5px solid var(--border)' }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
           <div style={{ display:'flex',gap:7,alignItems:'center',flexShrink:0,flexWrap:'wrap' }}>
             <button onClick={() => setShowKanban(k => !k)}
-              style={{ padding:'7px 14px',background: showKanban ? 'rgba(99,102,241,.1)' : '#ffffff',color: showKanban ? '#6366f1' : '#3d4f6b',border:`1.5px solid ${showKanban ? 'rgba(99,102,241,.4)' : '#c5d0e4'}`,borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12,whiteSpace:'nowrap',boxShadow:'0 1px 3px rgba(9,18,38,.06)' }}>
+              style={{ padding:'7px 14px',background: showKanban ? 'rgba(245,158,11,.1)' : '#ffffff',color: showKanban ? 'var(--brand)' : '#3d4f6b',border:`1.5px solid ${showKanban ? 'rgba(245,158,11,.4)' : '#c5d0e4'}`,borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12,whiteSpace:'nowrap',boxShadow:'0 1px 3px rgba(9,18,38,.06)' }}>
               {showKanban ? '📋 List View' : '🗂 Kanban View'}
             </button>
             {selectedIds.length >= 2 && (
@@ -4778,6 +4821,22 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                   onGoChat(`Analyse these ${sel.length} quotes: ${sel.map(q => `${q.quote_number} (${q.customer_name}, ₹${q.total||0}, ${q.status})`).join('; ')}. Compare them, identify patterns, and recommend what action I should take on each.`);
                 }}>🤖 AI Batch Analysis</button>
               )}
+              <select className="qb-bulk-btn" style={{ cursor:'pointer' }}
+                defaultValue=""
+                onChange={async e => {
+                  const st = e.target.value; if (!st) return;
+                  if (!window.confirm(`Change ${selectedIds.length} quote${selectedIds.length>1?'s':''} to "${st}"?`)) { e.target.value=''; return; }
+                  await Promise.all(selectedIds.map(id => fetch(`/api/quotes/${id}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:st}) })));
+                  setData(prev => ({ ...prev, quotes: (prev?.quotes||[]).map(q => selectedIds.includes(q.quote_id) ? {...q, status:st} : q) }));
+                  setSelectedIds([]); e.target.value='';
+                }}>
+                <option value="">📋 Set Status…</option>
+                <option value="SENT">→ Sent</option>
+                <option value="NEGOTIATING">→ Negotiating</option>
+                <option value="WON">→ Won ✅</option>
+                <option value="LOST">→ Lost ✗</option>
+                <option value="EXPIRED">→ Expired</option>
+              </select>
               <button className="qb-bulk-btn qb-bulk-clear" onClick={() => setSelectedIds([])}>✕ Clear</button>
             </div>
           </div>
@@ -4863,6 +4922,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                     onClone={handleClone}
                     isSelected={selectedIds.includes(q.quote_id)}
                     onToggleSelect={toggleSelect}
+                    onQuickStatus={handleQuickStatus}
                     onAskAI={onGoChat ? (q) => onGoChat(`Analyse quotation ${q.quote_number} for ${q.customer_name} — value: ${fmtL(q.total)}, margin: ${q.avg_margin_pct || 0}%, status: ${q.status}, valid till: ${q.valid_till}. What is my win probability, what negotiation strategy should I use, and what follow-up should I do today?`) : null}
                   />
                 ))}

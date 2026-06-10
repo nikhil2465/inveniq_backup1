@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
 import SkeletonView from '../components/SkeletonLoader';
 import { ExportButton } from '../utils/exportUtils';
@@ -1786,6 +1786,11 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
   const [mergeMode, setMergeMode]                 = useState(false);
   const [mergeIds, setMergeIds]                   = useState([]);
   const [pendingApprovals, setPendingApprovals]   = useState([]);
+  const [sortBy,  setSortBy]  = useState('created_at');
+  const [sortDir, setSortDir] = useState('desc');
+  const [dateFilter, setDateFilter] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [qbHeroSync, setQbHeroSync] = useState(null);
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -1821,6 +1826,70 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
     fetch('/api/design-quotes/pending-approvals')
       .then(r => r.json()).then(d => setPendingApprovals(d.quotes || [])).catch(() => {});
   }, [currentUser]);
+
+  // ── QB→DQS pending sync detection ──
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('inveniq_qb_to_dqb');
+      if (!raw) return;
+      const stored = JSON.parse(raw);
+      const ageMin = Math.round((Date.now() - stored.ts) / 60000);
+      if (ageMin <= 30) setQbHeroSync({ count: (stored.items||[]).length, ageMin, stored });
+    } catch {}
+  }, []);
+
+  // ── Inline approval action (from list row) ──
+  const handleInlineApproval = useCallback(async (quoteId, action) => {
+    try {
+      const r = await fetch(`/api/design-quotes/${quoteId}/status`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        const newStatus = d.new_status || d.status;
+        setQuotes(qs => qs.map(q => q.id === quoteId ? { ...q, status: newStatus } : q));
+        setPendingApprovals(pa => pa.filter(q => q.id !== quoteId));
+      } else { alert(d.detail || 'Action failed.'); }
+    } catch { alert('Network error — please retry.'); }
+  }, []);
+
+  // ── Client-side sort + archive + date filter ──
+  const displayQuotes = useMemo(() => {
+    let arr = [...quotes];
+    if (!showArchived) arr = arr.filter(q => !['COMPLETED','CANCELLED'].includes(q.status));
+    if (dateFilter) {
+      const cutoff = new Date();
+      if (dateFilter === '7d') cutoff.setDate(cutoff.getDate() - 7);
+      else if (dateFilter === '30d') cutoff.setDate(cutoff.getDate() - 30);
+      arr = arr.filter(q => !q.created_at || new Date(q.created_at) >= cutoff);
+    }
+    return [...arr].sort((a, b) => {
+      let av = a[sortBy], bv = b[sortBy];
+      if (sortBy === 'created_at' || sortBy === 'valid_till') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
+      else if (typeof av === 'string') { av = av.toLowerCase(); bv = (bv||'').toLowerCase(); }
+      else { av = av ?? 0; bv = bv ?? 0; }
+      return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+  }, [quotes, sortBy, sortDir, dateFilter, showArchived]);
+
+  const displayProposals = useMemo(() => {
+    let arr = [...proposals];
+    if (!showArchived) arr = arr.filter(p => !['COMPLETED','CANCELLED'].includes(p.status));
+    if (dateFilter) {
+      const cutoff = new Date();
+      if (dateFilter === '7d') cutoff.setDate(cutoff.getDate() - 7);
+      else if (dateFilter === '30d') cutoff.setDate(cutoff.getDate() - 30);
+      arr = arr.filter(p => !p.created_at || new Date(p.created_at) >= cutoff);
+    }
+    return [...arr].sort((a, b) => {
+      let av = a[sortBy], bv = b[sortBy];
+      if (sortBy === 'created_at' || sortBy === 'valid_till') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
+      else if (typeof av === 'string') { av = av.toLowerCase(); bv = (bv||'').toLowerCase(); }
+      else { av = av ?? 0; bv = bv ?? 0; }
+      return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+  }, [proposals, sortBy, sortDir, dateFilter, showArchived]);
 
   const deleteQuote = async (id) => {
     if (!window.confirm('Delete this quote?')) return;
@@ -1943,6 +2012,23 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
           </div>
         )}
 
+        {/* ── QB→DQS pending sync banner ── */}
+        {qbHeroSync && tab === 'quotes' && (
+          <div style={{ marginTop:12, background:'rgba(217,119,6,0.08)', border:'1px solid rgba(217,119,6,0.3)', borderRadius:10, padding:'10px 16px', display:'flex', alignItems:'center', gap:12, position:'relative', zIndex:1, flexWrap:'wrap' }}>
+            <span style={{ fontSize:18 }}>🔗</span>
+            <div style={{ flex:1 }}>
+              <span style={{ fontWeight:800, fontSize:12, color:'#d97706' }}>{qbHeroSync.count} item{qbHeroSync.count!==1?'s':''} from Quote Builder</span>
+              <span style={{ fontSize:11, color:'rgba(255,255,255,0.45)', marginLeft:8 }}>({qbHeroSync.ageMin} min ago) · Ready to import into a new quotation</span>
+            </div>
+            <button onClick={() => { setEditQuote(null); setShowForm(true); }}
+              style={{ fontSize:11, fontWeight:700, color:'#d97706', background:'rgba(217,119,6,0.12)', border:'1px solid rgba(217,119,6,0.35)', borderRadius:7, padding:'5px 14px', cursor:'pointer', whiteSpace:'nowrap' }}>
+              📥 Open in New Quote →
+            </button>
+            <button onClick={() => { localStorage.removeItem('inveniq_qb_to_dqb'); setQbHeroSync(null); }}
+              style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(255,255,255,0.4)', fontSize:16, lineHeight:1, padding:4 }}>✕</button>
+          </div>
+        )}
+
         {/* ── KPI strip ── */}
         <div style={{ display:'grid',gridTemplateColumns:tab==='quotes'?'repeat(5,1fr)':'repeat(4,1fr)',gap:10,marginTop:16,position:'relative',zIndex:1 }}>
           {(tab === 'quotes' ? [
@@ -1994,10 +2080,11 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
 
         {/* Toolbar */}
         <div style={{ display:'flex',gap:10,alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap' }}>
-          <div style={{ position:'relative',flex:'1 1 240px',maxWidth:300 }}>
+          <div style={{ position:'relative',flex:'1 1 220px',maxWidth:280 }}>
             <span style={{ position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'var(--muted)',fontSize:13,pointerEvents:'none' }}>🔍</span>
             <input style={{ ...INP,paddingLeft:34,fontSize:12.5,borderRadius:8,background:'#ffffff',border:'1.5px solid #ccfbf1',color:'#0d1b2e' }} placeholder={tab==='quotes'?'Search client, project, quote#…':'Search client, project, proposal#…'} value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+          {/* Status filter pills */}
           <div style={{ display:'flex',gap:5,flexWrap:'wrap' }}>
             {[['','All'],...Object.entries(tab==='quotes'?Q_STATUS:P_STATUS).map(([k,v])=>[k,v.label])].map(([k,lbl]) => {
               const v=(tab==='quotes'?Q_STATUS:P_STATUS)[k]||{};
@@ -2009,12 +2096,37 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
               );
             })}
           </div>
+          {/* Date filter pills */}
+          <div style={{ display:'flex',gap:4,alignItems:'center',flexShrink:0 }}>
+            {[['7d','7d'],['30d','30d']].map(([v,lbl]) => (
+              <button key={v} onClick={() => setDateFilter(dateFilter===v?'':v)}
+                style={{ padding:'4px 10px', fontSize:11, fontWeight:700, borderRadius:20, cursor:'pointer', background: dateFilter===v?'rgba(13,148,136,0.12)':'transparent', color: dateFilter===v?'#0d9488':'var(--muted)', border: dateFilter===v?'1.5px solid rgba(13,148,136,0.4)':'1.5px solid var(--border)' }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          {/* Sort control */}
+          <select value={`${sortBy}:${sortDir}`} onChange={e => { const [col,dir]=e.target.value.split(':'); setSortBy(col); setSortDir(dir); }}
+            style={{ fontSize:11.5, fontWeight:600, border:'1.5px solid var(--border)', borderRadius:8, padding:'5px 10px', background:'#ffffff', color:'var(--muted)', cursor:'pointer', flexShrink:0 }}>
+            <option value="created_at:desc">Date ↓</option>
+            <option value="created_at:asc">Date ↑</option>
+            <option value="grand_total:desc">Value ↓</option>
+            <option value="grand_total:asc">Value ↑</option>
+            <option value="client_name:asc">Client A–Z</option>
+            <option value="status:asc">Status</option>
+          </select>
+          {/* Archive toggle */}
+          <button onClick={() => setShowArchived(v => !v)}
+            style={{ fontSize:11, fontWeight:700, padding:'5px 10px', borderRadius:8, cursor:'pointer', background: showArchived?'rgba(107,114,128,0.1)':'transparent', color: showArchived?'#6b7280':'var(--muted)', border: showArchived?'1.5px solid rgba(107,114,128,0.4)':'1.5px solid var(--border)', flexShrink:0, whiteSpace:'nowrap' }}
+            title={showArchived?'Hide completed/cancelled':'Show completed/cancelled'}>
+            {showArchived ? '📂 Incl. Archived' : '📁 Active Only'}
+          </button>
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
             <span style={{ fontSize:11,color:'var(--muted)',fontWeight:600,whiteSpace:'nowrap' }}>
-              {tab==='quotes'?`${quotes.length} quote${quotes.length!==1?'s':''}`:`${proposals.length} proposal${proposals.length!==1?'s':''}`}
+              {tab==='quotes'?`${displayQuotes.length} quote${displayQuotes.length!==1?'s':''}`:`${displayProposals.length} proposal${displayProposals.length!==1?'s':''}`}
             </span>
             <ExportButton
-              rows={tab==='quotes' ? quotes : proposals}
+              rows={tab==='quotes' ? displayQuotes : displayProposals}
               filename={tab==='quotes' ? 'interior_quotations' : 'architect_proposals'}
               columns={tab==='quotes' ? [
                 { key:'quote_number', label:'Quote #' }, { key:'client_name', label:'Client' },
@@ -2057,7 +2169,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
         {/* ── Quotes list ── */}
         {tab === 'quotes' && (
           <>
-            {quotes.length === 0 ? (
+            {displayQuotes.length === 0 ? (
               <div style={{ textAlign:'center', padding:'60px 20px' }}>
                 <div style={{ fontSize:48, marginBottom:12 }}>🎨</div>
                 <div style={{ fontWeight:800, fontSize:16, marginBottom:6 }}>No quotations yet</div>
@@ -2083,7 +2195,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {quotes.map(q => {
+                  {displayQuotes.map(q => {
                     const expired = q.valid_till && new Date(q.valid_till) < new Date() && !['APPROVED','COMPLETED','CANCELLED'].includes(q.status);
                     const sc = Q_STATUS[q.status] || Q_STATUS.DRAFT;
                     const daysSince = q.created_at ? Math.floor((new Date() - new Date(q.created_at)) / 86400000) : null;
@@ -2142,7 +2254,32 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                           <div style={{ fontSize:13, fontWeight:700, color:'var(--muted)' }}>{(q.sections || []).length}</div>
                         </td>
                         <td style={{ padding:'12px 10px', textAlign:'right' }} onClick={e => e.stopPropagation()}>
-                          <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
+                          <div style={{ display:'flex', gap:3, justifyContent:'flex-end', flexWrap:'wrap' }}>
+                            {/* Role-aware inline approval actions */}
+                            {(() => {
+                              const actions = getAllowedActions(q.status, currentUser?.role);
+                              const btnCfg = {
+                                SUBMIT:            { label:'📤 Submit',  color:'#0891b2', bg:'rgba(8,145,178,0.1)',  border:'rgba(8,145,178,0.3)' },
+                                APPROVE:           { label:'✅ Approve', color:'#16a34a', bg:'rgba(22,163,74,0.1)', border:'rgba(22,163,74,0.3)' },
+                                ESCALATE_L2:       { label:'⬆ L2',       color:'#d97706', bg:'rgba(217,119,6,0.1)', border:'rgba(217,119,6,0.3)' },
+                                ESCALATE_L3:       { label:'⬆ L3',       color:'#d97706', bg:'rgba(217,119,6,0.1)', border:'rgba(217,119,6,0.3)' },
+                                APPROVE_RETURN_L1: { label:'✅ Approve', color:'#16a34a', bg:'rgba(22,163,74,0.1)', border:'rgba(22,163,74,0.3)' },
+                                REJECT:            { label:'✗ Reject',   color:'#dc2626', bg:'rgba(220,38,38,0.1)', border:'rgba(220,38,38,0.3)' },
+                              };
+                              return actions.map(action => {
+                                const cfg = btnCfg[action]; if (!cfg) return null;
+                                return (
+                                  <button key={action}
+                                    onClick={() => handleInlineApproval(q.id, action)}
+                                    style={{ ...SEC_BTN, padding:'3px 7px', fontSize:10, fontWeight:700, color:cfg.color, background:cfg.bg, borderColor:cfg.border }}
+                                    title={action}>{cfg.label}</button>
+                                );
+                              });
+                            })()}
+                            {/* View & Send shortcut for approved quotes */}
+                            {q.status === 'APPROVED' && (
+                              <button onClick={() => setViewQuote(q)} style={{ ...SEC_BTN, padding:'3px 7px', fontSize:10, fontWeight:700, color:'#0891b2', background:'rgba(8,145,178,0.1)', borderColor:'rgba(8,145,178,0.3)' }} title="View & Send to Client">📧 Send</button>
+                            )}
                             <button onClick={() => setViewQuote(q)} style={{ ...SEC_BTN, padding:'4px 10px' }} title="View">👁</button>
                             <button onClick={() => { setEditQuote(q); setShowForm(true); }} style={{ ...SEC_BTN, padding:'4px 10px' }} title="Edit">✏️</button>
                             <button onClick={() => cloneQuote(q.id)} style={{ ...SEC_BTN, padding:'4px 10px' }} title="Clone">📋</button>
@@ -2159,7 +2296,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                 <div className="dqs-sum-item"><span className="dqs-sum-label">Total Pipeline</span><span className="dqs-sum-val accent">{fmtC(totalValue)}</span></div>
                 <div className="dqs-sum-item"><span className="dqs-sum-label">Won</span><span className="dqs-sum-val" style={{color:'#16a34a'}}>{fmtC(wonValue)}</span></div>
                 <div className="dqs-sum-item"><span className="dqs-sum-label">Active</span><span className="dqs-sum-val">{activeCount}</span></div>
-                <div className="dqs-sum-item"><span className="dqs-sum-label">Quotes</span><span className="dqs-sum-val">{quotes.length}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Quotes</span><span className="dqs-sum-val">{displayQuotes.length}</span></div>
                 {expiredCount > 0 && <div className="dqs-sum-item"><span className="dqs-sum-label" style={{color:'#dc2626'}}>Expired</span><span className="dqs-sum-val" style={{color:'#dc2626'}}>{expiredCount}</span></div>}
               </div>
               </>
@@ -2192,7 +2329,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {proposals.map(p => {
+                  {displayProposals.map(p => {
                     const sc = P_STATUS[p.status] || P_STATUS.DRAFT;
                     const paidPhases = (p.phases || []).filter(ph => ph.is_paid).length;
                     return (
@@ -2246,7 +2383,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                 <div className="dqs-sum-item"><span className="dqs-sum-label">Total Fees</span><span className="dqs-sum-val accent">{fmtC(totalFees)}</span></div>
                 <div className="dqs-sum-item"><span className="dqs-sum-label">Approved</span><span className="dqs-sum-val" style={{color:'#16a34a'}}>{fmtC(approvedFees)}</span></div>
                 <div className="dqs-sum-item"><span className="dqs-sum-label">Active</span><span className="dqs-sum-val">{activeProps}</span></div>
-                <div className="dqs-sum-item"><span className="dqs-sum-label">Proposals</span><span className="dqs-sum-val">{proposals.length}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Proposals</span><span className="dqs-sum-val">{displayProposals.length}</span></div>
               </div>
               </>
             )}
