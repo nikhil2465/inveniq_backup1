@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
 import SkeletonView from '../components/SkeletonLoader';
+import { ExportButton } from '../utils/exportUtils';
 
 // ── Status configs ──────────────────────────────────────────────────────────
 const Q_STATUS = {
@@ -1866,9 +1867,9 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
       <div style={{ background:'linear-gradient(160deg,#042f2e 0%,#011f1e 100%)', padding:'36px 40px 0', position:'relative', overflow:'hidden' }}>
 
         {/* Single large ambient glow — top right */}
-        <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(13,148,136,0.28) 0%,rgba(109,40,217,0.12) 40%,transparent 70%)',pointerEvents:'none' }} />
+        <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(13,148,136,0.28) 0%,rgba(13,148,136,0.08) 40%,transparent 70%)',pointerEvents:'none' }} />
         {/* Subtle bottom-left counter-glow */}
-        <div style={{ position:'absolute',bottom:-80,left:-60,width:360,height:360,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(192,38,211,0.1) 0%,transparent 65%)',pointerEvents:'none' }} />
+        <div style={{ position:'absolute',bottom:-80,left:-60,width:360,height:360,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(20,184,166,0.1) 0%,transparent 65%)',pointerEvents:'none' }} />
         {/* Fine dot grid */}
         <div style={{ position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(13,148,136,0.12) 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
 
@@ -1908,21 +1909,55 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
           </div>
         </div>
 
+        {/* ── AI strip ── */}
+        {onGoChat && (
+          <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:20,background:'rgba(13,148,136,0.07)',border:'1px solid rgba(13,148,136,0.18)',borderRadius:10,padding:'10px 18px',position:'relative',zIndex:1,flexWrap:'wrap' }}>
+            <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+              <div style={{ width:30,height:30,borderRadius:8,background:'rgba(13,148,136,0.2)',border:'1px solid rgba(13,148,136,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0 }}>🎨</div>
+              <div>
+                <div style={{ fontSize:12,fontWeight:700,color:'#ffffff',letterSpacing:'-0.1px' }}>Design Intelligence Active</div>
+                <div style={{ fontSize:10.5,color:'rgba(255,255,255,0.45)',marginTop:2 }}>
+                  {tab === 'quotes'
+                    ? <>Pipeline: <strong style={{ color:'#5eead4' }}>{fmtC(totalValue)}</strong> · Won: <strong style={{ color:'#34d399' }}>{fmtC(wonValue)}</strong> · {activeCount} active</>
+                    : <>Total fees: <strong style={{ color:'#5eead4' }}>{fmtC(totalFees)}</strong> · Approved: <strong style={{ color:'#34d399' }}>{fmtC(approvedFees)}</strong> · {activeProps} active</>}
+                </div>
+              </div>
+            </div>
+            <div style={{ display:'flex',gap:6,flexShrink:0,flexWrap:'wrap' }}>
+              {(tab === 'quotes' ? [
+                ['📊 Pipeline Analysis', 'Analyse my interior design quote pipeline — win rates, average deal size, top clients, and which projects are most likely to close this month.'],
+                ['⏰ Expiry Follow-ups',  'Which design quotations are expiring soon? For each, suggest the best follow-up strategy to convert or extend before they expire.'],
+                ['💰 Pricing Strategy',  'Based on my won and lost interior design quotations, what is the optimal pricing strategy by project type and client segment?'],
+                ['📐 BOQ Estimator',     'Help me estimate a complete BOQ for a typical 2BHK interior fit-out — room-wise material breakdown with quantities and market rates.'],
+              ] : [
+                ['📋 Approval Status',   'Which architect fee proposals are awaiting approval? Summarise each with client, scope, fee amount, and days pending.'],
+                ['📐 Phase Payments',    'Analyse my architect fee proposals — which phases are pending payment, and what is the total outstanding fee across all projects?'],
+                ['💼 Fee Benchmarking',  'How do my architect fees compare to industry benchmarks for residential and commercial fit-out projects?'],
+                ['🤖 Draft Proposal',   'Help me draft a professional architect fee proposal for a commercial office fit-out of 5000 sqft with full design and execution oversight.'],
+              ]).map(([lbl, q]) => (
+                <button key={lbl} onClick={() => onGoChat(q)} style={{ background:'rgba(13,148,136,0.12)',color:'rgba(255,255,255,0.8)',border:'1px solid rgba(13,148,136,0.22)',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',transition:'all 0.12s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(13,148,136,0.22)';e.currentTarget.style.color='#ffffff';}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='rgba(13,148,136,0.12)';e.currentTarget.style.color='rgba(255,255,255,0.8)';}}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── KPI strip ── */}
-        <div style={{ display:'grid',gridTemplateColumns:tab==='quotes'?'repeat(5,1fr)':'repeat(4,1fr)',gap:10,marginTop:32,position:'relative',zIndex:1 }}>
+        <div style={{ display:'grid',gridTemplateColumns:tab==='quotes'?'repeat(5,1fr)':'repeat(4,1fr)',gap:10,marginTop:16,position:'relative',zIndex:1 }}>
           {(tab === 'quotes' ? [
-            { icon:'💰', label:'Pipeline',      value:fmtC(totalValue),  sub:'total quoted',     top:'#a78bfa' },
-            { icon:'✅', label:'Won / Approved', value:fmtC(wonValue),    sub:'confirmed value',  top:'#34d399' },
-            { icon:'📋', label:'Active',         value:activeCount,        sub:'open quotes',      top:'#60a5fa' },
-            { icon:'⏰', label:'Expiring',       value:expiredCount,       sub:'need attention',   top:expiredCount>0?'#fb7185':'#a78bfa' },
-            { icon:'📁', label:'Total Quotes',   value:quotes.length,      sub:'all time',         top:'#a78bfa' },
+            { icon:'💰', label:'Pipeline',      value:fmtC(totalValue),  sub:'total quoted',     top:'#0d9488', q:'Analyse my interior design quote pipeline — total value, deal stages, and top clients by project value.' },
+            { icon:'✅', label:'Won / Approved', value:fmtC(wonValue),    sub:'confirmed value',  top:'#34d399', q:'Show all won and approved interior design quotations. What is my win rate and average deal size?' },
+            { icon:'📋', label:'Active',         value:activeCount,        sub:'open quotes',      top:'#14b8a6', q:'List all active interior design quotations with client, project value, status, and days since creation.' },
+            { icon:'⏰', label:'Expiring',       value:expiredCount,       sub:'need attention',   top:expiredCount>0?'#fb7185':'#14b8a6', q:'Which interior design quotations are expiring or have expired? For each, suggest the best follow-up action.' },
+            { icon:'📁', label:'Total Quotes',   value:quotes.length,      sub:'all time',         top:'#0d9488', q:'Give me a complete summary of all my design quotations — status breakdown, monthly trend, and average deal size.' },
           ] : [
-            { icon:'💼', label:'Total Fees',    value:fmtC(totalFees),    sub:'total pipeline',  top:'#a78bfa' },
-            { icon:'✅', label:'Approved Fees', value:fmtC(approvedFees), sub:'won value',        top:'#34d399' },
-            { icon:'📐', label:'Active',        value:activeProps,         sub:'open proposals',  top:'#60a5fa' },
-            { icon:'📁', label:'Total',         value:proposals.length,    sub:'all proposals',   top:'#a78bfa' },
+            { icon:'💼', label:'Total Fees',    value:fmtC(totalFees),    sub:'total pipeline',  top:'#0d9488', q:'What is my total architect fee pipeline? Break down by project type, status, and fee range.' },
+            { icon:'✅', label:'Approved Fees', value:fmtC(approvedFees), sub:'won value',        top:'#34d399', q:'Which architect fee proposals have been approved? What is the total approved value and which phases are pending payment?' },
+            { icon:'📐', label:'Active',        value:activeProps,         sub:'open proposals',  top:'#14b8a6', q:'List all active architect fee proposals with client, project name, total fee, and payment completion status.' },
+            { icon:'📁', label:'Total',         value:proposals.length,    sub:'all proposals',   top:'#0d9488', q:'Give me a complete overview of all architect fee proposals — status distribution, average fee, and revenue collected.' },
           ]).map(k => (
-            <div key={k.label} style={{ background:'rgba(255,255,255,0.04)',borderRadius:'12px 12px 0 0',padding:'16px 18px',borderTop:`2.5px solid ${k.top}`,borderLeft:'1px solid rgba(255,255,255,0.07)',borderRight:'1px solid rgba(255,255,255,0.07)',borderBottom:'none' }}>
+            <div key={k.label} onClick={() => onGoChat && onGoChat(k.q)} style={{ background:'rgba(255,255,255,0.04)',borderRadius:'12px 12px 0 0',padding:'16px 18px',borderTop:`2.5px solid ${k.top}`,borderLeft:'1px solid rgba(255,255,255,0.07)',borderRight:'1px solid rgba(255,255,255,0.07)',borderBottom:'none',cursor:'pointer',transition:'background 0.12s' }} onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.08)'} onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,0.04)'}>
               <div style={{ display:'flex',alignItems:'center',gap:5,marginBottom:8 }}>
                 <span style={{ fontSize:13 }}>{k.icon}</span>
                 <span style={{ fontSize:9,color:'rgba(255,255,255,0.38)',fontWeight:700,textTransform:'uppercase',letterSpacing:1.2 }}>{k.label}</span>
@@ -1935,15 +1970,21 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
 
         {/* ── Tabs ── */}
         <div style={{ display:'flex',gap:2,marginTop:10,position:'relative',zIndex:1 }}>
-          {[['quotes','🏠 Interior Quotations'],['proposals','📐 Architect Proposals']].map(([t,lbl]) => (
+          {[
+            ['quotes',    '🏠 Interior Quotations', quotes.length],
+            ['proposals', '📐 Architect Proposals',  proposals.length],
+          ].map(([t,lbl,cnt]) => (
             <button key={t} onClick={() => { setTab(t); setStatusFilter(''); setSearch(''); }} style={{
               background: tab===t ? 'var(--card)' : 'transparent',
               color: tab===t ? '#0d9488' : 'rgba(255,255,255,0.45)',
               border: tab===t ? '1px solid var(--border)' : '1px solid transparent',
               borderBottom: tab===t ? '1px solid var(--card)' : 'none',
               borderRadius:'10px 10px 0 0', padding:'10px 26px', fontSize:13, fontWeight:700,
-              cursor:'pointer', marginRight:2, letterSpacing:'-0.1px',
-            }}>{lbl}</button>
+              cursor:'pointer', marginRight:2, letterSpacing:'-0.1px', display:'flex', alignItems:'center', gap:8,
+            }}>
+              {lbl}
+              {cnt > 0 && <span style={{ fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, background: tab===t ? 'rgba(13,148,136,0.15)' : 'rgba(255,255,255,0.08)', color: tab===t ? '#0d9488' : 'rgba(255,255,255,0.4)', lineHeight:'16px', minWidth:20, textAlign:'center' }}>{cnt}</span>}
+            </button>
           ))}
         </div>
       </div>
@@ -1968,9 +2009,26 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
               );
             })}
           </div>
-          <span style={{ marginLeft:'auto',fontSize:11,color:'var(--muted)',fontWeight:600,whiteSpace:'nowrap' }}>
-            {tab==='quotes'?`${quotes.length} quote${quotes.length!==1?'s':''}`:`${proposals.length} proposal${proposals.length!==1?'s':''}`}
-          </span>
+          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+            <span style={{ fontSize:11,color:'var(--muted)',fontWeight:600,whiteSpace:'nowrap' }}>
+              {tab==='quotes'?`${quotes.length} quote${quotes.length!==1?'s':''}`:`${proposals.length} proposal${proposals.length!==1?'s':''}`}
+            </span>
+            <ExportButton
+              rows={tab==='quotes' ? quotes : proposals}
+              filename={tab==='quotes' ? 'interior_quotations' : 'architect_proposals'}
+              columns={tab==='quotes' ? [
+                { key:'quote_number', label:'Quote #' }, { key:'client_name', label:'Client' },
+                { key:'project_name', label:'Project' }, { key:'grand_total',  label:'Value (₹)' },
+                { key:'status',       label:'Status'  }, { key:'valid_till',   label:'Valid Till' },
+                { key:'created_at',   label:'Created'  },
+              ] : [
+                { key:'proposal_number', label:'Proposal #' }, { key:'client_name', label:'Client' },
+                { key:'project_name',    label:'Project'    }, { key:'total_fee',    label:'Total Fee (₹)' },
+                { key:'status',          label:'Status'     }, { key:'valid_till',   label:'Valid Till' },
+                { key:'created_at',      label:'Created'    },
+              ]}
+            />
+          </div>
         </div>
 
         {/* ── Pending approvals banner (managers only) ── */}
@@ -2010,9 +2068,10 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                 </div>
               </div>
             ) : (
+              <>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                 <thead>
-                  <tr style={{ background:'linear-gradient(135deg,#0a1628 0%,#162236 100%)' }}>
+                  <tr style={{ background:'linear-gradient(135deg,#042f2e 0%,#011f1e 100%)' }}>
                     {mergeMode && <th style={{ padding:'11px 10px', width:36 }}></th>}
                     <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Quote</th>
                     <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Client & Project</th>
@@ -2053,7 +2112,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                             <div style={{ width:4, height:38, borderRadius:4, background: sc.color, flexShrink:0 }} />
                             <div>
                               <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                                <div style={{ fontWeight:800, fontSize:13, color:'#9333ea', letterSpacing:'-0.2px' }}>{q.quote_number}</div>
+                                <div style={{ fontWeight:800, fontSize:13, color:'#0d9488', letterSpacing:'-0.2px' }}>{q.quote_number}</div>
                                 {ageStyle && <span style={{ fontSize:8, borderRadius:3, padding:'1px 5px', fontWeight:700, fontFamily:"'JetBrains Mono','Courier New',monospace", whiteSpace:'nowrap', lineHeight:'14px', background:ageStyle.bg, color:ageStyle.tc, border:`1px solid ${ageStyle.bc}` }}>{ageStyle.lbl}</span>}
                               </div>
                               <div style={{ fontSize:11, color:'var(--muted)', marginTop:1 }}>{q.created_at || '—'}</div>
@@ -2063,7 +2122,7 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                         {/* client avatar + name */}
                         <td style={{ padding:'12px 14px' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                            <div style={{ width:36, height:36, borderRadius:10, background:'linear-gradient(135deg,#6b21c8,#be185d)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:12, flexShrink:0, boxShadow:'0 2px 8px rgba(107,33,200,0.35)' }}>{avatar(q.client_name)}</div>
+                            <div style={{ width:36, height:36, borderRadius:10, background:'linear-gradient(135deg,#0f766e,#0d9488)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:12, flexShrink:0, boxShadow:'0 2px 8px rgba(13,148,136,0.35)' }}>{avatar(q.client_name)}</div>
                             <div>
                               <div style={{ fontWeight:700, fontSize:13 }}>{q.client_name}</div>
                               <div style={{ fontSize:11, color:'var(--muted)', marginTop:1, maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{q.project_name || '—'}</div>
@@ -2095,6 +2154,15 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                   })}
                 </tbody>
               </table>
+              {/* Value summary bar */}
+              <div className="dqs-summary-bar">
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Total Pipeline</span><span className="dqs-sum-val accent">{fmtC(totalValue)}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Won</span><span className="dqs-sum-val" style={{color:'#16a34a'}}>{fmtC(wonValue)}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Active</span><span className="dqs-sum-val">{activeCount}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Quotes</span><span className="dqs-sum-val">{quotes.length}</span></div>
+                {expiredCount > 0 && <div className="dqs-sum-item"><span className="dqs-sum-label" style={{color:'#dc2626'}}>Expired</span><span className="dqs-sum-val" style={{color:'#dc2626'}}>{expiredCount}</span></div>}
+              </div>
+              </>
             )}
           </>
         )}
@@ -2107,12 +2175,13 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                 <div style={{ fontSize:48, marginBottom:12 }}>📐</div>
                 <div style={{ fontWeight:800, fontSize:16, marginBottom:6 }}>No proposals yet</div>
                 <div style={{ color:'var(--muted)', fontSize:13, marginBottom:20 }}>Create your first architect fee proposal with automated phase scheduling and BOQ generation.</div>
-                <button onClick={() => { setEditProposal(null); setShowProposalForm(true); }} style={{ ...PRI_BTN, background:'linear-gradient(135deg,#6366f1,#818cf8)' }}>+ New Architect Proposal</button>
+                <button onClick={() => { setEditProposal(null); setShowProposalForm(true); }} style={{ ...PRI_BTN, background:'linear-gradient(135deg,#0f766e,#0d9488)' }}>+ New Architect Proposal</button>
               </div>
             ) : (
+              <>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                 <thead>
-                  <tr style={{ background:'linear-gradient(135deg,#0a1628 0%,#162236 100%)' }}>
+                  <tr style={{ background:'linear-gradient(135deg,#042f2e 0%,#011f1e 100%)' }}>
                     <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Proposal</th>
                     <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Client & Project</th>
                     <th style={{ padding:'11px 14px', textAlign:'left', fontWeight:700, color:'rgba(255,255,255,0.65)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Status</th>
@@ -2137,14 +2206,14 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                             <div style={{ width:4, height:38, borderRadius:4, background: sc.color, flexShrink:0 }} />
                             <div>
-                              <div style={{ fontWeight:800, fontSize:13, color:'#6366f1' }}>{p.proposal_number}</div>
+                              <div style={{ fontWeight:800, fontSize:13, color:'#0d9488' }}>{p.proposal_number}</div>
                               <div style={{ fontSize:11, color:'var(--muted)', marginTop:1 }}>{p.created_at || '—'}</div>
                             </div>
                           </div>
                         </td>
                         <td style={{ padding:'12px 14px' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                            <div style={{ width:36, height:36, borderRadius:10, background:'linear-gradient(135deg,#4338ca,#6b21c8)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:12, flexShrink:0, boxShadow:'0 2px 8px rgba(67,56,202,0.35)' }}>{avatar(p.client_name)}</div>
+                            <div style={{ width:36, height:36, borderRadius:10, background:'linear-gradient(135deg,#0d9488,#0f766e)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:12, flexShrink:0, boxShadow:'0 2px 8px rgba(13,148,136,0.35)' }}>{avatar(p.client_name)}</div>
                             <div>
                               <div style={{ fontWeight:700, fontSize:13 }}>{p.client_name}</div>
                               <div style={{ fontSize:11, color:'var(--muted)', marginTop:1, maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.project_name || '—'}</div>
@@ -2173,6 +2242,13 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                   })}
                 </tbody>
               </table>
+              <div className="dqs-summary-bar">
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Total Fees</span><span className="dqs-sum-val accent">{fmtC(totalFees)}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Approved</span><span className="dqs-sum-val" style={{color:'#16a34a'}}>{fmtC(approvedFees)}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Active</span><span className="dqs-sum-val">{activeProps}</span></div>
+                <div className="dqs-sum-item"><span className="dqs-sum-label">Proposals</span><span className="dqs-sum-val">{proposals.length}</span></div>
+              </div>
+              </>
             )}
           </>
         )}

@@ -2155,7 +2155,7 @@ function QuoteRow({ q, onView, onEdit, onAskAI, onClone, isSelected, onToggleSel
           )}
           {onAskAI && (
             <button className="qb-view-btn"
-              style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', border: 'none' }}
+              style={{ background: 'linear-gradient(135deg,#b45309,#d97706)', color: '#fff', border: 'none' }}
               onClick={e => { e.stopPropagation(); onAskAI(q); }} title="Ask AI about this quote">
               🤖
             </button>
@@ -4555,7 +4555,7 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                 {/* Templates dropdown */}
                 <div style={{ position:'relative' }} onClick={e => e.stopPropagation()}>
                   <button onClick={() => setShowTemplates(t => !t)}
-                    style={{ background: showTemplates ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.06)', color: showTemplates ? '#a5b4fc' : 'rgba(255,255,255,0.85)', border:`1px solid ${showTemplates ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.16)'}`, borderRadius:9, padding:'9px 16px', fontSize:12, cursor:'pointer', fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
+                    style={{ background: showTemplates ? 'rgba(245,158,11,0.18)' : 'rgba(255,255,255,0.06)', color: showTemplates ? '#fbbf24' : 'rgba(255,255,255,0.85)', border:`1px solid ${showTemplates ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.16)'}`, borderRadius:9, padding:'9px 16px', fontSize:12, cursor:'pointer', fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
                     📋 Templates ▾
                   </button>
                   {showTemplates && (
@@ -4578,10 +4578,6 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                   style={{ background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.85)',border:'1px solid rgba(255,255,255,0.16)',borderRadius:9,padding:'9px 16px',fontSize:12,cursor:'pointer',fontWeight:600 }}>
                   📱 Scan WhatsApp
                 </button>
-                <button onClick={() => setShowKanban(v => !v)}
-                  style={{ background: showKanban ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.06)', color: showKanban ? '#a5b4fc' : 'rgba(255,255,255,0.75)', border:`1px solid ${showKanban ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.16)'}`, borderRadius:9, padding:'9px 16px', fontSize:12, cursor:'pointer', fontWeight:600 }}>
-                  {showKanban ? '📋 List' : '🗂 Kanban'}
-                </button>
                 <button className="btn-primary" onClick={() => { setEditQuote(null); setShowForm(true); }}
                   style={{ background:'linear-gradient(135deg,#b45309,#f59e0b)',color:'#fff',border:'none',borderRadius:9,padding:'10px 24px',fontSize:13,cursor:'pointer',fontWeight:800,boxShadow:'0 4px 20px rgba(245,158,11,0.55)',letterSpacing:'-0.2px' }}>
                   + New Quotation
@@ -4598,8 +4594,8 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
                     <div style={{ fontSize:12,fontWeight:700,color:'#fff',letterSpacing:'-0.1px' }}>Quote Intelligence Active</div>
                     <div style={{ fontSize:10.5,color:'rgba(255,255,255,0.45)',marginTop:2 }}>
                       {kpis.quotes_expiring > 0 ? `⚠ ${kpis.quotes_expiring} expiring — follow up now` : 'No urgent expirations'}
-                      {' · '}Win rate: <strong style={{ color:'#93c5fd' }}>{kpis.win_rate_pct || 0}%</strong>
-                      {' · '}Pipeline: <strong style={{ color:'#93c5fd' }}>{fmtL(kpis.pipeline_value || 0)}</strong>
+                      {' · '}Win rate: <strong style={{ color:'#fbbf24' }}>{kpis.win_rate_pct || 0}%</strong>
+                      {' · '}Pipeline: <strong style={{ color:'#fbbf24' }}>{fmtL(kpis.pipeline_value || 0)}</strong>
                     </div>
                   </div>
                 </div>
