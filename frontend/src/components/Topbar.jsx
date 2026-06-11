@@ -26,6 +26,10 @@ const QUICK_SEARCH_SUGGESTIONS = [
   { label: 'Overdue collections',   view: 'customers',   query: 'Give me a prioritised collections call list with recovery scripts for overdue payments.' },
   { label: 'Quote win rate',        view: 'quotes',      query: 'What is my quotation win rate and which quotes should I follow up on this week?' },
   { label: 'Expiring quotes',       view: 'quotes',      query: 'Which quotes are expiring this week? Give me the contact details and a follow-up script for each.' },
+  { label: 'Overdue invoices',      view: 'invoices',    query: 'Which customer invoices are overdue and by how many days? Show me the total outstanding and draft a follow-up message for the top 3 accounts.' },
+  { label: 'Sales MIS report',      view: 'reports',     query: 'Give me a sales summary for this month — total revenue, top customers, GST collected, and key trends vs last month.' },
+  { label: 'Design quote pipeline', view: 'designquote', query: 'What is the status of my design quotation and architect fee proposal pipeline — value of won vs pending vs lost, and which proposals need follow-up this week?' },
+  { label: 'Pending requisitions',  view: 'pr',          query: 'How many purchase requisitions are pending approval? Show departments, total estimated value, and flag any urgent or overdue requests.' },
   { label: 'Business health check', view: null,          query: 'Give me a complete business health check and top priorities for this week.' },
 ];
 
@@ -382,8 +386,10 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
                 ['g + 2', 'Sales Return'],           ['g + 3', 'Landing Cost'],
                 ['g + 4', 'Distributor Portal'],     ['g + 5', 'Damage Recording'],
                 ['g + 6', 'Purchase Requisition'],   ['g + 7', 'QC Inspection'],
-                ['g + 8', 'Invoice Matching'],       ['Ctrl + K', 'Global search'],
-                ['?', 'This shortcuts panel'],       ['Esc', 'Close / cancel'],
+                ['g + 8', 'Invoice Matching'],       ['g + 9', 'Sales Invoices'],
+                ['g + 0', 'Reports & MIS'],          ['g + -', 'Design Quote Studio'],
+                ['Ctrl + K', 'Global search'],       ['?', 'This shortcuts panel'],
+                ['Esc', 'Close / cancel'],
               ].map(([key, label]) => (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
                   <kbd style={KBD}>{key}</kbd>
@@ -449,10 +455,10 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
             <div className="upro-divider" />
             <div className="upro-meta">
               <div className="upro-meta-row">
-                <span>Version</span><strong>InvenIQ v3.1</strong>
+                <span>Version</span><strong>InvenIQ v3.7</strong>
               </div>
               <div className="upro-meta-row">
-                <span>Build</span><strong>May 2026</strong>
+                <span>Build</span><strong>June 2026</strong>
               </div>
             </div>
             <div className="upro-divider" />

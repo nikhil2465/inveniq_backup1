@@ -347,7 +347,7 @@ export default function Sidebar({ activeView, onNavigate, dbStatus, isOpen, aler
       {/* Footer */}
       <div className="sf">
         <SidebarFooter dbStatus={dbStatus} />
-        <div className="sf-version">InvenIQ v3.2 · May 2026</div>
+        <div className="sf-version">InvenIQ v3.7 · June 2026</div>
       </div>
     </nav>
   );
