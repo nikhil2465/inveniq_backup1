@@ -4567,10 +4567,10 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
           { icon:'⏰', label:'Expiring',   value: kpis.quotes_expiring || 0,      sub:'follow up today',                         accent: (kpis.quotes_expiring || 0) > 0 ? '#fde68a' : '#fde68a', click: () => onGoChat?.('Which of my quotes are expiring this week? Give me a follow-up WhatsApp script for each customer.') },
         ];
         return (
-          <div style={{ background:'linear-gradient(160deg,#1c1610 0%,#100d08 100%)', padding:'36px 40px 0', position:'relative', overflow:'hidden', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
-            <div style={{ position:'absolute',top:-160,right:-160,width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(245,158,11,0.28) 0%,rgba(29,78,216,0.12) 40%,transparent 70%)',pointerEvents:'none' }} />
-            <div style={{ position:'absolute',bottom:-80,left:-60,width:360,height:360,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(14,165,233,0.09) 0%,transparent 65%)',pointerEvents:'none' }} />
-            <div style={{ position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(245,158,11,0.1) 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
+          <div style={{ background:'linear-gradient(160deg,#1a1814 0%,#0c0a07 100%)', padding:'36px 40px 0', position:'relative', overflow:'hidden', fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
+            <div style={{ position:'absolute',top:-160,right:-160,width:680,height:680,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(251,191,36,0.44) 0%,rgba(245,90,0,0.16) 42%,transparent 72%)',pointerEvents:'none' }} />
+            <div style={{ position:'absolute',bottom:-80,left:-60,width:400,height:400,borderRadius:'50%',background:'radial-gradient(circle at center,rgba(192,80,0,0.13) 0%,transparent 68%)',pointerEvents:'none' }} />
+            <div style={{ position:'absolute',inset:0,backgroundImage:'radial-gradient(rgba(245,158,11,0.07) 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
 
             {/* Title row */}
             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:16,position:'relative',zIndex:1 }}>
@@ -4654,15 +4654,15 @@ export default function QuoteBuilder({ onGoChat, dbStatus, onNavigate }) {
             <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:10,marginTop:22,position:'relative',zIndex:1 }}>
               {kpiTiles.map(k => (
                 <div key={k.label} onClick={k.click}
-                  style={{ background:'rgba(255,255,255,0.04)',borderRadius:'12px 12px 0 0',padding:'14px 16px',borderTop:`2.5px solid ${k.accent}`,borderLeft:'1px solid rgba(255,255,255,0.07)',borderRight:'1px solid rgba(255,255,255,0.07)',borderBottom:'none',cursor:'pointer',transition:'background 0.12s' }}
-                  onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.08)'}
-                  onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}>
+                  style={{ background:'rgba(255,255,255,0.055)',borderRadius:'12px 12px 0 0',padding:'14px 16px',borderTop:`2.5px solid ${k.accent}`,borderLeft:'1px solid rgba(255,255,255,0.09)',borderRight:'1px solid rgba(255,255,255,0.09)',borderBottom:'none',cursor:'pointer',transition:'all 0.15s',boxShadow:`0 -2px 16px ${k.accent}18` }}
+                  onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,0.1)'; e.currentTarget.style.transform='translateY(-2px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.055)'; e.currentTarget.style.transform='translateY(0)'; }}>
                   <div style={{ display:'flex',alignItems:'center',gap:5,marginBottom:8 }}>
                     <span style={{ fontSize:12 }}>{k.icon}</span>
-                    <span style={{ fontSize:9,color:'rgba(255,255,255,0.35)',fontWeight:700,textTransform:'uppercase',letterSpacing:1.2 }}>{k.label}</span>
+                    <span style={{ fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase',letterSpacing:1.2 }}>{k.label}</span>
                   </div>
-                  <div style={{ fontSize:20,fontWeight:900,color:'#fffbeb',lineHeight:1,letterSpacing:'-0.7px',fontFamily:"'Plus Jakarta Sans','JetBrains Mono',monospace" }}>{k.value}</div>
-                  <div style={{ fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:5,letterSpacing:0.3,fontFamily:"'Inter',-apple-system,sans-serif" }}>{k.sub}</div>
+                  <div style={{ fontSize:21,fontWeight:900,color:'#fff7e6',lineHeight:1,letterSpacing:'-0.7px',fontFamily:"'Plus Jakarta Sans','JetBrains Mono',monospace",textShadow:`0 0 20px ${k.accent}44` }}>{k.value}</div>
+                  <div style={{ fontSize:10,color:'rgba(255,255,255,0.32)',marginTop:5,letterSpacing:0.3,fontFamily:"'Inter',-apple-system,sans-serif" }}>{k.sub}</div>
                 </div>
               ))}
             </div>
