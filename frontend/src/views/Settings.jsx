@@ -20,6 +20,7 @@ const MODULE_LIST = [
   { icon: '💲', id: 'discounts',   label: 'Discount Calculator',    section: 'Sales' },
   { icon: '🗺️',  id: 'projects',   label: 'Project Tracker',        section: 'Projects' },
   { icon: '📝', id: 'quotes',      label: 'Quotation Builder',      section: 'Projects' },
+  { icon: '🛁', id: 'designquote', label: 'Design Quote Studio',    section: 'Projects' },
   { icon: '💰', id: 'finance',     label: 'Profitability & Cash',   section: 'Finance' },
   { icon: '💳', id: 'credit',     label: 'Credit Management',      section: 'Finance' },
   { icon: '🛒', id: 'pos',        label: 'Counter POS',            section: 'Finance' },
