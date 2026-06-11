@@ -682,6 +682,12 @@ export default function PurchaseRequisition({ onGoChat, dbStatus, period }) {
             PR_Date: p.pr_date, Required_By: p.required_by, Status: p.status,
             Priority: p.priority, Items: p.item_count, Est_Value: p.estimated_value,
           })), `purchase_requisitions_${period}`)} label="Export" />
+          {onGoChat && (
+            <button onClick={() => onGoChat('Analyse my purchase requisitions — which departments have the most pending PRs, what is the total estimated value awaiting approval, and flag any urgent or overdue requests that need immediate action.')}
+              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 7, border: '1.5px solid rgba(139,92,246,.35)', background: 'rgba(139,92,246,.09)', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              ✨ AI Brief
+            </button>
+          )}
           <button className="pr-btn-primary" onClick={() => setShowCreate(true)}>+ New PR</button>
         </div>
       </div>

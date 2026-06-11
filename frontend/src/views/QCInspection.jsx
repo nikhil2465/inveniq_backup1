@@ -360,6 +360,12 @@ export default function QCInspection({ onGoChat, dbStatus, period }) {
             Total_Qty: q.total_qty_inspected, Accepted: q.accepted_qty, Rejected: q.rejected_qty,
             Rework: q.rework_qty ?? 0, Hold: q.hold_qty ?? 0,
           })), `qc_inspections_${period}`)} label="Export" />
+          {onGoChat && (
+            <button onClick={() => onGoChat('Analyse QC inspection results — what is the overall acceptance rate, which SKUs and suppliers have the highest rejection rates, and which items need immediate supplier quality review conversations?')}
+              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 7, border: '1.5px solid rgba(20,184,166,.35)', background: 'rgba(20,184,166,.09)', color: '#0d9488', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              ✨ AI Brief
+            </button>
+          )}
           <button className="qci-btn-primary" onClick={() => setShowCreate(true)}>+ New Inspection</button>
         </div>
       </div>

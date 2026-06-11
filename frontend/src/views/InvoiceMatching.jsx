@@ -374,6 +374,12 @@ export default function InvoiceMatching({ onGoChat, dbStatus, period }) {
             PO_Value: m.po_value, GRN_Value: m.grn_value, Invoice_Value: m.invoice_value,
             Discrepancy: m.discrepancy_amt, Status: m.match_status, Due: m.payment_due_date,
           })), `invoice_matching_${period}`)} label="Export" />
+          {onGoChat && (
+            <button onClick={() => onGoChat('Show me my invoice matching summary — pending AP approvals, total discrepancy value, and which suppliers consistently have 3-way match failures needing urgent follow-up.')}
+              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 7, border: '1.5px solid rgba(99,102,241,.35)', background: 'rgba(99,102,241,.09)', color: '#6366f1', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              ✨ AI Brief
+            </button>
+          )}
           <button className="im-btn-primary" onClick={() => setShowCreate(true)}>+ New Match</button>
         </div>
       </div>

@@ -237,7 +237,15 @@ export default function TallyExport({ dbStatus, period, onGoChat }) {
           <h1 className="te-title">Tally Prime Export</h1>
           <p className="te-sub">Export InvenIQ data as Tally Prime-compatible CSV files for seamless import into your accounts</p>
         </div>
-        <DataSourceBadge dbStatus={dbStatus} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {onGoChat && (
+            <button className="btn-secondary" onClick={() => onGoChat('Before I import to Tally Prime, validate my export data — check for GST rate mismatches between stock items, missing HSN codes, duplicate ledger names, purchase vouchers without PO references, and any other issues that would cause import errors in Tally Prime.')}
+              style={{ fontSize: 12, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 5 }}>
+              ✨ Validate Data
+            </button>
+          )}
+          <DataSourceBadge dbStatus={dbStatus} />
+        </div>
       </div>
 
       {/* ── How to import steps ──────────────────────────────────── */}

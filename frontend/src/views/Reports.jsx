@@ -172,6 +172,17 @@ export default function Reports({ onGoChat, dbStatus, period }) {
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>to</span>
           <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
             style={{ height: 34, padding: '0 10px', fontSize: 12, border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)' }} />
+          {onGoChat && (
+            <button className="btn-secondary" onClick={() => onGoChat(
+              activeTab === 'Sales'       ? `Analyse my Sales report from ${fromDate} to ${toDate}. What are the top revenue months, best customers, and key growth or decline trends?` :
+              activeTab === 'GST Summary' ? `Review my GST position from ${fromDate} to ${toDate}. What is my net tax payable after ITC? Any compliance risks I should act on?` :
+              activeTab === 'Purchase'    ? `Analyse my Purchase report from ${fromDate} to ${toDate}. Which suppliers account for most spend? What is my total input tax credit?` :
+              activeTab === 'AR Aging'    ? `Analyse my AR Aging as of ${toDate}. Who are the top overdue accounts, what is the total at-risk amount, and draft a recovery priority list.` :
+              `Analyse my Stock report. What is total inventory value, which SKUs are dead stock risks (>60 days idle), and what should I reorder vs liquidate?`
+            )} style={{ height: 34, padding: '0 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+              ✨ AI Analyse
+            </button>
+          )}
           <button className="btn-primary" onClick={handleExport} disabled={loading}
             style={{ height: 34, padding: '0 16px', fontSize: 12 }}>
             ↓ Export CSV
