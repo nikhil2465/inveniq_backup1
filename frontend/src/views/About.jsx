@@ -52,13 +52,15 @@ export default function About({ onGoChat }) {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', borderBottom:'1px solid var(--border)' }}>
           <Stat value="37" label="Intelligence Modules" color="var(--b2)" />
           <Stat value="28" label="AI Data Tools" color="#10b981" />
-          <Stat value="3" label="Chat Modes (Ask/Explain/Act)" color="#8b5cf6" />
-          <Stat value="140+" label="API Endpoints" color="#0ea5e9" />
+          <Stat value="26" label="Insight Generators" color="#8b5cf6" />
+          <Stat value="28" label="API Routers" color="#0ea5e9" />
           <Stat value="36" label="Knowledge Base Topics" color="#f59e0b" />
+          <Stat value="8" label="Role-Based Access Roles" color="#14b8a6" />
+          <Stat value="175+" label="API Endpoints" color="#6366f1" />
           <Stat value="0 min" label="Setup Time" color="#10b981" />
         </div>
         <div style={{ padding:'12px 16px', textAlign:'center', fontSize:12, color:'var(--text3)' }}>
-          Built for louvers, laminates & building materials dealers in India. Adaptable to any product distribution business.
+          v3.7 · June 2026 · Built for louvers, laminates & building materials dealers in India. Adaptable to any product distribution business.
         </div>
       </div>
 
@@ -90,7 +92,7 @@ export default function About({ onGoChat }) {
 
       {/* ── FEATURES ── */}
       <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.8px', fontFamily:'var(--mono)', marginBottom:10 }}>
-        35 Intelligence Modules
+        37 Intelligence Modules
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:10, marginBottom:16 }}>
         {[
@@ -128,6 +130,8 @@ export default function About({ onGoChat }) {
           { icon:'🔬', title:'QC Inspection',       desc:'Post-GRN quality inspection with parameterised checklists, pass/accept/RTV decisions, and supplier quality scorecards.', color:'#14b8a6' },
           { icon:'🔗', title:'Invoice Matching',    desc:'Automated 3-way match (PO + GRN + Invoice) with 1% tolerance auto-approval, discrepancy flagging, and AP approval workflow.', color:'#6366f1' },
           { icon:'🛁', title:'Design Quote Studio',  desc:'Hardware & sanitary fit-out BOQ with room-by-room builder, AI WhatsApp scanner, multi-image visual product search, architect fee proposals (6-phase billing), and QB↔DQB sync.', color:'#a855f7' },
+          { icon:'🧾', title:'Sales Invoices (GST)',  desc:'GST-compliant sales invoice generation with IGST/CGST/SGST auto-split based on GSTIN state codes, payment tracking, email dispatch, and PDF export.', color:'#10b981' },
+          { icon:'📑', title:'Management Reports',    desc:'5-tab MIS suite: Sales Report, GST Summary, Purchase Report, AR Aging, and Stock Report — all exportable and period-selectable.', color:'#6366f1' },
         ].map(f => <Feature key={f.title} {...f} />)}
       </div>
 

@@ -1,0 +1,5 @@
+# Dev-only tooling — NOT required to run the app, NOT installed in production
+# images (Dockerfile only installs requirements.txt). Install with:
+#   python -m pip install -r requirements-dev.txt
+-r requirements.txt
+ruff==0.8.4

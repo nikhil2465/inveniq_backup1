@@ -9,29 +9,29 @@ const fmt  = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDig
 const fmtL = (n) => { const v = Number(n); return v >= 100000 ? `₹${(v / 100000).toFixed(2)}L` : fmt(v); };
 
 const STAGE_CONFIG = {
-  INQUIRY:       { label: 'Inquiry',       color: '#6b7280', bg: '#f3f4f6', icon: '📩' },
-  QUOTE_SENT:    { label: 'Quote Sent',    color: '#2563eb', bg: '#dbeafe', icon: '📋' },
-  NEGOTIATING:   { label: 'Negotiating',   color: '#d97706', bg: '#fef3c7', icon: '🤝' },
-  WON:           { label: 'Won',           color: '#15803d', bg: '#dcfce7', icon: '🏆' },
-  LOST:          { label: 'Lost',          color: '#dc2626', bg: '#fee2e2', icon: '❌' },
-  IN_PRODUCTION: { label: 'In Production', color: '#0e7490', bg: '#cffafe', icon: '🏭' },
-  DISPATCHED:    { label: 'Dispatched',    color: '#7c3aed', bg: '#f3e8ff', icon: '🚚' },
-  DELIVERED:     { label: 'Delivered',     color: '#15803d', bg: '#d1fae5', icon: '✅' },
-  INVOICED:      { label: 'Invoiced',      color: '#374151', bg: '#e5e7eb', icon: '📄' },
+  INQUIRY:       { label: 'Inquiry',       color: 'var(--text3)', bg: 'var(--s3)',  icon: '📩' },
+  QUOTE_SENT:    { label: 'Quote Sent',    color: 'var(--b2)',    bg: 'var(--b3)',  icon: '📋' },
+  NEGOTIATING:   { label: 'Negotiating',   color: 'var(--a2)',    bg: 'var(--a3)',  icon: '🤝' },
+  WON:           { label: 'Won',           color: 'var(--green)', bg: 'var(--g3)',  icon: '🏆' },
+  LOST:          { label: 'Lost',          color: 'var(--r2)',    bg: 'var(--r3)',  icon: '❌' },
+  IN_PRODUCTION: { label: 'In Production', color: 'var(--t2)',    bg: 'var(--t3)',  icon: '🏭' },
+  DISPATCHED:    { label: 'Dispatched',    color: 'var(--p2)',    bg: 'var(--p3)',  icon: '🚚' },
+  DELIVERED:     { label: 'Delivered',     color: 'var(--green)', bg: 'var(--g4)',  icon: '✅' },
+  INVOICED:      { label: 'Invoiced',      color: 'var(--text2)', bg: 'var(--s3)',  icon: '📄' },
 };
 
 const PRIORITY_CONFIG = {
-  CRITICAL: { label: 'Critical', color: '#dc2626', bg: '#fee2e2' },
-  HIGH:     { label: 'High',     color: '#d97706', bg: '#fef3c7' },
-  MEDIUM:   { label: 'Medium',   color: '#2563eb', bg: '#dbeafe' },
-  LOW:      { label: 'Low',      color: '#6b7280', bg: '#f3f4f6' },
+  CRITICAL: { label: 'Critical', color: 'var(--r2)',    bg: 'var(--r3)' },
+  HIGH:     { label: 'High',     color: 'var(--a2)',    bg: 'var(--a3)' },
+  MEDIUM:   { label: 'Medium',   color: 'var(--b2)',    bg: 'var(--b3)' },
+  LOW:      { label: 'Low',      color: 'var(--text3)', bg: 'var(--s3)' },
 };
 
 const KANBAN_STAGES = ['INQUIRY', 'QUOTE_SENT', 'NEGOTIATING', 'WON', 'IN_PRODUCTION', 'DISPATCHED', 'DELIVERED', 'INVOICED'];
 const ACTIVE_STAGES = KANBAN_STAGES.filter(s => s !== 'LOST');
 
 function StageBadge({ stage }) {
-  const cfg = STAGE_CONFIG[stage] || { label: stage, color: '#6b7280', bg: '#f3f4f6' };
+  const cfg = STAGE_CONFIG[stage] || { label: stage, color: 'var(--text3)', bg: 'var(--s3)' };
   return (
     <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
       {cfg.icon} {cfg.label}
@@ -53,7 +53,7 @@ function ProgressBar({ pct, stage }) {
     : stage === 'LOST' ? '#dc2626' : stage === 'IN_PRODUCTION' || stage === 'DISPATCHED' ? '#0e7490' : '#2563eb';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <div style={{ flex: 1, height: 5, background: '#e5e7eb', borderRadius: 99 }}>
+      <div style={{ flex: 1, height: 5, background: 'var(--s3)', borderRadius: 99 }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: '.4s' }} />
       </div>
       <span style={{ fontSize: 10, fontWeight: 600, color, minWidth: 28 }}>{pct}%</span>
@@ -246,10 +246,10 @@ function ProjectProcurementTab({ projectId, onNavigate }) {
   const fmtV = n => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
   const statusColor = s =>
-    s === 'GRN_DONE'   ? { bg: '#dcfce7', color: '#15803d' }
-    : s === 'IN_TRANSIT' ? { bg: '#dbeafe', color: '#1e40af' }
-    : s === 'ORDERED'    ? { bg: '#fef3c7', color: '#92400e' }
-    : { bg: '#f3f4f6', color: '#6b7280' };
+    s === 'GRN_DONE'   ? { bg: 'var(--g3)', color: 'var(--g2)' }
+    : s === 'IN_TRANSIT' ? { bg: 'var(--b3)', color: 'var(--b2)' }
+    : s === 'ORDERED'    ? { bg: 'var(--a3)', color: 'var(--a2)' }
+    : { bg: 'var(--s3)', color: 'var(--text3)' };
 
   if (loading) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>Loading procurement…</div>;
 
@@ -563,6 +563,26 @@ export default function ProjectTracker({ onGoChat, dbStatus, onNavigate }) {
         </div>
       </div>
 
+      {/* AI Project Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🎯', text: `Win rate ${kpis.win_rate_pct || 0}% — analyse lost projects and fix what's broken`,   q: `My project win rate is ${kpis.win_rate_pct || 0}%. I've lost ${fmtL(kpis.lost_ytd || 0)} in project value YTD. Analyse the patterns in my lost projects — is it pricing, speed of response, product match, or competitor activity? Give me 3 specific changes to improve win rate.` },
+            { icon: '🚨', text: `${kpis.critical_count || 0} critical projects need action today — show me exactly what`,   q: `I have ${kpis.critical_count || 0} critical priority projects. For each one, tell me exactly what stage they're stuck at, what is blocking progress, and what specific action I should take today to move them forward.` },
+            { icon: '⏰', text: `${kpis.overdue_count || 0} projects past expected close — recover before they go cold`,   q: `I have ${kpis.overdue_count || 0} projects that are past their expected close date. How do I re-engage each one? What message to send, what concession to offer, and when to cut losses and close as Lost?` },
+            { icon: '💰', text: `Pipeline ${fmtL(kpis.pipeline_value || 0)} — identify top 3 projects most likely to close`, q: `My active project pipeline is ${fmtL(kpis.pipeline_value || 0)}. Which 3 projects are most likely to close this month based on stage, customer engagement, and project size? What specific actions will accelerate each one to close?` },
+            { icon: '📊', text: 'Quote-to-order conversion — which stage has the biggest drop-off?',                           q: 'Where in my project pipeline do I lose the most projects? Analyse my inquiry → quote → order → production funnel. At which stage is the conversion rate worst and what should I change to reduce drop-off there?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* View switch + stage filter */}
       <div className="filter-bar">
         <div className="vswitch">
@@ -622,7 +642,7 @@ export default function ProjectTracker({ onGoChat, dbStatus, onNavigate }) {
       {view === 'list' && (
         <>
         <div className="card-table">
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead>
               <tr>
                 <th>Project</th><th>Client</th><th>Category</th>

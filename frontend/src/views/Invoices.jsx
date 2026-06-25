@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import DataSourceBadge from '../components/DataSourceBadge';
+import SkeletonView from '../components/SkeletonLoader';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
 import { exportToCsv } from '../utils/exportUtils';
 
@@ -25,17 +26,18 @@ const validateGstin  = (g) => /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1
 
 /* ── Status config ────────────────────────────────────────────────────────── */
 const INV_STATUS = {
-  DRAFT:          { color: '#6b7280', bg: '#f3f4f6',  label: 'Draft' },
-  SENT:           { color: '#2563eb', bg: '#dbeafe',   label: 'Sent' },
-  PARTIALLY_PAID: { color: '#d97706', bg: '#fef3c7',   label: 'Part Paid' },
-  PAID:           { color: '#16a34a', bg: '#dcfce7',   label: 'Paid' },
-  OVERDUE:        { color: '#dc2626', bg: '#fee2e2',   label: 'Overdue' },
-  CANCELLED:      { color: '#6b7280', bg: '#f3f4f6',   label: 'Cancelled' },
+  DRAFT:          { label: 'Draft' },
+  SENT:           { label: 'Sent' },
+  PARTIALLY_PAID: { label: 'Part Paid' },
+  PAID:           { label: 'Paid' },
+  OVERDUE:        { label: 'Overdue' },
+  CANCELLED:      { label: 'Cancelled' },
 };
 
+const INV_BADGE_CLS = { DRAFT: 'bsl', SENT: 'bb', PARTIALLY_PAID: 'ba', PAID: 'bg', OVERDUE: 'br', CANCELLED: 'bsl' };
 function StatusBadge({ status }) {
-  const c = INV_STATUS[status] || { color: '#6b7280', bg: '#f3f4f6', label: status };
-  return <span style={{ background: c.bg, color: c.color, borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{c.label}</span>;
+  const c = INV_STATUS[status] || { label: status };
+  return <span className={`bdg ${INV_BADGE_CLS[status] || 'bsl'}`}>{c.label}</span>;
 }
 
 /* ── GSTIN Input with validation indicator ─────────────────────────────── */
@@ -246,7 +248,7 @@ function InvoiceFormModal({ invoice, onClose, onSave, companyProfile }) {
                 Line Items
               </span>
               <span style={{ fontSize: 11, color: 'var(--muted)', flex: 1 }}>{lines.length} items · {fmt(subtotal)} taxable</span>
-              <button onClick={addLine} style={{ padding: '5px 12px', background: '#2563eb', color: '#fff',
+              <button onClick={addLine} style={{ padding: '5px 12px', background: 'var(--blue)', color: '#fff',
                 border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                 + Add Line
               </button>
@@ -353,7 +355,7 @@ function InvoiceFormModal({ invoice, onClose, onSave, companyProfile }) {
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px',
-                  fontSize: 16, fontWeight: 900, background: '#2563eb', color: '#fff' }}>
+                  fontSize: 16, fontWeight: 900, background: 'var(--blue)', color: '#fff' }}>
                   <span>TOTAL</span><span>{fmt(grandTotal)}</span>
                 </div>
               </div>
@@ -448,7 +450,7 @@ function PaymentModal({ invoice, onClose, onRecorded }) {
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Notes</label>
             <input value={notes} onChange={e => setNotes(e.target.value)} style={INPUT} />
           </div>
-          {error && <div style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>{error}</div>}
+          {error && <div style={{ background: 'var(--r5)', color: 'var(--r2)', border: '1px solid var(--r4)', borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={onClose} style={{ padding: '7px 14px', background: 'var(--hover)', color: 'var(--text)',
               border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
@@ -562,6 +564,7 @@ export default function Invoices({ dbStatus, onGoChat }) {
   const [viewInvoice,   setViewInvoice]   = useState(null);
   const [payModal,      setPayModal]      = useState(null);
   const [companyProfile, setCompanyProfile] = useState(null);
+  const [invSort,       setInvSort]       = useState({ field: 'invoice_date', dir: 'desc' });
 
   const fetchData = useCallback(async () => {
     try {
@@ -583,9 +586,22 @@ export default function Invoices({ dbStatus, onGoChat }) {
   useAutoRefresh(silentFetch);
 
   const kpis = data?.kpis || {};
-  const invoices = data?.invoices || [];
+  const rawInvoices = data?.invoices || [];
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--muted)', fontSize: 14 }}>Loading invoices…</div>;
+  const toggleInvSort = (field) => setInvSort(s => ({ field, dir: s.field === field && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const sic = (f) => invSort.field === f ? (invSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+  const stc = (f) => `sth${invSort.field === f ? ` sth-${invSort.dir}` : ''}`;
+
+  const invoices = [...rawInvoices].sort((a, b) => {
+    const { field, dir } = invSort;
+    let av = a[field] ?? '', bv = b[field] ?? '';
+    if (['grand_total','subtotal','paid_amount'].includes(field)) { av = parseFloat(av)||0; bv = parseFloat(bv)||0; }
+    else if (field === 'balance') { av = (parseFloat(a.grand_total)||0) - (parseFloat(a.paid_amount)||0); bv = (parseFloat(b.grand_total)||0) - (parseFloat(b.paid_amount)||0); }
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  });
+
+  if (loading) return <SkeletonView rows={8} />;
 
   return (
     <div className="view">
@@ -683,6 +699,26 @@ export default function Invoices({ dbStatus, onGoChat }) {
         </div>
       </div>
 
+      {/* AI Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🔴', text: `${kpis.overdue_count || 0} overdue invoices — generate collection messages now`, q: `I have ${kpis.overdue_count || 0} overdue invoices with a total value of ${fmtL(kpis.overdue_value)}. For each overdue customer, give me a professional but firm collection WhatsApp message. Categorise them by days overdue: 1-30 days (gentle reminder), 31-60 days (firm follow-up), 60+ days (escalation notice).` },
+            { icon: '📊', text: `DSO at ${kpis.dso_days || 0} days — reduce to 30 days and free up cash`, q: `My Days Sales Outstanding (DSO) is ${kpis.dso_days || 0} days. What practical steps will compress DSO to under 30 days? Which customers are stretching payment the most? How do I use early payment discounts, penalty clauses, and credit limits effectively in a hardware distribution business?` },
+            { icon: '🧾', text: 'GST compliance check — verify IGST vs CGST/SGST split is correct', q: 'Review the GST treatment on my sales invoices. For inter-state supplies, am I applying IGST correctly? For intra-state, are CGST and SGST split 50:50? What are the common GST errors in hardware and building materials billing that create reconciliation issues at GSTR-1 time?' },
+            { icon: '💰', text: `₹${fmtL(kpis.total_outstanding)} total outstanding — prioritise by risk`, q: `My total outstanding receivables are ${fmtL(kpis.total_outstanding)}. Segment my customers into: 1) Expected to pay on time, 2) At risk of delay, 3) High collection risk. What collection strategy should I apply to each segment to maximise cash collected in the next 30 days?` },
+            { icon: '📧', text: 'Bulk invoice email — send all pending invoices in one action', q: 'What is the best practice for sending sales invoices by email to B2B customers in India? What information must be on a GST-compliant invoice? How do I ensure invoices are delivered, opened, and acknowledged? What follow-up sequence maximises payment speed after invoice delivery?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Filter bar */}
       <div className="filter-bar">
         <input className="view-search" placeholder="🔍 Search by customer, invoice #…"
@@ -702,19 +738,19 @@ export default function Invoices({ dbStatus, onGoChat }) {
 
       {/* Invoices table */}
       <div className="card-table">
-        <table className="tbl">
+        <table className="tbl tbl-striped">
           <thead>
             <tr>
               <th>Invoice #</th>
-              <th>Date</th>
-              <th>Customer</th>
+              <th className={stc('invoice_date')} onClick={() => toggleInvSort('invoice_date')}>Date <span className="sort-ic">{sic('invoice_date')}</span></th>
+              <th className={stc('customer_name')} onClick={() => toggleInvSort('customer_name')}>Customer <span className="sort-ic">{sic('customer_name')}</span></th>
               <th>GST Type</th>
-              <th style={{textAlign:'right'}}>Taxable</th>
+              <th className={stc('subtotal')} onClick={() => toggleInvSort('subtotal')} style={{textAlign:'right'}}>Taxable <span className="sort-ic">{sic('subtotal')}</span></th>
               <th style={{textAlign:'right'}}>Tax</th>
-              <th style={{textAlign:'right'}}>Total</th>
-              <th style={{textAlign:'right'}}>Paid</th>
-              <th style={{textAlign:'right'}}>Balance</th>
-              <th>Status</th>
+              <th className={stc('grand_total')} onClick={() => toggleInvSort('grand_total')} style={{textAlign:'right'}}>Total <span className="sort-ic">{sic('grand_total')}</span></th>
+              <th className={stc('paid_amount')} onClick={() => toggleInvSort('paid_amount')} style={{textAlign:'right'}}>Paid <span className="sort-ic">{sic('paid_amount')}</span></th>
+              <th className={stc('balance')} onClick={() => toggleInvSort('balance')} style={{textAlign:'right'}}>Balance <span className="sort-ic">{sic('balance')}</span></th>
+              <th className={stc('status')} onClick={() => toggleInvSort('status')}>Status <span className="sort-ic">{sic('status')}</span></th>
               <th></th>
             </tr>
           </thead>

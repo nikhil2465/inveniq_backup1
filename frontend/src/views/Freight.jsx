@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createChart, baseOpts, gradientFill } from '../utils/chartHelpers';
+import { createChart, baseOpts, gradientFill, axisColors } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
 import SkeletonView from '../components/SkeletonLoader';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
@@ -27,7 +27,6 @@ export default function Freight({ onGoChat, period = 'MTD' }) {
   const ftRef = useRef(null);
 
   const fetchData = useCallback(() => {
-    setLoading(true);
     fetch(`/api/freight?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
   }, [period]);
 
@@ -38,7 +37,7 @@ export default function Freight({ onGoChat, period = 'MTD' }) {
       .catch(() => {});
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setLoading(true); fetchData(); }, [fetchData]);
   useEffect(() => { fetchInTransit(); }, [fetchInTransit]);
   useAutoRefresh(fetchData, 5 * 60_000);
   useAutoRefresh(fetchInTransit, 2 * 60_000);
@@ -50,6 +49,7 @@ export default function Freight({ onGoChat, period = 'MTD' }) {
 
   useEffect(() => {
     if (!d) return;
+    const c = axisColors();
     return createChart(ftRef, {
       type: 'line',
       data: {
@@ -62,10 +62,10 @@ export default function Freight({ onGoChat, period = 'MTD' }) {
       },
       options: baseOpts({
         scales: {
-          x: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 8 }, maxTicksLimit: 10 } },
-          y: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' }, callback: v => '₹' + v } },
+          x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 8 }, maxTicksLimit: 10 } },
+          y: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 9, family: 'JetBrains Mono' }, callback: v => '₹' + v } },
         },
-        plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10, family: 'JetBrains Mono' }, padding: 12, boxWidth: 12, color: '#4b5563' } } },
+        plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10, family: 'JetBrains Mono' }, padding: 12, boxWidth: 12, color: c.label } } },
       }),
     });
   }, [d]);
@@ -111,6 +111,26 @@ export default function Freight({ onGoChat, period = 'MTD' }) {
           </div>
         ))}
       </div>
+
+      {/* ── AI Freight Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🚛', text: 'Merge Whitefield deliveries today — save ₹2,400 in one move',          q: 'Mehta, Patel, and Gupta are all in the Whitefield zone today. If I merge these 3 deliveries into one truck run, calculate the exact freight saving, how to sequence the drops, and how to communicate delivery windows to each customer.' },
+            { icon: '⚡', text: 'Electronic City at ₹24/sheet — set ₹15K minimum order for this zone', q: 'My Electronic City lane costs ₹24/sheet with only 54% truck fill. How do I implement a minimum order value policy for this zone, what should the threshold be, and how do I communicate this to affected customers?' },
+            { icon: '📈', text: 'Vehicle utilisation at 68% vs 85% target — 17% empty cost daily',       q: 'My vehicle utilisation is 68% against a target of 85%. That 17% gap represents daily wasted cost. How do I redesign delivery scheduling, customer order batching, and route planning to consistently hit 85% utilisation?' },
+            { icon: '💰', text: 'Outbound ₹18.4/sheet vs ₹16 target — recover ₹2.4 margin per sheet', q: 'My outbound freight cost is ₹18.4/sheet vs ₹16 target. ₹2.4 gap per sheet. Over my monthly 480-sheet sales that is ₹1,152 per month in excess freight. What are the 3 fastest ways to close this gap?' },
+            { icon: '🔄', text: 'Inbound freight 40% higher than outbound — renegotiate supplier terms', q: 'My inbound freight cost from suppliers is significantly higher than outbound per sheet. How do I negotiate freight-included (CIF) terms with Century and Greenply, and what volume commitment gives me leverage for a better deal?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Deliveries In Transit ───────────────────────────────────────── */}
       {(() => {

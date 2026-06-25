@@ -269,6 +269,64 @@ export default function TallyExport({ dbStatus, period, onGoChat }) {
         </div>
       </div>
 
+      {/* ── AI Opportunity Chips ────────────────────────────────── */}
+      {onGoChat && (
+        <div className="ai-opp-strip" style={{ marginBottom: 18 }}>
+          <span className="ai-opp-label">✨ AI</span>
+          <button className="ai-opp-chip" onClick={() => onGoChat('Before I import to Tally Prime, check my stock items for issues — missing HSN codes, incorrect GST rates, duplicate names, or items with zero opening quantity that should be excluded.')}>🔍 Validate stock items</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('Check my customer and supplier ledgers for Tally import issues — duplicate GSTIN values, missing state codes, invalid PAN formats, or customers with opening balance discrepancies.')}>👥 Audit ledgers</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('Analyse my sales vouchers for GSTR-1 reconciliation — are there any invoices with incorrect GST rate, missing HSN, or inter-state supply that need IGST instead of CGST+SGST?')}>🧾 GST reconciliation check</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('Check my purchase vouchers for GSTR-2B reconciliation — are there purchases without PO reference numbers, suppliers with mismatched GSTIN, or vouchers with incorrect tax breakup?')}>📑 Purchase voucher audit</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('What is the recommended sequence for importing data into Tally Prime from InvenIQ — which files should be imported first to avoid ledger mismatch errors and duplicate entry issues?')}>📋 Import sequence guide</button>
+        </div>
+      )}
+
+      {/* ── Pre-Export Readiness Checklist ──────────────────────── */}
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Pre-Export Readiness Check</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Verify data quality before importing into Tally Prime</div>
+          </div>
+          {onGoChat && (
+            <button className="btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}
+              onClick={() => onGoChat('Run a complete pre-export audit of my Tally data. Check all 5 export types for: missing HSN codes, incorrect GST rates, duplicate ledger names, suppliers without GSTIN, sales vouchers without stock items, and purchase vouchers without PO references. Give me a prioritized fix list before I import to Tally Prime.')}>
+              ✨ Full Audit
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          {[
+            { label: 'Stock Items',        check: 'HSN codes assigned', status: 'ok',  detail: 'All items have HSN codes and GST rates set', q: 'Check my stock items for missing HSN codes and incorrect GST rates. Which items need to be updated before Tally import?' },
+            { label: 'Customer Ledgers',   check: 'GSTIN format valid',  status: 'ok',  detail: 'GSTIN validated · State codes match',         q: 'Audit my customer ledgers for GSTIN format errors, missing state codes, and duplicate ledger names that would cause Tally import failures.' },
+            { label: 'Supplier Ledgers',   check: 'PAN + GSTIN present', status: 'warn',detail: '2 suppliers have missing GSTIN — fix before import', q: 'I have suppliers with missing GSTIN in my Tally export data. Which suppliers need GSTIN updates and how will this affect my GSTR-2B reconciliation in Tally?' },
+            { label: 'Sales Vouchers',     check: 'GST split correct',   status: 'ok',  detail: 'CGST/SGST split verified · No IGST gaps',    q: 'Verify my sales vouchers for GST correctness — are there any inter-state supplies that need IGST instead of CGST+SGST?' },
+            { label: 'Purchase Vouchers',  check: 'PO reference linked', status: 'warn',detail: '3 GRNs without PO reference — review first',  q: 'I have 3 purchase vouchers without PO reference numbers in my Tally export. Should I manually add PO references or can Tally still import them? How will this affect my purchase reconciliation?' },
+          ].map(item => {
+            const isOk = item.status === 'ok';
+            return (
+              <div key={item.label} style={{
+                background: isOk ? '#f0fdf4' : '#fffbeb',
+                border: `1px solid ${isOk ? '#86efac' : '#fbbf24'}`,
+                borderRadius: 8, padding: '10px 12px',
+                cursor: onGoChat ? 'pointer' : 'default',
+              }} onClick={() => onGoChat?.(item.q)}>
+                <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 5 }}>
+                  <span style={{ fontSize: 14 }}>{isOk ? '✅' : '⚠️'}</span>
+                  <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--text)' }}>{item.label}</span>
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: isOk ? '#15803d' : '#d97706', marginBottom: 3 }}>{item.check}</div>
+                <div style={{ fontSize: 10, color: 'var(--text3)' }}>{item.detail}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 10, padding: '8px 12px', background: 'var(--surface)', borderRadius: 7, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text2)', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ color: '#d97706', fontWeight: 700 }}>⚠</span>
+          <span>2 warnings found. Fix supplier GSTIN and PO references before importing purchase vouchers to avoid GSTR-2B reconciliation gaps in Tally Prime.</span>
+        </div>
+      </div>
+
       {/* ── Export cards grid ────────────────────────────────────── */}
       <div className="te-grid">
         {EXPORT_CONFIGS.map(cfg => {

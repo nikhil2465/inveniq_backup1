@@ -87,11 +87,20 @@ function Badge({ status, map }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLAIMS TAB
 // ═══════════════════════════════════════════════════════════════════════════════
+const MONTH_IDX = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+const parseDMY = (s) => {
+  const m = /(\d{1,2})\s+(\w{3})\s+(\d{4})/.exec(String(s ?? ''));
+  if (!m) return 0;
+  const mon = MONTH_IDX[m[2]] ?? 0;
+  return new Date(Number(m[3]), mon, Number(m[1])).getTime();
+};
+
 function ClaimsTab({ claims, onGoChat }) {
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('ALL');
   const [typeFilter, setType] = useState('ALL');
   const [page, setPage]       = useState(1);
+  const [ccSort, setCcSort]   = useState({ field: 'date', dir: 'desc' });
   const PAGE_SIZE = 15;
 
   useEffect(() => { setPage(1); }, [search, filter, typeFilter]);
@@ -106,7 +115,27 @@ function ClaimsTab({ claims, onGoChat }) {
 
   const totalAmt    = filtered.reduce((s, c) => s + c.amount, 0);
   const approvedAmt = filtered.filter(c => c.status === 'APPROVED').reduce((s, c) => s + c.amount, 0);
-  const pagedClaims = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const ccSic = (f) => ccSort.field === f ? (ccSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+  const ccStc = (f) => `sth${ccSort.field === f ? ` sth-${ccSort.dir}` : ''}`;
+  const toggleCcSort = (f) => setCcSort(s => ({ field: f, dir: s.field === f && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    const { field, dir } = ccSort;
+    const fmap = {
+      id: r => r.id ?? '',
+      customer: r => r.customer ?? '',
+      region: r => r.region ?? '',
+      type: r => CLAIM_TYPE_LABELS[r.type] || r.type || '',
+      ref: r => r.ref ?? '',
+      amount: r => r.amount ?? 0,
+      date: r => parseDMY(r.date),
+      status: r => CLAIM_STATUS[r.status]?.label || r.status || '',
+    };
+    const av = fmap[field]?.(a) ?? '', bv = fmap[field]?.(b) ?? '';
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  });
+  const pagedClaims = sortedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div>
@@ -141,17 +170,17 @@ function ClaimsTab({ claims, onGoChat }) {
           <span className="oc-section-title">Claims Register — FY 2025–26</span>
           <span className="oc-section-meta">{filtered.length} of {claims.length} records shown</span>
         </div>
-        <table className="tbl">
+        <table className="tbl tbl-striped">
           <thead>
             <tr>
-              <th>Claim ID</th>
-              <th>Customer</th>
-              <th>Region</th>
-              <th>Claim Type</th>
-              <th>Ref. Order</th>
-              <th style={{ textAlign:'right' }}>Claim Amount</th>
-              <th>Filed On</th>
-              <th>Status</th>
+              <th className={ccStc('id')} onClick={() => toggleCcSort('id')}>Claim ID <span className="sort-ic">{ccSic('id')}</span></th>
+              <th className={ccStc('customer')} onClick={() => toggleCcSort('customer')}>Customer <span className="sort-ic">{ccSic('customer')}</span></th>
+              <th className={ccStc('region')} onClick={() => toggleCcSort('region')}>Region <span className="sort-ic">{ccSic('region')}</span></th>
+              <th className={ccStc('type')} onClick={() => toggleCcSort('type')}>Claim Type <span className="sort-ic">{ccSic('type')}</span></th>
+              <th className={ccStc('ref')} onClick={() => toggleCcSort('ref')}>Ref. Order <span className="sort-ic">{ccSic('ref')}</span></th>
+              <th className={ccStc('amount')} style={{ textAlign:'right' }} onClick={() => toggleCcSort('amount')}>Claim Amount <span className="sort-ic">{ccSic('amount')}</span></th>
+              <th className={ccStc('date')} onClick={() => toggleCcSort('date')}>Filed On <span className="sort-ic">{ccSic('date')}</span></th>
+              <th className={ccStc('status')} onClick={() => toggleCcSort('status')}>Status <span className="sort-ic">{ccSic('status')}</span></th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -221,6 +250,32 @@ function ClaimsTab({ claims, onGoChat }) {
 // REBATE PROGRAMS TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 function ProgramsTab({ programs, onGoChat }) {
+  const [pgSort, setPgSort] = useState({ field: 'achieved', dir: 'desc' });
+  const pgSic = (f) => pgSort.field === f ? (pgSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+  const pgStc = (f) => `sth${pgSort.field === f ? ` sth-${pgSort.dir}` : ''}`;
+  const togglePgSort = (f) => setPgSort(s => ({ field: f, dir: s.field === f && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const sortedPrograms = programs.map(p => ({
+    ...p,
+    pct: p.target ? (p.achieved / p.target) * 100 : null,
+    earned: p.accrualRate ? p.achieved * (p.accrualRate / 100) : null,
+  })).sort((a, b) => {
+    const { field, dir } = pgSort;
+    const fmap = {
+      id: r => r.id ?? '',
+      customer: r => r.customer ?? '',
+      type: r => REBATE_TYPE_LABELS[r.type] || r.type || '',
+      period: r => r.period ?? '',
+      target: r => r.target ?? 0,
+      achieved: r => r.achieved ?? 0,
+      rate: r => r.accrualRate ?? 0,
+      pct: r => r.pct ?? -1,
+      earned: r => r.earned ?? -1,
+      status: r => PROGRAM_STATUS[r.status]?.label || r.status || '',
+    };
+    const av = fmap[field]?.(a) ?? '', bv = fmap[field]?.(b) ?? '';
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  });
   return (
     <div>
       {/* Program Cards */}
@@ -306,26 +361,24 @@ function ProgramsTab({ programs, onGoChat }) {
           <span className="oc-section-title">All Rebate Programs</span>
           <span className="oc-section-meta">{programs.length} programs</span>
         </div>
-        <table className="tbl">
+        <table className="tbl tbl-striped">
           <thead>
             <tr>
-              <th>Program ID</th>
-              <th>Customer</th>
-              <th>Type</th>
-              <th>Period</th>
-              <th style={{ textAlign:'right' }}>Target (₹)</th>
-              <th style={{ textAlign:'right' }}>Achieved (₹)</th>
-              <th style={{ textAlign:'right' }}>Rate / Accrual</th>
-              <th>Achievement</th>
-              <th>Rebate Earned</th>
-              <th>Status</th>
+              <th className={pgStc('id')} onClick={() => togglePgSort('id')}>Program ID <span className="sort-ic">{pgSic('id')}</span></th>
+              <th className={pgStc('customer')} onClick={() => togglePgSort('customer')}>Customer <span className="sort-ic">{pgSic('customer')}</span></th>
+              <th className={pgStc('type')} onClick={() => togglePgSort('type')}>Type <span className="sort-ic">{pgSic('type')}</span></th>
+              <th className={pgStc('period')} onClick={() => togglePgSort('period')}>Period <span className="sort-ic">{pgSic('period')}</span></th>
+              <th className={pgStc('target')} style={{ textAlign:'right' }} onClick={() => togglePgSort('target')}>Target (₹) <span className="sort-ic">{pgSic('target')}</span></th>
+              <th className={pgStc('achieved')} style={{ textAlign:'right' }} onClick={() => togglePgSort('achieved')}>Achieved (₹) <span className="sort-ic">{pgSic('achieved')}</span></th>
+              <th className={pgStc('rate')} style={{ textAlign:'right' }} onClick={() => togglePgSort('rate')}>Rate / Accrual <span className="sort-ic">{pgSic('rate')}</span></th>
+              <th className={pgStc('pct')} onClick={() => togglePgSort('pct')}>Achievement <span className="sort-ic">{pgSic('pct')}</span></th>
+              <th className={pgStc('earned')} onClick={() => togglePgSort('earned')}>Rebate Earned <span className="sort-ic">{pgSic('earned')}</span></th>
+              <th className={pgStc('status')} onClick={() => togglePgSort('status')}>Status <span className="sort-ic">{pgSic('status')}</span></th>
             </tr>
           </thead>
           <tbody>
-            {programs.map(p => {
-              const pct = p.target ? (p.achieved / p.target) * 100 : null;
-              const earned = p.accrualRate ? p.achieved * (p.accrualRate / 100) : null;
-              const barColor = pct === null ? 'var(--t2)' : pct >= 100 ? 'var(--g2)' : pct >= 75 ? 'var(--a2)' : 'var(--r2)';
+            {sortedPrograms.map(p => {
+              const barColor = p.pct === null ? 'var(--t2)' : p.pct >= 100 ? 'var(--g2)' : p.pct >= 75 ? 'var(--a2)' : 'var(--r2)';
               return (
                 <tr key={p.id}>
                   <td><span style={{ fontFamily:'var(--mono)', fontWeight:700, fontSize:11, color:'var(--green)' }}>{p.id}</span></td>
@@ -342,19 +395,19 @@ function ProgramsTab({ programs, onGoChat }) {
                     {p.accrualRate ? `${p.accrualRate}%` : 'Lumpsum'}
                   </td>
                   <td style={{ minWidth:120 }}>
-                    {pct !== null ? (
+                    {p.pct !== null ? (
                       <div style={{ display:'flex', alignItems:'center', gap:7 }}>
                         <div className="oc-progress-wrap" style={{ flex:1 }}>
-                          <div className="oc-progress-fill" style={{ background:barColor, width:`${Math.min(100, pct)}%` }} />
+                          <div className="oc-progress-fill" style={{ background:barColor, width:`${Math.min(100, p.pct)}%` }} />
                         </div>
                         <span style={{ fontFamily:'var(--mono)', fontSize:10, fontWeight:700, color:barColor, minWidth:34 }}>
-                          {fmtPct(pct)}
+                          {fmtPct(p.pct)}
                         </span>
                       </div>
                     ) : <span style={{ color:'var(--text3)', fontSize:11 }}>Ongoing</span>}
                   </td>
                   <td style={{ textAlign:'right', fontFamily:'var(--mono)', fontWeight:700, color:'var(--green)' }}>
-                    {earned !== null ? fmtL(earned) : '—'}
+                    {p.earned !== null ? fmtL(p.earned) : '—'}
                   </td>
                   <td><Badge status={p.status} map={PROGRAM_STATUS} /></td>
                 </tr>
@@ -461,7 +514,7 @@ function VolumeCalculator() {
         <div className="cc-form-group">
           <label className="cc-label">Volume Tier Structure (Editable)</label>
           <div className="card" style={{ padding:0, marginTop:6, overflow:'hidden' }}>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr>
                   <th>Tier</th>
@@ -694,7 +747,7 @@ function AccrualCalculator() {
         <div className="cc-form-group">
           <label className="cc-label">Monthly Purchases (₹) — {period}</label>
           <div className="card" style={{ padding:0, marginTop:6, overflow:'hidden' }}>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr>
                   <th>Month</th>
@@ -770,7 +823,7 @@ function AccrualCalculator() {
 
             {/* Month-wise Table */}
             <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:12 }}>
-              <table className="tbl">
+              <table className="tbl tbl-striped">
                 <thead>
                   <tr>
                     <th>Month</th>
@@ -925,7 +978,7 @@ function LumpsumCalculator() {
         <div className="cc-form-group">
           <label className="cc-label">Lumpsum Payout Slabs (Editable)</label>
           <div className="card" style={{ padding:0, marginTop:6, overflow:'hidden' }}>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr>
                   <th>Slab Description</th>
@@ -1160,6 +1213,26 @@ export default function CustomerClaims({ onGoChat, dbStatus }) {
           <div className="kd fl">Across {programs.filter(p => p.accrualRate).length} active schemes</div>
         </div>
       </div>
+
+      {/* ── AI Claims Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '⏱',  text: `${pendingCount} claims pending — prioritize by amount to unlock cash faster`,   q: `I have ${pendingCount} pending claims worth ${fmtL(totalPending)}. Prioritize them by claim amount and urgency. Which claims should I resolve first and what documentation is needed to fast-track approval?` },
+            { icon: '🏆', text: 'Volume rebate: check which customers are near threshold for extra reward',        q: 'Which customers are close to crossing a volume rebate threshold this month? Tell me their current purchase totals, how much more they need to buy, and what offer I can make to push them across the threshold.' },
+            { icon: '📊', text: `Accrual balance ${fmtL(accrualBalance)} — plan when to settle for best cashflow`, q: `My accrual balance is ${fmtL(accrualBalance)} across active schemes. When is the best time to settle these accruals for optimal cashflow? Should I settle monthly, quarterly, or link to specific invoice milestones?` },
+            { icon: '🤝', text: 'Design a new loyalty rebate to retain top 5 customers this quarter',               q: 'Design a new customer loyalty rebate program to retain my top 5 customers this quarter. What should the structure be — volume slab, accrual rate, or lumpsum? What target and reward would motivate each customer type?' },
+            { icon: '📋', text: `Approved YTD ${fmtL(totalApproved)} — verify all claims are filed and collected`, q: `I have approved claims worth ${fmtL(totalApproved)} YTD. Have all approved claims been paid out or credited? How do I create a reconciliation process to ensure no approved claim is missed or expired?` },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Tab Navigation ── */}
       <div className="cc-tab-nav">

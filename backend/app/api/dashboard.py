@@ -827,6 +827,7 @@ async def get_finance(period: str = Query("MTD")):
                 )
                 def _ok(r): return r if not isinstance(r, Exception) else {}
                 f, c = _ok(fin), _ok(cust)
+                mock = _mock_finance()
                 return {
                     "revenue_mtd": f.get("revenue_mtd", "₹28.4L"),
                     "gross_profit_mtd": f.get("gross_profit_mtd", "₹6.36L"),
@@ -837,7 +838,12 @@ async def get_finance(period: str = Query("MTD")):
                     "returns_mtd": f.get("returns_mtd", "₹0.82L"),
                     "gst": f.get("gst", {}),
                     "cash_cycle": f.get("cash_cycle", "DIO 22 + DSO 34 - DPO 8 = 48 days"),
+                    "cash_flow_6m": f.get("cash_flow_6m", mock["cash_flow_6m"]),
+                    "margin_by_sku": f.get("margin_by_sku", mock["margin_by_sku"]),
                     "overdue_receivables": c.get("overdue_receivables", [])[:5],
+                    "monthly_pl": f.get("monthly_pl", mock["monthly_pl"]),
+                    "budget_targets": f.get("budget_targets", mock["budget_targets"]),
+                    "expense_breakdown": f.get("expense_breakdown", mock["expense_breakdown"]),
                     "data_source": "mysql",
                 }
         except Exception as exc:
@@ -881,6 +887,27 @@ def _mock_finance():
             {"customer": "Metro Build & Infrastructure",  "amount": "₹2.4L", "days_overdue": 58, "risk": "HIGH"},
             {"customer": "Patel Design Associates",       "amount": "₹1.6L", "days_overdue": 46, "risk": "MEDIUM"},
             {"customer": "Others (10 accounts)",          "amount": "₹7.6L", "days_overdue": 26, "risk": "LOW"},
+        ],
+        "monthly_pl": [
+            {"month": "Nov", "revenue": 28.4, "gross_profit": 7.1, "ebitda": 4.3},
+            {"month": "Dec", "revenue": 31.6, "gross_profit": 8.2, "ebitda": 5.1},
+            {"month": "Jan", "revenue": 29.4, "gross_profit": 7.6, "ebitda": 4.7},
+            {"month": "Feb", "revenue": 31.2, "gross_profit": 8.0, "ebitda": 5.0},
+            {"month": "Mar", "revenue": 33.6, "gross_profit": 8.6, "ebitda": 5.4},
+            {"month": "Apr", "revenue": 34.6, "gross_profit": 9.1, "ebitda": 6.8},
+        ],
+        "budget_targets": {
+            "revenue":      {"label": "Revenue MTD",      "target": 40.0,  "actual": 34.6},
+            "gross_profit": {"label": "Gross Profit MTD", "target": 11.0,  "actual": 9.14},
+            "ebitda":       {"label": "EBITDA MTD",       "target": 8.0,   "actual": 6.8},
+            "expenses":     {"label": "Opex Budget",      "target": 4.0,   "actual": 2.3},
+        },
+        "expense_breakdown": [
+            {"category": "Freight & Logistics", "budget": 1.2,  "actual": 1.0},
+            {"category": "Salaries & Wages",    "budget": 1.6,  "actual": 1.4},
+            {"category": "Rent & Utilities",    "budget": 0.4,  "actual": 0.38},
+            {"category": "Marketing & Sales",   "budget": 0.3,  "actual": 0.22},
+            {"category": "Admin & Misc",        "budget": 0.5,  "actual": 0.3},
         ],
         "data_source": "mock",
     }

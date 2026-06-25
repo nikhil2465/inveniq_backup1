@@ -1234,6 +1234,26 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
         </div>
       </div>
 
+      {/* AI Catalog Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '💰', text: 'Find highest-margin products in your catalog to push this month',                   q: 'Sort my catalog by gross margin percentage. Which are the top 5 products I should push to customers this month for maximum profitability? And which are the lowest margin I should either reprice or delist?' },
+            { icon: '📦', text: 'Products out of stock — which affect revenue most and need urgent restock',         q: `I have ${(data?.products || []).filter(p => p.stock_status !== 'in_stock').length} products that are out of stock. Which ones have the highest sales velocity and revenue impact? Prioritize my restocking queue by urgency.` },
+            { icon: '🏷',  text: 'Check if sell prices need updating — market benchmarks vs current pricing',       q: 'How do I benchmark my catalog sell prices against the market? Which Hettich, Hafele, Jaquar, and Century products are priced above or below competitors and need a price review?' },
+            { icon: '🔍', text: 'Identify catalog gaps — products your customers ask for but you don\'t stock',     q: 'Based on my customer segments (Interior Firms, Contractors, Architects), what products are commonly needed that are currently missing from my catalog? What categories should I add to increase wallet share?' },
+            { icon: '📈', text: 'Slow-moving catalog items — identify which to discount or remove this quarter',   q: `Which products in my catalog have zero or very low sales velocity in the last 90 days? Should I run a clearance discount, bundle them with fast movers, or delist them to simplify the catalog?` },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Filter bar */}
       <div className="filter-bar">
         <input className="view-search" placeholder="🔍  Search products, SKU, brand, size…"
@@ -1310,7 +1330,7 @@ export default function ProductCatalog({ onGoChat, dbStatus }) {
         </>
       ) : (
         <div className="card-table">
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead>
               <tr>
                 <th>Product</th>

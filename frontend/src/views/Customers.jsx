@@ -552,15 +552,65 @@ function riskStatus(c) {
   return 'ok';
 }
 
+// ── RFM Scoring Engine ────────────────────────────────────────────────────────
+function parseMonthlyLakhs(val) {
+  if (!val) return 0;
+  const s = String(val).replace(/[₹,\s]/g, '');
+  const n = parseFloat(s);
+  if (s.toUpperCase().endsWith('L')) return n;
+  if (n > 100000) return n / 100000;
+  return n / 100000; // treat as raw amount
+}
+
+function computeRFM(c) {
+  const days = Number(c.days_since_order) || 0;
+  const rev  = parseMonthlyLakhs(c.monthly_value);
+
+  // R: 1–5 (lower days = higher score)
+  const R = days <= 7 ? 5 : days <= 14 ? 4 : days <= 30 ? 3 : days <= 60 ? 2 : 1;
+  // F: proxy via monthly revenue order frequency
+  const F = rev >= 3 ? 5 : rev >= 2 ? 4 : rev >= 1 ? 3 : rev >= 0.5 ? 2 : 1;
+  // M: monetary value
+  const M = rev >= 3 ? 5 : rev >= 2 ? 4 : rev >= 1 ? 3 : rev >= 0.5 ? 2 : 1;
+
+  const avg = (R + F + M) / 3;
+  let segment;
+  if (R >= 4 && F >= 4 && M >= 4) segment = 'Champion';
+  else if (R >= 3 && F >= 3 && M >= 3) segment = 'Loyal';
+  else if (R >= 3 && F >= 2) segment = 'Promising';
+  else if (R <= 2 && F >= 4) segment = 'Can\'t Lose';
+  else if (R <= 2 && F >= 3) segment = 'At Risk';
+  else if (R >= 4 && F <= 2) segment = 'New';
+  else if (R === 1 && F <= 2) segment = 'Lost';
+  else segment = 'Needs Attention';
+
+  return { R, F, M, avg: Math.round(avg * 10) / 10, segment };
+}
+
+const RFM_SEG_COLOR = {
+  'Champion':    { cls: 'bg', color: '#16a34a' },
+  'Loyal':       { cls: 'bg', color: '#0f766e' },
+  'Promising':   { cls: 'bb', color: '#2563eb' },
+  'New':         { cls: 'bb', color: '#7c3aed' },
+  'At Risk':     { cls: 'ba', color: '#d97706' },
+  'Can\'t Lose': { cls: 'br', color: '#dc2626' },
+  'Lost':        { cls: 'br', color: '#b91c1c' },
+  'Needs Attention': { cls: 'ba', color: '#9a3412' },
+};
+
 export default function Customers({ onGoChat, period = 'MTD' }) {
   const [filter, setFilter]       = useState('all');
+  const [rfmFilter, setRfmFilter] = useState('all');
   const [search, setSearch]       = useState('');
   const [page, setPage]           = useState(1);
+  const [sort, setSort]           = useState({ field: null, dir: 'desc' });
   const PAGE_SIZE = 20;
   const [d, setD]                 = useState(null);
   const [loading, setLoading]     = useState(true);
   const [showImport, setShowImport]       = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [showRFM, setShowRFM]     = useState(false);
+  const [expandedCust, setExpandedCust] = useState(null);
 
   const fetchData = useCallback(() => {
     fetch(`/api/customers?period=${encodeURIComponent(period)}`)
@@ -571,21 +621,37 @@ export default function Customers({ onGoChat, period = 'MTD' }) {
 
   useEffect(() => { setLoading(true); fetchData(); }, [fetchData]);
   useAutoRefresh(fetchData, 5 * 60_000);
-  useEffect(() => { setPage(1); }, [filter, search]);
+  useEffect(() => { setPage(1); }, [filter, rfmFilter, search]);
 
   if (loading) return <SkeletonView />;
 
   const allCustomers = (d?.customers?.length ? d.customers : STATIC_CUSTS).map(c => ({
-    ...c, _st: riskStatus(c),
+    ...c, _st: riskStatus(c), _rfm: computeRFM(c),
   }));
+
+  // RFM segment summary
+  const rfmGroups = {};
+  allCustomers.forEach(c => {
+    const seg = c._rfm.segment;
+    rfmGroups[seg] = (rfmGroups[seg] ?? 0) + 1;
+  });
 
   const byFilter = filter === 'all'     ? allCustomers
                  : filter === 'top'     ? allCustomers.filter(c => c._st === 'top')
                  : filter === 'risk'    ? allCustomers.filter(c => c._st === 'risk')
                  : allCustomers.filter(c => c._st === 'overdue');
+  const byRFM = rfmFilter === 'all' ? byFilter : byFilter.filter(c => c._rfm.segment === rfmFilter);
   const q = search.trim().toLowerCase();
-  const filtered = q ? byFilter.filter(c => (c.name ?? '').toLowerCase().includes(q) || (c.segment ?? '').toLowerCase().includes(q)) : byFilter;
-  const list = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filtered = q ? byRFM.filter(c => (c.name ?? '').toLowerCase().includes(c.name && c.segment ? '' : '') || (c.name ?? '').toLowerCase().includes(q) || (c.segment ?? '').toLowerCase().includes(q)) : byRFM;
+  const sortedFiltered = sort.field ? [...filtered].sort((a, b) => {
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    const va = a[sort.field] ?? 0, vb = b[sort.field] ?? 0;
+    return typeof va === 'string' ? va.localeCompare(vb) * mul : (va - vb) * mul;
+  }) : filtered;
+  const toggleSort = (field) => setSort(prev => ({ field, dir: prev.field === field && prev.dir === 'asc' ? 'desc' : 'asc' }));
+  const sic = (f) => sort.field === f ? (sort.dir === 'asc' ? '↑' : '↓') : '↕';
+  const stc = (f) => `sth${sort.field === f ? (sort.dir === 'asc' ? ' sth-asc' : ' sth-desc') : ''}`;
+  const list = sortedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const src = d?.data_source ?? 'demo';
 
@@ -631,6 +697,26 @@ export default function Customers({ onGoChat, period = 'MTD' }) {
         ))}
       </div>
 
+      {/* ── AI Customer Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🔴', text: 'Sharma Constructions ₹3.4L at 78 days — take legal action this week',  q: 'Sharma Constructions owes ₹3.4L for 78 days. Draft a formal payment demand letter and recommend the next escalation steps — legal notice, stop supply, credit hold.' },
+            { icon: '😴', text: 'City Interiors silent 47 days — was ₹2.4L/mo, likely gone to competitor', q: 'City Interiors has not ordered in 47 days. They were ₹2.4L/month. What is the churn risk and what win-back offer should I give them? What might have caused them to stop buying?' },
+            { icon: '⭐', text: 'Interior firms: 31% margin, grow from 26% to 35% of account mix',       q: 'Interior design firms give me 31% avg margin but are only 26% of my accounts. How do I grow this segment to 35% of my account mix? Referral strategy, pricing, and outreach plan?' },
+            { icon: '📉', text: '8 at-risk accounts = ₹4.2L/mo exposure — create a recovery plan',       q: 'I have 8 at-risk accounts representing ₹4.2L per month. Prioritize them by recovery probability and tell me exactly what to say to each type of customer this week.' },
+            { icon: '💎', text: 'Top 5 customers = 62% revenue — how to protect and grow each one',      q: 'My top 5 customers drive 62% of my revenue. What loyalty strategy, credit terms, and service levels should I offer each one to prevent churn and grow their share?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="card">
         <div className="ch">
           <div><div className="ctit">Customer Health — All Accounts</div></div>
@@ -640,55 +726,183 @@ export default function Customers({ onGoChat, period = 'MTD' }) {
                 <div key={f} className={`chip${filter === f ? ' sel' : ''}`} onClick={() => setFilter(f)}>{l}</div>
               ))}
             </div>
+            <div className="chip-row">
+              {[['all','RFM: All'],['Champion','Champions'],['Loyal','Loyal'],['At Risk','At Risk'],["Can't Lose","Can't Lose"],['Lost','Lost']].map(([f, l]) => (
+                <div key={f} className={`chip${rfmFilter === f ? ' sel' : ''}`} onClick={() => setRfmFilter(f)} style={{ fontSize: 10 }}>{l}</div>
+              ))}
+            </div>
             <input
               type="text"
               placeholder="Search customer…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)', outline: 'none', width: 160 }}
+              style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)', outline: 'none', width: 140 }}
             />
-            <ExportButton rows={allCustomers} filename="customers" columns={[
+            <button className="btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setShowRFM(v => !v)}>
+              📊 RFM Analysis
+            </button>
+            <ExportButton rows={allCustomers.map(c => ({ ...c, rfm_segment: c._rfm.segment, rfm_r: c._rfm.R, rfm_f: c._rfm.F, rfm_m: c._rfm.M }))} filename="customers" columns={[
               { key: 'name', label: 'Customer' }, { key: 'segment', label: 'Segment' },
               { key: 'monthly_value', label: 'Monthly Revenue' }, { key: 'score', label: 'AI Score' },
               { key: 'days_since_order', label: 'Days Silent' }, { key: 'outstanding', label: 'Outstanding' },
-              { key: 'risk', label: 'Risk' },
+              { key: 'risk', label: 'Risk' }, { key: 'rfm_segment', label: 'RFM Segment' },
+              { key: 'rfm_r', label: 'Recency (R)' }, { key: 'rfm_f', label: 'Frequency (F)' }, { key: 'rfm_m', label: 'Monetary (M)' },
             ]} />
           </div>
         </div>
-        <table className="tbl">
+        {/* RFM Analysis Panel */}
+        {showRFM && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>
+              RFM Customer Segmentation — Recency × Frequency × Monetary
+              <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>R: days since last order · F: order frequency proxy · M: monthly revenue</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { seg: 'Champion', icon: '⭐', color: 'var(--g2)',     bg: 'var(--g5)', desc: 'Buy often, recently, high value — reward and retain' },
+                { seg: 'Loyal',    icon: '💚', color: 'var(--teal)',   bg: 'var(--t3)', desc: 'Consistent buyers — upsell and cross-sell' },
+                { seg: 'Promising',icon: '🌱', color: 'var(--b2)',     bg: 'var(--b5)', desc: 'Recent, not yet frequent — nurture to loyal' },
+                { seg: 'New',      icon: '🆕', color: 'var(--p2)',     bg: 'var(--p3)', desc: 'Ordered recently but few times — onboard well' },
+                { seg: 'At Risk',  icon: '⚠',  color: 'var(--a2)',    bg: 'var(--a5)', desc: 'Used to buy well, now gone quiet — win back fast' },
+                { seg: "Can't Lose", icon: '🚨', color: 'var(--r2)', bg: 'var(--r5)', desc: 'High value but missing — call today, offer incentive' },
+                { seg: 'Lost',     icon: '💔', color: 'var(--text3)', bg: 'var(--s3)', desc: 'Not ordered recently, low value — low priority outreach' },
+                { seg: 'Needs Attention', icon: '📌', color: 'var(--o2)', bg: 'var(--o3)', desc: 'Mixed signals — review individually' },
+              ].map(r => {
+                const count = rfmGroups[r.seg] ?? 0;
+                if (count === 0) return null;
+                return (
+                  <div key={r.seg}
+                    style={{ padding: '8px 12px', background: r.bg, border: `1px solid ${r.color}30`, borderRadius: 8, cursor: 'pointer', minWidth: 120 }}
+                    onClick={() => { setRfmFilter(r.seg); }}>
+                    <div style={{ fontSize: 16 }}>{r.icon}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: r.color }}>{r.seg} ({count})</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', lineHeight: 1.4, marginTop: 2 }}>{r.desc}</div>
+                    {onGoChat && (
+                      <button style={{ marginTop: 6, fontSize: 9, padding: '2px 7px', background: 'transparent', border: `1px solid ${r.color}60`, borderRadius: 4, cursor: 'pointer', color: r.color, fontWeight: 600 }}
+                        onClick={e => { e.stopPropagation(); onGoChat(`I have ${count} "${r.seg}" customers in my RFM analysis. These are customers who ${r.desc.toLowerCase()}. What is the best outreach strategy for this segment to maximize revenue and retention?`); }}>
+                        ✨ Strategy
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <table className="tbl tbl-striped">
           <thead>
             <tr>
-              <th>Customer</th><th>Segment</th><th>Monthly Revenue</th><th>AI Score</th>
-              <th>Days Silent</th><th>Outstanding</th><th>Risk</th><th>Status</th>
+              <th className={stc('name')} onClick={() => toggleSort('name')}>Customer<span className="sort-ic">{sic('name')}</span></th>
+              <th>Segment</th>
+              <th className={stc('monthly_value')} onClick={() => toggleSort('monthly_value')}>Monthly Revenue<span className="sort-ic">{sic('monthly_value')}</span></th>
+              <th>RFM</th>
+              <th className={stc('score')} onClick={() => toggleSort('score')}>AI Score<span className="sort-ic">{sic('score')}</span></th>
+              <th className={stc('days_since_order')} onClick={() => toggleSort('days_since_order')}>Days Silent<span className="sort-ic">{sic('days_since_order')}</span></th>
+              <th className={stc('outstanding')} onClick={() => toggleSort('outstanding')}>Outstanding<span className="sort-ic">{sic('outstanding')}</span></th>
+              <th>Risk</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {list.map(c => {
               const sc  = c._st === 'top' ? 'bg' : c._st === 'risk' ? 'ba' : c._st === 'overdue' ? 'br' : 'bsl';
               const lbl = c._st === 'top' ? 'TOP ACCOUNT' : c._st === 'risk' ? 'AT RISK' : c._st === 'overdue' ? 'OVERDUE' : 'ACTIVE';
+              const rfm = c._rfm;
+              const rfmSC = RFM_SEG_COLOR[rfm.segment] ?? { cls: 'bsl', color: 'var(--text3)' };
+              const isExpanded = expandedCust === c.name;
               return (
-                <tr key={c.name} style={{ cursor: onGoChat ? 'pointer' : 'default' }}
-                  onClick={() => onGoChat?.(`Customer analysis for ${c.name}`)}>
-                  <td style={{ fontWeight: 600 }}>{c.name}</td>
-                  <td style={{ fontSize: '10px', color: 'var(--text2)' }}>{c.segment}</td>
-                  <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{c.monthly_value}</td>
-                  <td>
-                    <div className="sbar">
-                      <div className="str">
-                        <div className="sf2" style={{ width: `${c.score}%`, background: c.score > 80 ? '#16a34a' : c.score > 60 ? '#d97706' : '#dc2626' }} />
+                <>
+                  <tr key={c.name} style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      if (isExpanded) { setExpandedCust(null); }
+                      else { setExpandedCust(c.name); }
+                    }}>
+                    <td style={{ fontWeight: 600 }}>
+                      {c.name}
+                      <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--text3)' }}>{isExpanded ? '▲' : '▼'}</span>
+                    </td>
+                    <td style={{ fontSize: '10px', color: 'var(--text2)' }}>{c.segment}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{c.monthly_value}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span className={`bdg ${rfmSC.cls}`} style={{ fontSize: 9 }}>{rfm.segment}</span>
+                        <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--text3)' }}>R{rfm.R} F{rfm.F} M{rfm.M}</span>
                       </div>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: '9px' }}>{c.score}</span>
-                    </div>
-                  </td>
-                  <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: c.days_since_order > 60 ? '#dc2626' : c.days_since_order > 30 ? '#d97706' : '#16a34a' }}>
-                    {c.days_since_order}d
-                  </td>
-                  <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: c.outstanding === '₹0' || c.outstanding === 'Rs.0.0L' ? '#16a34a' : '#dc2626' }}>
-                    {c.outstanding}
-                  </td>
-                  <td><span className={`bdg ${c.risk === 'HIGH' ? 'br' : c.risk === 'MEDIUM' ? 'ba' : 'bg'}`}>{c.risk}</span></td>
-                  <td><span className={`bdg ${sc}`}>{lbl}</span></td>
-                </tr>
+                    </td>
+                    <td>
+                      <div className="sbar">
+                        <div className="str">
+                          <div className="sf2" style={{ width: `${c.score}%`, background: c.score > 80 ? '#16a34a' : c.score > 60 ? '#d97706' : '#dc2626' }} />
+                        </div>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: '9px' }}>{c.score}</span>
+                      </div>
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: c.days_since_order > 60 ? '#dc2626' : c.days_since_order > 30 ? '#d97706' : '#16a34a' }}>
+                      {c.days_since_order}d
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: c.outstanding === '₹0' || c.outstanding === 'Rs.0.0L' ? '#16a34a' : '#dc2626' }}>
+                      {c.outstanding}
+                    </td>
+                    <td><span className={`bdg ${c.risk === 'HIGH' ? 'br' : c.risk === 'MEDIUM' ? 'ba' : 'bg'}`}>{c.risk}</span></td>
+                    <td><span className={`bdg ${sc}`}>{lbl}</span></td>
+                  </tr>
+                  {isExpanded && (
+                    <tr key={`${c.name}-detail`}>
+                      <td colSpan={9} style={{ padding: 0 }}>
+                        <div style={{ padding: '12px 16px', background: 'var(--s2)', borderTop: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1, minWidth: 200 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>RFM Deep Dive</div>
+                              {[['Recency (R)', rfm.R, `${c.days_since_order} days since last order`, rfm.R >= 4 ? '#16a34a' : rfm.R >= 3 ? '#d97706' : '#dc2626'],
+                                ['Frequency (F)', rfm.F, 'Based on monthly revenue as frequency proxy', rfm.F >= 4 ? '#16a34a' : rfm.F >= 3 ? '#d97706' : '#dc2626'],
+                                ['Monetary (M)', rfm.M, c.monthly_value + ' monthly revenue', rfm.M >= 4 ? '#16a34a' : rfm.M >= 3 ? '#d97706' : '#dc2626'],
+                              ].map(([label, score, sub, color]) => (
+                                <div key={label} style={{ marginBottom: 6 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                                    <span style={{ color: 'var(--text2)', fontWeight: 600 }}>{label}</span>
+                                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color }}>{score}/5</span>
+                                  </div>
+                                  <div style={{ height: 5, background: 'var(--s4)', borderRadius: 3, margin: '3px 0' }}>
+                                    <div style={{ width: `${score / 5 * 100}%`, height: '100%', background: color, borderRadius: 3 }} />
+                                  </div>
+                                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>{sub}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 200 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>Recommended Actions</div>
+                              <div style={{ fontSize: 12, color: 'var(--text1)', lineHeight: 1.7 }}>
+                                {rfm.segment === 'Champion' && '⭐ Reward loyalty · Offer exclusive preview of new products · Ask for referrals · Consider volume pricing'}
+                                {rfm.segment === 'Loyal' && '💚 Upsell premium products · Lock in quarterly contract · Offer payment terms improvement'}
+                                {rfm.segment === 'Promising' && '🌱 Send product catalogue · Offer first-time loyalty discount · Schedule follow-up call'}
+                                {rfm.segment === 'New' && '🆕 Personal onboarding call · Share success stories · Offer 30-day credit trial'}
+                                {rfm.segment === 'At Risk' && '⚠ Call today — ask what changed · Offer recovery discount · Find out if competitor won them'}
+                                {rfm.segment === "Can't Lose" && '🚨 URGENT — Call owner directly · Offer best possible terms · Visit in person if needed'}
+                                {rfm.segment === 'Lost' && '📌 Low-cost reactivation email · New product announcement · Only if worth the time'}
+                                {rfm.segment === 'Needs Attention' && '📌 Review account history · Personalised outreach · Identify specific pain point'}
+                              </div>
+                            </div>
+                            {onGoChat && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <button className="btn-primary" style={{ fontSize: 11, padding: '5px 12px', whiteSpace: 'nowrap' }}
+                                  onClick={() => onGoChat(`${c.name} — ${c.segment} — RFM: R${rfm.R} F${rfm.F} M${rfm.M} (${rfm.segment}) — Monthly value: ${c.monthly_value} — Days silent: ${c.days_since_order} — Outstanding: ${c.outstanding} — Risk: ${c.risk}. Give me a complete account strategy: win-back plan, upsell opportunities, ideal contact cadence, and what to offer to grow this account.`)}>
+                                  ✨ Full Account Strategy
+                                </button>
+                                {c.outstanding && c.outstanding !== '₹0' && (
+                                  <button className="btn-secondary" style={{ fontSize: 11, padding: '5px 12px', whiteSpace: 'nowrap' }}
+                                    onClick={() => onGoChat(`Draft a professional payment follow-up message for ${c.name} who owes ${c.outstanding} and hasn't ordered in ${c.days_since_order} days.`)}>
+                                    📨 Draft Collection Note
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               );
             })}
           </tbody>

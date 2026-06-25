@@ -1,6 +1,6 @@
 """
 Role definitions for InvenIQ — maps role names to allowed module lists.
-7 roles: admin, sales_manager, cfo, warehouse_manager, finance_manager, distributor, architect.
+8 roles: admin, sales_manager, cfo, warehouse_manager, finance_manager, distributor, architect, costing_manager.
 Admin gets full access ("all"); all others get a curated module list.
 """
 
@@ -47,9 +47,16 @@ ROLE_MODULES: dict[str, str | list[str]] = {
         "distributor", "catalog", "about", "settings",
     ],
 
-    # Architect / Interior Design Studio — only sees the Design Quote Studio
+    # Architect / Interior Design Studio — Design Quote Studio + its two dependencies
+    # catalog   → Save to Catalog from DQS scanner (POST /api/catalog)
+    # chatbot   → AI CTA bar and AI pipeline assistant (/api/chat/*)
     "architect": [
-        "designquote", "settings", "about",
+        "designquote", "catalog", "chatbot", "settings", "about",
+    ],
+
+    # Costing Manager — dedicated cost analysis role, isolated from other modules
+    "costing_manager": [
+        "costing", "analytics", "reports", "chatbot", "about", "settings",
     ],
 }
 
@@ -115,6 +122,14 @@ ROLE_DEMO_ACCOUNTS: list[dict] = [
         "display_name": "Architect Studio",
         "email":        "architect@inveniq.demo",
         "role":         "architect",
+    },
+    # ── Costing Manager ───────────────────────────────────────────────────────
+    {
+        "username":     "cost_mgr",
+        "password":     "cost@2026",
+        "display_name": "Costing Manager",
+        "email":        "costing@inveniq.demo",
+        "role":         "costing_manager",
     },
 ]
 

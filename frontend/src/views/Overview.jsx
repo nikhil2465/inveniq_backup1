@@ -7,23 +7,46 @@ const TODAY = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'nu
 const TIME   = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
 const QUICK_ACTIONS = [
-  { icon: '📦', label: 'New Sales Order',  view: 'louvers' },
-  { icon: '🛒', label: 'Create PO',        view: 'pogrn' },
-  { icon: '📊', label: 'Sales Report',     view: 'sales' },
-  { icon: '🤖', label: 'Ask AI',           view: 'chatbot' },
-  { icon: '📉', label: 'Dead Stock',       view: 'deadstock' },
-  { icon: '💰', label: 'Finance View',     view: 'finance' },
+  { icon: '📦', label: 'New Sales Order',  view: 'louvers',   aiQ: null },
+  { icon: '🛒', label: 'Create PO',        view: 'pogrn',     aiQ: null },
+  { icon: '📊', label: 'Sales Analysis',   view: 'sales',     aiQ: null },
+  { icon: '👥', label: 'Customers',        view: 'customers', aiQ: null },
+  { icon: '📉', label: 'Dead Stock',       view: 'deadstock', aiQ: null },
+  { icon: '💰', label: 'Finance',          view: 'finance',   aiQ: null },
+  { icon: '📋', label: 'Invoices',         view: 'invoices',  aiQ: null },
+  { icon: '🤖', label: 'Ask AI',           view: 'chatbot',   aiQ: 'Give me a complete executive business briefing — revenue health, top risks, best opportunities, and the 3 most important actions I should take today.' },
+];
+
+const PROACTIVE_ALERTS = [
+  {
+    level: 'cr', icon: '🚨',
+    title: '₹4.2L Dead Stock — 3 SKUs unsold 90+ days — Immediate action needed',
+    sub: '18mm BWP (₹1.8L) · 4mm MR (₹1.4L) · 19mm Commercial (₹1.0L) · Discount or supplier return',
+    q: 'I have ₹4.2L in dead stock across 3 SKUs unsold for 90+ days. Give me a complete action plan — minimum sellable price, discount strategy, and supplier return process.',
+  },
+  {
+    level: 'wr', icon: '⚠️',
+    title: 'City Interiors — ₹1.8L/month customer at churn risk (47 days silent)',
+    sub: 'Was ordering weekly · Sudden stop · Competitor may have offered better credit · Call now',
+    q: "City Interiors hasn't ordered in 47 days — they were ordering weekly. They're worth ₹1.8L/month. What likely happened and what's the best recovery strategy?",
+  },
+  {
+    level: 'wr', icon: '⚡',
+    title: '18mm BWP stock critical — stockout in 8 days, lead time 6 days',
+    sub: 'Current: 140 sheets · Daily: 17 sheets · Must order TODAY to avoid backorders',
+    q: 'My 18mm BWP stock has 8 days remaining and supplier lead time is 6 days. How much should I order and should I expedite from an alternate supplier?',
+  },
 ];
 
 const RECENT_ACTIVITY = [
-  { icon: '📦', iconBg: '#dcfce7', title: 'Sales Order SO-2026-0089 created', meta: 'Prestige Developers · 250 SQM Aluminium Louvers · ₹5.25L', time: '9 min ago' },
-  { icon: '✅', iconBg: '#dbeafe', title: 'GRN GRN-2026-0017 — 3 items matched', meta: 'Gauri Laminates · 18mm BWP 200 sheets', time: '34 min ago' },
-  { icon: '🔔', iconBg: '#fef3c7', title: 'Low stock alert — 18mm BWP (8 days left)', meta: 'Reorder now · Lead time 6 days', time: '1h ago' },
-  { icon: '💵', iconBg: '#f3e8ff', title: 'Payment received — City Interiors', meta: '₹2.4L cleared · Outstanding ₹0', time: '2h ago' },
-  { icon: '📋', iconBg: '#fee2e2', title: 'Claim CLM-2026-0012 approved', meta: 'Bangalore Building Supplies · Price diff ₹18,500', time: '3h ago' },
+  { icon: '📦', iconBg: 'var(--g3)', title: 'Sales Order SO-2026-0089 created', meta: 'Prestige Developers · 250 SQM Aluminium Louvers · ₹5.25L', time: '9 min ago' },
+  { icon: '✅', iconBg: 'var(--b3)', title: 'GRN GRN-2026-0017 — 3 items matched', meta: 'Gauri Laminates · 18mm BWP 200 sheets', time: '34 min ago' },
+  { icon: '🔔', iconBg: 'var(--a3)', title: 'Low stock alert — 18mm BWP (8 days left)', meta: 'Reorder now · Lead time 6 days', time: '1h ago' },
+  { icon: '💵', iconBg: 'var(--p3)', title: 'Payment received — City Interiors', meta: '₹2.4L cleared · Outstanding ₹0', time: '2h ago' },
+  { icon: '📋', iconBg: 'var(--r3)', title: 'Claim CLM-2026-0012 approved', meta: 'Bangalore Building Supplies · Price diff ₹18,500', time: '3h ago' },
 ];
 
-export default function Overview({ onGoChat, onNavigate, dbStatus, period = 'MTD' }) {
+export default function Overview({ onGoChat, onNavigate, dbStatus, period = 'MTD', allowedModules = null }) {
   const [d, setD] = useState(null);
   const revRef = useRef(null), donutRef = useRef(null), custTypeRef = useRef(null);
 
@@ -91,39 +114,97 @@ export default function Overview({ onGoChat, onNavigate, dbStatus, period = 'MTD
     'Supplier "Gauri Laminates" has delayed 2 deliveries this month — consider alternate sourcing.'
   );
 
+  const healthScore = d ? Math.round(
+    (d.revenue_growth?.includes('+') ? 22 : 10) +
+    (parseFloat(d.gross_margin) > 20 ? 20 : 12) +
+    (d.low_stock_skus < 5 ? 18 : 8) +
+    (d.at_risk_customers < 5 ? 20 : 10) +
+    (parseFloat(d.inventory_accuracy) > 95 ? 20 : 12)
+  ) : 78;
+  const healthLabel = healthScore >= 80 ? 'Excellent' : healthScore >= 65 ? 'Good' : healthScore >= 50 ? 'Fair' : 'Needs Attention';
+
   return (
     <div className="view">
 
-      {/* ── Welcome Banner (Oracle-style) ── */}
+      {/* ── Welcome Banner ── */}
       <div className="overview-welcome">
         <div className="overview-welcome-left">
           <div className="overview-welcome-greeting">Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'} · {TODAY}</div>
-          <div className="overview-welcome-title">InvenIQ Dashboard</div>
+          <div className="overview-welcome-title">InvenIQ Command Centre</div>
           <div className="overview-welcome-sub">
-            {src === 'mysql' ? '🟢 Live data from your DMS · All modules synced' : '🟡 Demo mode · Connect MySQL for live data'} · Last refreshed {TIME}
+            {src === 'mysql' ? '🟢 Live data · All modules synced' : '🟡 Demo mode · Connect MySQL for live data'} · Refreshed {TIME}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              className="bhs-badge"
+              style={{ cursor: 'pointer', border: 'none', background: 'rgba(255,255,255,.14)' }}
+              onClick={() => onGoChat?.('Give me a complete business health analysis — what\'s going well, what needs attention, and my top 3 action items today.')}
+            >
+              <div>
+                <div className="bhs-label-top">Business Health</div>
+                <div className="bhs-label-bot">{healthLabel}</div>
+              </div>
+              <div className="bhs-score">{healthScore}</div>
+              <div>
+                <div className="bhs-bar-wrap"><div className="bhs-bar-fill" style={{ width: `${healthScore}%` }}></div></div>
+                <div style={{ fontSize: 8, color: 'rgba(255,255,255,.5)', marginTop: 3, fontFamily: 'var(--mono)' }}>OUT OF 100</div>
+              </div>
+            </button>
           </div>
         </div>
         <div className="overview-welcome-right">
-          <div className="overview-welcome-stat">
+          <div className="overview-welcome-stat" onClick={() => onGoChat?.('How many orders have I received today vs target?')} style={{ cursor: 'pointer' }}>
             <div className="ows-val">{d?.orders_today ?? 24}</div>
             <div className="ows-lbl">Orders Today</div>
           </div>
-          <div className="overview-welcome-stat">
+          <div className="overview-welcome-stat" onClick={() => onGoChat?.('What is my revenue MTD and am I on track for the monthly target?')} style={{ cursor: 'pointer' }}>
             <div className="ows-val">{d?.revenue_mtd ?? '₹28.4L'}</div>
             <div className="ows-lbl">Revenue MTD</div>
           </div>
-          <div className="overview-welcome-stat">
-            <div className="ows-val" style={{ color: d?.low_stock_skus > 0 ? '#fbbf24' : '#4ade80' }}>{d?.low_stock_skus ?? 7}</div>
-            <div className="ows-lbl">Alerts</div>
+          <div className="overview-welcome-stat" onClick={() => onGoChat?.('What are my current stock alerts and which ones need immediate action?')} style={{ cursor: 'pointer' }}>
+            <div className="ows-val" style={{ color: (d?.low_stock_skus ?? 7) > 0 ? '#fbbf24' : '#4ade80' }}>{d?.low_stock_skus ?? 7}</div>
+            <div className="ows-lbl">Stock Alerts</div>
           </div>
+          <div className="overview-welcome-stat" onClick={() => onGoChat?.('Which customers owe me money and how overdue are they?')} style={{ cursor: 'pointer' }}>
+            <div className="ows-val" style={{ color: '#fbbf24' }}>{d?.at_risk_customers ?? 8}</div>
+            <div className="ows-lbl">At-Risk Accounts</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Proactive AI Alert Strip ── */}
+      <div className="pal-strip">
+        <div className="pal-header">
+          <span className="pal-header-icon">🤖</span>
+          <span className="pal-header-text">AI Priority Alerts</span>
+          <span className="pal-header-sub">3 items requiring your attention today · click any to get an action plan</span>
+        </div>
+        <div className="pal-items">
+          {PROACTIVE_ALERTS.map((a, i) => (
+            <div key={i} className={`pal-item pal-${a.level}`} onClick={() => onGoChat?.(a.q)}>
+              <span className="pal-icon">{a.icon}</span>
+              <div className="pal-body">
+                <div className="pal-title">{a.title}</div>
+                <div className="pal-sub">{a.sub}</div>
+              </div>
+              <span className="pal-action">Ask AI →</span>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* ── Quick Actions ── */}
       <div className="qa-bar">
         <span className="qa-bar-label">Quick Actions:</span>
-        {QUICK_ACTIONS.map(a => (
-          <button key={a.label} className="qa-btn" onClick={() => onNavigate?.(a.view) || onGoChat?.(a.label)}>
+        {QUICK_ACTIONS.filter(a => !allowedModules || !a.view || allowedModules.includes(a.view)).map(a => (
+          <button
+            key={a.label}
+            className="qa-btn"
+            onClick={() => {
+              if (a.aiQ) { onGoChat?.(a.aiQ); }
+              else { onNavigate?.(a.view); }
+            }}
+          >
             {a.icon} {a.label}
           </button>
         ))}

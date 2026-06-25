@@ -9,12 +9,12 @@ const fmtL = (n) => { const v = Number(n || 0); return v >= 100000 ? `₹${(v / 
 
 // ── Category styling ──────────────────────────────────────────────────────────
 const CATEGORY_COLORS = {
-  'Hardware Fittings':    { bg: '#eff6ff', color: '#1d4ed8' },
-  'Sanitary CP Fittings': { bg: '#f0fdf4', color: '#15803d' },
-  'Kitchen Systems':      { bg: '#fefce8', color: '#a16207' },
-  'Door Hardware':        { bg: '#fdf4ff', color: '#7e22ce' },
-  'High Pressure Laminate': { bg: '#fff7ed', color: '#c2410c' },
-  'PVC & WPC':            { bg: '#f0f9ff', color: '#0369a1' },
+  'Hardware Fittings':    { bg: 'var(--b5)', color: 'var(--b2)' },
+  'Sanitary CP Fittings': { bg: 'var(--g5)', color: 'var(--g2)' },
+  'Kitchen Systems':      { bg: 'var(--a5)', color: 'var(--a2)' },
+  'Door Hardware':        { bg: 'var(--p3)', color: 'var(--p2)' },
+  'High Pressure Laminate': { bg: 'var(--o3)', color: 'var(--o2)' },
+  'PVC & WPC':            { bg: 'var(--t3)', color: 'var(--t2)' },
 };
 
 function CategoryBadge({ category }) {
@@ -106,7 +106,7 @@ function MyStockTab({ onGoChat }) {
 
   if (error) {
     return (
-      <div style={{ background: '#fef2f2', border: '1px solid var(--r3)', borderRadius: 12, padding: 32, textAlign: 'center', marginTop: 20 }}>
+      <div style={{ background: 'var(--r5)', border: '1px solid var(--r3)', borderRadius: 12, padding: 32, textAlign: 'center', marginTop: 20 }}>
         <div style={{ fontSize: 28, marginBottom: 12 }}>📦</div>
         <div style={{ color: 'var(--r2)', fontWeight: 600 }}>{error}</div>
       </div>
@@ -143,7 +143,7 @@ function MyStockTab({ onGoChat }) {
             </div>
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-            background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' }}>
+            background: 'var(--g5)', color: 'var(--g2)', border: '1px solid var(--g4)' }}>
             {distributor.status}
           </span>
         </div>
@@ -175,7 +175,7 @@ function MyStockTab({ onGoChat }) {
 
       {/* Low stock nudge */}
       {onGoChat && lowStockCount > 0 && (
-        <div style={{ background: '#fef2f2', border: '1px solid var(--r3)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ background: 'var(--r5)', border: '1px solid var(--r3)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 20 }}>⚠️</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--r2)' }}>{lowStockCount} SKU{lowStockCount > 1 ? 's are' : ' is'} running LOW</div>
@@ -328,9 +328,9 @@ function BrowseInventoryTab({ onGoChat }) {
   const outOfStock    = items.filter(i => (i.stock_qty || 0) === 0).length;
 
   const STOCK_STATUS_STYLE = {
-    in_stock:    { bg: '#f0fdf4', color: '#15803d', label: 'In Stock' },
-    low_stock:   { bg: '#fffbeb', color: '#d97706', label: 'Low Stock' },
-    out_of_stock:{ bg: '#fef2f2', color: '#dc2626', label: 'Out of Stock' },
+    in_stock:    { bg: 'var(--g5)', color: 'var(--g2)', label: 'In Stock' },
+    low_stock:   { bg: 'var(--a5)', color: 'var(--a2)', label: 'Low Stock' },
+    out_of_stock:{ bg: 'var(--r5)', color: 'var(--r2)', label: 'Out of Stock' },
   };
 
   if (loading) {
@@ -346,7 +346,7 @@ function BrowseInventoryTab({ onGoChat }) {
 
   if (error) {
     return (
-      <div style={{ background: '#fef2f2', border: '1px solid var(--r3)', borderRadius: 12, padding: 32, textAlign: 'center', marginTop: 20 }}>
+      <div style={{ background: 'var(--r5)', border: '1px solid var(--r3)', borderRadius: 12, padding: 32, textAlign: 'center', marginTop: 20 }}>
         <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
         <div style={{ color: 'var(--r2)', fontWeight: 600, marginBottom: 12 }}>{error}</div>
         <button className="btn-primary" onClick={fetchInventory}>Retry</button>
@@ -514,6 +514,31 @@ export default function DistributorPortal({ dbStatus, onGoChat }) {
           <div className="psub">View your allocated stock and browse the full supplier catalog</div>
         </div>
       </div>
+
+      {/* AI Opportunity Strip */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '📦', text: 'Low stock alert — which SKUs need reorder before stockout this week',
+              q: 'Which of my allocated SKUs are running critically low and will hit stockout in the next 2 weeks? Give me a reorder priority list with recommended quantities and estimated lead times from my supplier.' },
+            { icon: '💰', text: 'Stock value by category — am I over-invested in slow-moving lines',
+              q: 'Analyse my distributor stock by product category. Which categories hold the most inventory value? Am I over-stocked in any slow-moving category and under-stocked in high-demand ones? What rebalancing should I do?' },
+            { icon: '📈', text: 'Forward buying — which products to stock up before price increase or season',
+              q: 'Based on seasonal demand patterns for hardware fittings, sanitary CP fittings, and laminate products in India, which products should I stock up on now before prices rise or supply tightens? Give me a forward-buying plan for the next 30 days.' },
+            { icon: '🏷️', text: 'Pricing strategy — how to price my stock for contractors vs designers',
+              q: 'How should I price my allocated stock to be competitive in my local market while maintaining healthy margins? What different discount structures should I offer to contractors, interior designers, and retail walk-in customers?' },
+            { icon: '🚀', text: 'Fast-moving SKUs — identify highest-velocity products to always keep in stock',
+              q: 'Which product SKUs typically have the highest velocity (fastest sales turnover) for a hardware and sanitary fittings distributor? How should I prioritize my reorder budget to keep these always in stock and never miss a sale?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tab strip */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'var(--s3)', borderRadius: 10, padding: 4, width: 'fit-content' }}>

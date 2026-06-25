@@ -796,6 +796,67 @@ def generate_proactive_insights(tool_data: Dict[str, Any]) -> List[Dict]:
             "rupee_impact": int(inv_overdue_val),
         })
 
+    # ── 27. Costing Intelligence — margin erosion + over-budget projects ─────────
+    costing_data  = tool_data.get("costing", {})
+    if costing_data:
+        low_margin    = costing_data.get("low_margin_products", [])
+        over_bud_proj = costing_data.get("over_budget_projects", [])
+        pending_rev   = costing_data.get("pending_review_sheets", [])
+
+        if low_margin:
+            worst       = low_margin[0]
+            worst_m     = float(worst.get("actual_margin_pct", 0) or 0)
+            target_m    = float(worst.get("target_margin_pct", 0) or 0)
+            gap         = round(target_m - worst_m, 1)
+            sp          = float(worst.get("sell_price", 0) or 0)
+            est_impact  = int(sp * (max(gap, 0) / 100) * 50)
+            if worst_m < target_m:
+                insights.append({
+                    "category": "📊 Margin Intelligence",
+                    "severity": "HIGH" if gap > 5 else "MEDIUM",
+                    "title": f"{len(low_margin)} Product(s) Below Target Margin — {worst.get('product_name','')} at {worst_m:.1f}% vs {target_m:.0f}% Target",
+                    "finding": (
+                        f"{len(low_margin)} product(s) earning below target margin. "
+                        f"Worst: {worst.get('product_name','')} ({worst.get('category','')}) — "
+                        f"actual {worst_m:.1f}% vs target {target_m:.0f}% ({gap:.1f}pp gap). "
+                        + (f"{pending_rev[0]['product_name']} also pending pricing review." if pending_rev else "")
+                    ),
+                    "impact": f"Estimated ₹{est_impact:,}/month in lost margin if sell-price not corrected.",
+                    "action": (
+                        "1. Review sell price for all low-margin products — check if market allows increase. "
+                        "2. Negotiate supplier rebate or early-payment discount to lower material cost. "
+                        "3. Audit overhead allocation — some products may carry excess overhead. "
+                        f"4. Approve or revise {len(pending_rev)} pending cost sheet(s) in Costing module."
+                    ),
+                    "urgency": "THIS WEEK",
+                    "rupee_impact": est_impact,
+                })
+
+        if over_bud_proj:
+            wp          = over_bud_proj[0]
+            overrun     = int(float(wp.get("actual_cost", 0) or 0) - float(wp.get("budgeted_cost", 0) or 0))
+            total_exp   = sum(int(float(p.get("actual_cost",0))-float(p.get("budgeted_cost",0))) for p in over_bud_proj)
+            insights.append({
+                "category": "🏗️ Project Costing",
+                "severity": "HIGH" if overrun > 200000 else "MEDIUM",
+                "title": f"{len(over_bud_proj)} Project(s) Over Budget — {wp.get('project_name','')} overrun ₹{overrun:,}",
+                "finding": (
+                    f"{len(over_bud_proj)} project(s) exceeding approved budget. "
+                    f"Worst: {wp.get('project_name','')} for {wp.get('client_name','')} — "
+                    f"actual ₹{float(wp.get('actual_cost',0)):,.0f} vs budget ₹{float(wp.get('budgeted_cost',0)):,.0f} "
+                    f"({float(wp.get('variance_pct',0)):.1f}% overrun, {wp.get('progress_pct',0)}% complete)."
+                ),
+                "impact": f"Total overrun exposure ₹{total_exp:,} across {len(over_bud_proj)} project(s) — margin at risk.",
+                "action": (
+                    "1. Issue client change-order for any scope additions causing overrun. "
+                    "2. Review remaining BOQ — value-engineer where possible. "
+                    "3. Check if PO prices deviated from BOQ prices — renegotiate supplier. "
+                    "4. Update revised forecasts in Costing Intelligence project budgets."
+                ),
+                "urgency": "TODAY" if overrun > 500000 else "THIS WEEK",
+                "rupee_impact": total_exp,
+            })
+
     # ── Sort: ₹ impact descending, then severity ──────────────────────────────
     _sev = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
     insights.sort(key=lambda x: (-x["rupee_impact"], _sev.get(x["severity"], 3)))

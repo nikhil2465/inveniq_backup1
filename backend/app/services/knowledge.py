@@ -1547,6 +1547,47 @@ KNOWLEDGE_BASE = {
         },
         "indian_context": "Indian B2B dealers in building materials typically sell to: contractors (large project orders, net 60 terms), retailers/distributors (regular orders, net 30), and direct clients (occasional, often advance). GST compliance is critical — penalties for late GSTR-1 filing, ITC mismatches flagged in GSTR-2A reconciliation. Always match buyer GSTIN before issuing invoice to ensure correct CGST+SGST vs IGST treatment.",
     },
+
+    "costing_intelligence": {
+        "title": "Costing Intelligence — Product Cost Sheets, Project Budgets & Margin Analysis",
+        "purpose": "Framework for building accurate product cost sheets and project budgets in the interior design / building materials distribution industry. Covers landed cost computation, margin targeting, project variance tracking, and category-level profitability analysis.",
+        "cost_sheet_structure": {
+            "material_cost":   "Direct cost of the product/material from supplier (after trade discount, before GST). For imported goods include customs duty, freight, insurance (landed cost).",
+            "labour_cost":     "Installation or handling labour attributed per unit. For hardware/fittings: includes fitting labour. For laminates: includes cutting, pressing, edge-banding labour.",
+            "overhead_cost":   "Allocated overhead per unit: warehouse rent, utilities, sales staff cost, software/ERP, insurance. Typically 10–20% of material cost for distributors.",
+            "total_cost":      "Material Cost + Labour Cost + Overhead Cost = Total Landed Cost (TLC).",
+            "sell_price":      "The price billed to the customer (before GST). Must cover TLC + target margin.",
+            "gross_margin":    "(Sell Price − Total Cost) / Sell Price × 100. Industry benchmark: 18–28% for premium brands (Jaquar, Grohe, Duravit). 12–18% for volume categories (paints, basic hardware).",
+            "target_margin":   "Set the minimum acceptable margin per product. Flag any product where actual margin < target margin for review.",
+        },
+        "margin_benchmarks_industry": {
+            "cp_fittings_premium":  "22–28% gross margin (Jaquar, Grohe, Kohler) — brand pull supports price.",
+            "cp_fittings_economy":  "14–18% (local brands) — competitive pressure on price.",
+            "sanitary_ware":        "18–24% gross margin (Hindware, Duravit, Roca).",
+            "hardware_premium":     "22–30% (Hettich, Hafele, Dorma) — specification-driven, less price-sensitive.",
+            "hardware_economy":     "12–16% (local brands) — often bundled in project supply.",
+            "laminates_branded":    "20–26% (Sunmica, Merino, Century Ply) — brand-specified by architects.",
+            "paints":               "10–15% — thin margin; high volume. Distributor margin often fixed by company.",
+            "tiles_ceramics":       "14–20% depending on brand and project type.",
+        },
+        "project_budget_tracking": {
+            "budgeted_cost":    "Total material + labour cost estimated at project kick-off for all items in BOQ.",
+            "actual_cost":      "Cumulative actual spend as at tracking date. Updated as POs/GRNs are raised.",
+            "variance":         "Actual − Budgeted. Positive = over budget. Negative = under budget.",
+            "variance_pct":     "Variance / Budgeted × 100. Alert threshold: > +5% requires PM review. > +10% requires client change-order.",
+            "progress_pct":     "% of physical work completed. Compare with % budget consumed — if % spend > % progress, project is at risk.",
+            "earned_value":     "EVM: Planned Value, Earned Value, Actual Cost. CPI = EV/AC (>1 = under budget). SPI = EV/PV (>1 = ahead of schedule).",
+        },
+        "common_cost_overrun_causes": {
+            "material_price_hike":  "Supplier increases price after PO is issued. Mitigation: lock prices with firm PO for entire project.",
+            "scope_creep":          "Client requests brand upgrades mid-project (e.g., switch from Hindware to Duravit). Must issue change order.",
+            "wastage_theft":        "Excess material used on site; pilferage. Benchmark: 5% wastage allowance for tiles/laminates.",
+            "currency_fluctuation": "For imported CP fittings (Grohe, Kohler) — USD/EUR appreciation increases landed cost. Use forward cover if project is large.",
+            "freight_cost_hike":    "Diesel price increase raises last-mile delivery cost. Build in 10–12% freight buffer on project estimates.",
+        },
+        "variance_analysis_method": "Group cost sheets by category. For each category: Target Cost = Sum of (Sell Price × (1 − Target Margin %)). Actual Cost = Sum of (Mat + Labour + Overhead). Variance = Actual − Target. Positive variance means you're spending more than your margin allows → find supplier negotiation or pricing adjustment opportunities.",
+        "indian_context": "Indian interior fit-out projects typically have 40–60% of cost in materials (CP fittings, sanitary ware, tiles, laminates, hardware) and 40–60% in labour (civil, carpenter, painter, electrician). Building materials distributors who supply to architects/contractors must track project-level costs carefully — a 5% cost overrun on a ₹50L project is ₹2.5L lost margin. The Costing Intelligence module provides real-time visibility into which products and projects are eroding profitability.",
+    },
 }
 
 
@@ -1768,6 +1809,18 @@ def get_knowledge_context(query: str, tool_data: Optional[dict] = None) -> str:
         "interior design pricing", "quotation for interior", "interior quote process",
     ]):
         relevant_keys.append("design_quote_studio")
+
+    if any(w in q for w in [
+        "costing", "cost sheet", "cost sheets", "cost analysis", "product cost",
+        "margin analysis", "gross margin", "net margin", "landed cost product",
+        "target margin", "actual margin", "cost breakdown", "overhead cost",
+        "material cost", "labour cost", "labor cost", "margin per product",
+        "margin squeeze", "low margin", "margin alert", "variance analysis",
+        "cost variance", "category variance", "project budget", "project costing",
+        "over budget project", "cost overrun", "fit-out budget", "interior budget",
+        "budget vs actual", "product profitability", "costing intelligence",
+    ]):
+        relevant_keys.append("costing_intelligence")
 
     if any(w in q for w in [
         "tax invoice", "gst invoice", "sales invoice", "invoice format",

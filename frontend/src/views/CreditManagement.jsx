@@ -38,6 +38,9 @@ export default function CreditManagement({ onGoChat, dbStatus, period }) {
   const [filter, setFilter]     = useState('ALL');
   const [selected, setSelected] = useState(null);
   const [src, setSrc]           = useState('demo');
+  const [crSort, setCrSort]     = useState({ field: 'overdue', dir: 'desc' });
+  const [pdcSort, setPdcSort]   = useState({ field: 'date', dir: 'asc' });
+  const [agingSort, setAgingSort] = useState({ field: 'd90plus', dir: 'desc' });
 
   useEffect(() => {
     fetch('/api/credit/accounts').then(r => r.json()).then(d => {
@@ -51,7 +54,69 @@ export default function CreditManagement({ onGoChat, dbStatus, period }) {
   const highRisk      = accounts.filter(a => a.risk === 'HIGH');
   const utilPct       = totalLimit ? Math.round((totalUsed / totalLimit) * 100) : 0;
 
-  const filtered = filter === 'ALL' ? accounts : accounts.filter(a => a.risk === filter);
+  const RISK_RANK = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+  const crSic = (f) => crSort.field === f ? (crSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+  const crStc = (f) => `sth${crSort.field === f ? ` sth-${crSort.dir}` : ''}`;
+  const toggleCrSort = (f) => setCrSort(s => ({ field: f, dir: s.field === f && s.dir === 'asc' ? 'desc' : 'asc' }));
+
+  const filtered = (filter === 'ALL' ? accounts : accounts.filter(a => a.risk === filter)).slice().sort((a, b) => {
+    const { field, dir } = crSort;
+    const fmap = {
+      name: r => r.name ?? '',
+      limit: r => r.limit ?? 0,
+      used: r => r.used ?? 0,
+      util: r => r.limit ? r.used / r.limit : 0,
+      overdue: r => r.overdue ?? 0,
+      days: r => r.days ?? 0,
+      risk: r => RISK_RANK[r.risk] ?? 0,
+    };
+    const av = fmap[field]?.(a) ?? 0, bv = fmap[field]?.(b) ?? 0;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  });
+
+  const PDC_STATUS_RANK = { PENDING: 1, DEPOSITED: 2, CLEARED: 3 };
+  const pdcSic = (f) => pdcSort.field === f ? (pdcSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+  const pdcStc = (f) => `sth${pdcSort.field === f ? ` sth-${pdcSort.dir}` : ''}`;
+  const togglePdcSort = (f) => setPdcSort(s => ({ field: f, dir: s.field === f && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const sortedPdcs = [...pdcs].sort((a, b) => {
+    const { field, dir } = pdcSort;
+    const fmap = {
+      cheque: r => r.cheque ?? '',
+      customer: r => r.customer ?? '',
+      amount: r => r.amount ?? 0,
+      date: r => r.date ?? '',
+      bank: r => r.bank ?? '',
+      status: r => PDC_STATUS_RANK[r.status] ?? 0,
+    };
+    const av = fmap[field]?.(a) ?? 0, bv = fmap[field]?.(b) ?? 0;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  });
+
+  const agingSic = (f) => agingSort.field === f ? (agingSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+  const agingStc = (f) => `sth${agingSort.field === f ? ` sth-${agingSort.dir}` : ''}`;
+  const toggleAgingSort = (f) => setAgingSort(s => ({ field: f, dir: s.field === f && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const agingRows = accounts.filter(a => a.used > 0).map(a => ({
+    ...a,
+    curr:    a.days === 0 ? a.used : 0,
+    d31_60:  a.days > 30 && a.days <= 60 ? a.overdue : 0,
+    d61_90:  a.days > 60 && a.days <= 90 ? a.overdue : 0,
+    d90plus: a.days > 90 ? a.overdue : 0,
+  })).sort((a, b) => {
+    const { field, dir } = agingSort;
+    const fmap = {
+      name: r => r.name ?? '',
+      curr: r => r.curr,
+      d31_60: r => r.d31_60,
+      d61_90: r => r.d61_90,
+      d90plus: r => r.d90plus,
+      total: r => r.used ?? 0,
+    };
+    const av = fmap[field]?.(a) ?? 0, bv = fmap[field]?.(b) ?? 0;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  });
 
   const EXPORT_COLS = [
     { key: 'id', label: 'ID' }, { key: 'name', label: 'Customer' },
@@ -98,11 +163,31 @@ export default function CreditManagement({ onGoChat, dbStatus, period }) {
         ))}
       </div>
 
+      {/* AI Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🔴', text: `Sharma Constructions ${fmtLakh(accounts.find(a=>a.id==='C001')?.overdue)} overdue ${accounts.find(a=>a.id==='C001')?.days}d — legal notice threshold`, q: 'Sharma Constructions has ₹3.4L overdue for 78 days — near the legal notice threshold. Draft a formal payment demand letter, recommend whether to issue a legal notice, and tell me whether to suspend their credit and stop supply.' },
+            { icon: '⚠',  text: `${highRisk.length} HIGH risk accounts = ${fmtLakh(highRisk.reduce((s,a)=>s+a.overdue,0))} in overdue exposure`,  q: `I have ${highRisk.length} high-risk credit accounts with total overdue of ${fmtLakh(highRisk.reduce((s,a)=>s+a.overdue,0))}. Prioritize them by recovery probability and tell me exactly what action to take for each — call script, credit hold, legal, or write-off.` },
+            { icon: '💳', text: `Credit utilisation at ${utilPct}% — flag accounts above 90% limit`,     q: `My overall credit utilisation is ${utilPct}%. Which specific accounts are above 90% utilisation? Should I reduce their credit limits, require PDC before next order, or flag for collection call first?` },
+            { icon: '📅', text: '3 PDCs pending deposit — deposit before expiry date this week',          q: 'I have 3 post-dated cheques pending deposit. Which ones expire this week and what is the priority order for deposit? Also tell me what to do if any bounce.' },
+            { icon: '🎯', text: 'Prestige Developers 77% utilised — review limit before next big project', q: 'Prestige Developers has ₹6.2L used of ₹8L limit (77% utilised) with no overdue. They have 3 PDCs pending. Should I proactively increase their credit limit before they need to do a large project order? What is a safe new limit?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="seg-tabs" style={{ display:'flex', gap:4, background:'var(--s3)', borderRadius:8, padding:3, border:'1px solid var(--border2)', width:'fit-content', marginBottom:14 }}>
         {[['accounts','Customer Accounts'],['pdc','PDC Register'],['aging','Ageing Analysis']].map(([id,label]) => (
           <button key={id} onClick={() => setTab(id)}
-            style={{ padding:'5px 14px', borderRadius:6, border:'none', background: tab===id ? '#fff':'transparent', color: tab===id ? 'var(--brand)':'var(--text3)', fontWeight: tab===id ? 700:500, fontSize:12, cursor:'pointer', boxShadow: tab===id ? 'var(--sh)':undefined, fontFamily:'var(--font)', transition:'all .15s' }}>
+            style={{ padding:'5px 14px', borderRadius:6, border:'none', background: tab===id ? 'var(--surface)':'transparent', color: tab===id ? 'var(--brand)':'var(--text3)', fontWeight: tab===id ? 700:500, fontSize:12, cursor:'pointer', boxShadow: tab===id ? 'var(--sh)':undefined, fontFamily:'var(--font)', transition:'all .15s' }}>
             {label}
           </button>
         ))}
@@ -129,12 +214,18 @@ export default function CreditManagement({ onGoChat, dbStatus, period }) {
             </div>
           </div>
           <div style={{ overflowX:'auto' }}>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr>
-                  <th>Customer</th><th>Credit Limit</th><th>Used</th>
-                  <th>Utilisation</th><th>Overdue</th><th>Days</th>
-                  <th>PDC</th><th>Risk</th><th>Actions</th>
+                  <th className={crStc('name')} onClick={() => toggleCrSort('name')}>Customer <span className="sort-ic">{crSic('name')}</span></th>
+                  <th className={crStc('limit')} onClick={() => toggleCrSort('limit')}>Credit Limit <span className="sort-ic">{crSic('limit')}</span></th>
+                  <th className={crStc('used')} onClick={() => toggleCrSort('used')}>Used <span className="sort-ic">{crSic('used')}</span></th>
+                  <th className={crStc('util')} onClick={() => toggleCrSort('util')}>Utilisation <span className="sort-ic">{crSic('util')}</span></th>
+                  <th className={crStc('overdue')} onClick={() => toggleCrSort('overdue')}>Overdue <span className="sort-ic">{crSic('overdue')}</span></th>
+                  <th className={crStc('days')} onClick={() => toggleCrSort('days')}>Days <span className="sort-ic">{crSic('days')}</span></th>
+                  <th>PDC</th>
+                  <th className={crStc('risk')} onClick={() => toggleCrSort('risk')}>Risk <span className="sort-ic">{crSic('risk')}</span></th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -233,7 +324,7 @@ export default function CreditManagement({ onGoChat, dbStatus, period }) {
         <div className="card">
           <div className="ch">
             <div className="ctit">Post-Dated Cheque Register</div>
-            <button className="btn-export" onClick={() => exportToCsv(pdcs, [
+            <button className="btn-export" onClick={() => exportToCsv(sortedPdcs, [
               {key:'cheque',label:'Cheque No'},{key:'customer',label:'Customer'},
               {key:'amount',label:'Amount'},{key:'date',label:'Date'},
               {key:'bank',label:'Bank'},{key:'status',label:'Status'},
@@ -242,12 +333,19 @@ export default function CreditManagement({ onGoChat, dbStatus, period }) {
               Export CSV
             </button>
           </div>
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead>
-              <tr><th>Cheque No</th><th>Customer</th><th>Amount</th><th>Date</th><th>Bank</th><th>Status</th></tr>
+              <tr>
+                <th className={pdcStc('cheque')} onClick={() => togglePdcSort('cheque')}>Cheque No <span className="sort-ic">{pdcSic('cheque')}</span></th>
+                <th className={pdcStc('customer')} onClick={() => togglePdcSort('customer')}>Customer <span className="sort-ic">{pdcSic('customer')}</span></th>
+                <th className={pdcStc('amount')} onClick={() => togglePdcSort('amount')}>Amount <span className="sort-ic">{pdcSic('amount')}</span></th>
+                <th className={pdcStc('date')} onClick={() => togglePdcSort('date')}>Date <span className="sort-ic">{pdcSic('date')}</span></th>
+                <th className={pdcStc('bank')} onClick={() => togglePdcSort('bank')}>Bank <span className="sort-ic">{pdcSic('bank')}</span></th>
+                <th className={pdcStc('status')} onClick={() => togglePdcSort('status')}>Status <span className="sort-ic">{pdcSic('status')}</span></th>
+              </tr>
             </thead>
             <tbody>
-              {pdcs.map(p => (
+              {sortedPdcs.map(p => (
                 <tr key={p.cheque}>
                   <td style={{ fontFamily:'var(--mono)', fontWeight:600 }}>{p.cheque}</td>
                   <td>{p.customer}</td>
@@ -270,27 +368,28 @@ export default function CreditManagement({ onGoChat, dbStatus, period }) {
       {tab === 'aging' && (
         <div className="card">
           <div className="ch"><div className="ctit">Receivables Ageing Summary</div></div>
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead>
-              <tr><th>Customer</th><th>Current (0-30d)</th><th>31-60d</th><th>61-90d</th><th>90d+</th><th>Total</th></tr>
+              <tr>
+                <th className={agingStc('name')} onClick={() => toggleAgingSort('name')}>Customer <span className="sort-ic">{agingSic('name')}</span></th>
+                <th className={agingStc('curr')} onClick={() => toggleAgingSort('curr')}>Current (0-30d) <span className="sort-ic">{agingSic('curr')}</span></th>
+                <th className={agingStc('d31_60')} onClick={() => toggleAgingSort('d31_60')}>31-60d <span className="sort-ic">{agingSic('d31_60')}</span></th>
+                <th className={agingStc('d61_90')} onClick={() => toggleAgingSort('d61_90')}>61-90d <span className="sort-ic">{agingSic('d61_90')}</span></th>
+                <th className={agingStc('d90plus')} onClick={() => toggleAgingSort('d90plus')}>90d+ <span className="sort-ic">{agingSic('d90plus')}</span></th>
+                <th className={agingStc('total')} onClick={() => toggleAgingSort('total')}>Total <span className="sort-ic">{agingSic('total')}</span></th>
+              </tr>
             </thead>
             <tbody>
-              {accounts.filter(a => a.used > 0).map(a => {
-                const curr    = a.days === 0 ? a.used : 0;
-                const d31_60  = a.days > 30 && a.days <= 60 ? a.overdue : 0;
-                const d61_90  = a.days > 60 && a.days <= 90 ? a.overdue : 0;
-                const d90plus = a.days > 90 ? a.overdue : 0;
-                return (
-                  <tr key={a.id}>
-                    <td style={{ fontWeight:600 }}>{a.name}</td>
-                    <td style={{ fontFamily:'var(--mono)', color:'var(--g2)' }}>{curr > 0 ? fmtLakh(curr) : '—'}</td>
-                    <td style={{ fontFamily:'var(--mono)', color: d31_60>0?'var(--a2)':'var(--text3)' }}>{d31_60 > 0 ? fmtLakh(d31_60) : '—'}</td>
-                    <td style={{ fontFamily:'var(--mono)', color: d61_90>0?'var(--o2)':'var(--text3)' }}>{d61_90 > 0 ? fmtLakh(d61_90) : '—'}</td>
-                    <td style={{ fontFamily:'var(--mono)', color: d90plus>0?'var(--r2)':'var(--text3)', fontWeight: d90plus>0?700:400 }}>{d90plus > 0 ? fmtLakh(d90plus) : '—'}</td>
-                    <td style={{ fontFamily:'var(--mono)', fontWeight:700 }}>{fmtLakh(a.used)}</td>
-                  </tr>
-                );
-              })}
+              {agingRows.map(a => (
+                <tr key={a.id}>
+                  <td style={{ fontWeight:600 }}>{a.name}</td>
+                  <td style={{ fontFamily:'var(--mono)', color:'var(--g2)' }}>{a.curr > 0 ? fmtLakh(a.curr) : '—'}</td>
+                  <td style={{ fontFamily:'var(--mono)', color: a.d31_60>0?'var(--a2)':'var(--text3)' }}>{a.d31_60 > 0 ? fmtLakh(a.d31_60) : '—'}</td>
+                  <td style={{ fontFamily:'var(--mono)', color: a.d61_90>0?'var(--o2)':'var(--text3)' }}>{a.d61_90 > 0 ? fmtLakh(a.d61_90) : '—'}</td>
+                  <td style={{ fontFamily:'var(--mono)', color: a.d90plus>0?'var(--r2)':'var(--text3)', fontWeight: a.d90plus>0?700:400 }}>{a.d90plus > 0 ? fmtLakh(a.d90plus) : '—'}</td>
+                  <td style={{ fontFamily:'var(--mono)', fontWeight:700 }}>{fmtLakh(a.used)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

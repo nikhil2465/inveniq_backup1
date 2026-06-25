@@ -359,7 +359,7 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
             {totalVal && <div style={{ gridColumn: '1/-1' }}><span style={{ color: labelClr, fontWeight: 600 }}>Total Order Value: </span><strong>{totalVal}</strong></div>}
           </div>
           {isDraft && (
-            <div style={{ marginTop: 10, padding: '8px 12px', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>
+            <div style={{ marginTop: 10, padding: '8px 12px', background: 'var(--a5)', border: '1px solid var(--a4)', borderRadius: 6, fontSize: 11, color: 'var(--a2)', lineHeight: 1.5 }}>
               ℹ️ Go to <strong>PO &amp; GRN → Pending Approvals</strong> tab to approve and release this PO to the supplier.
             </div>
           )}
@@ -377,8 +377,8 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
   if (action.status === 'error') {
     return (
       <div style={{
-        marginTop: 12, padding: '12px 16px', background: '#fef2f2',
-        border: '1px solid #fca5a5', borderRadius: 10, fontSize: 12, color: '#dc2626',
+        marginTop: 12, padding: '12px 16px', background: 'var(--r5)',
+        border: '1px solid var(--r4)', borderRadius: 10, fontSize: 12, color: 'var(--r2)',
       }}>
         ❌ <strong>PO creation failed:</strong> {action.error || 'Unknown error'}
       </div>
@@ -416,11 +416,11 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
     padding: '6px 8px', textAlign: 'left', letterSpacing: '0.5px', textTransform: 'uppercase',
   };
   const tdStyle = {
-    fontSize: 11, padding: '7px 8px', color: '#1e293b',
-    borderBottom: '1px solid #e2e8f0', verticalAlign: 'top',
+    fontSize: 11, padding: '7px 8px', color: 'var(--text)',
+    borderBottom: '1px solid var(--border)', verticalAlign: 'top',
   };
-  const labelStyle = { fontSize: 9, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 2, display: 'block' };
-  const valueStyle = { fontSize: 12, color: '#0f172a', fontWeight: 500 };
+  const labelStyle = { fontSize: 9, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 2, display: 'block' };
+  const valueStyle = { fontSize: 12, color: 'var(--text)', fontWeight: 500 };
 
   const handleConfirm = async () => {
     setBusy(true);
@@ -431,7 +431,7 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
   return (
     <div style={{
       marginTop: 14, fontFamily: "'Segoe UI', Arial, sans-serif",
-      border: '1.5px solid #cbd5e1', borderRadius: 10, overflow: 'hidden',
+      border: '1.5px solid var(--border)', borderRadius: 10, overflow: 'hidden',
       boxShadow: '0 4px 20px rgba(0,0,0,0.10)',
       maxWidth: 680,
     }}>
@@ -451,11 +451,11 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
       </div>
 
       {/* ── Vendor + Ship To ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: '#f8fafc' }}>
-        <div style={{ padding: '12px 20px', borderRight: '1px solid #e2e8f0' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: 'var(--bg2)' }}>
+        <div style={{ padding: '12px 20px', borderRight: '1px solid var(--border)' }}>
           <div style={{ ...labelStyle }}>Vendor / Bill To</div>
           <div style={{ ...valueStyle, fontWeight: 700 }}>{po.supplier_name || '—'}</div>
-          <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, lineHeight: 1.5 }}>
             Authorised Supplier<br />
             {po.supplier_name?.toLowerCase().includes('century') ? 'Mumbai, Maharashtra' : 'India'}
           </div>
@@ -463,7 +463,7 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
         <div style={{ padding: '12px 20px' }}>
           <div style={{ ...labelStyle }}>Ship / Deliver To</div>
           <div style={{ ...valueStyle, fontWeight: 700 }}>InvenIQ Dealers</div>
-          <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, lineHeight: 1.5 }}>
             Main Warehouse, Bangalore<br />
             Karnataka — 560001
           </div>
@@ -471,7 +471,7 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
       </div>
 
       {/* ── Order Terms Bar ── */}
-      <div style={{ background: '#eef2ff', padding: '7px 20px', display: 'flex', gap: 28, borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
+      <div style={{ background: 'var(--i3)', padding: '7px 20px', display: 'flex', gap: 28, borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
         {[
           ['Payment Terms', 'Net 30 Days'],
           ['Delivery Terms', 'FOB — Destination'],
@@ -479,8 +479,8 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
           ['GST Rate', '18% (IGST)'],
         ].map(([lbl, val]) => (
           <div key={lbl}>
-            <span style={{ fontSize: 9, color: '#6366f1', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>{lbl}</span>
-            <span style={{ fontSize: 10, color: '#1e293b', fontWeight: 600 }}>{val}</span>
+            <span style={{ fontSize: 9, color: 'var(--purple)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>{lbl}</span>
+            <span style={{ fontSize: 10, color: 'var(--text)', fontWeight: 600 }}>{val}</span>
           </div>
         ))}
       </div>
@@ -499,7 +499,7 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
           </thead>
           <tbody>
             <tr>
-              <td style={{ ...tdStyle, textAlign: 'center', color: '#64748b' }}>1</td>
+              <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--text3)' }}>1</td>
               <td style={{ ...tdStyle }}>
                 <div style={{ fontWeight: 600, fontSize: 12 }}>{po.sku_name || '—'}</div>
                 {po.notes && <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{po.notes}</div>}
@@ -518,29 +518,29 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
 
       {/* ── Totals ── */}
       {hasPrice ? (
-        <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '10px 20px' }}>
+        <div style={{ background: 'var(--bg2)', borderTop: '1px solid var(--border)', padding: '10px 20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            <div style={{ display: 'flex', gap: 48, fontSize: 11, color: '#475569' }}>
+            <div style={{ display: 'flex', gap: 48, fontSize: 11, color: 'var(--text2)' }}>
               <span>Subtotal</span><span style={{ minWidth: 90, textAlign: 'right' }}>{fmtINR(subtotal)}</span>
             </div>
-            <div style={{ display: 'flex', gap: 48, fontSize: 11, color: '#475569' }}>
+            <div style={{ display: 'flex', gap: 48, fontSize: 11, color: 'var(--text2)' }}>
               <span>IGST @ 18%</span><span style={{ minWidth: 90, textAlign: 'right' }}>{fmtINR(gst)}</span>
             </div>
-            <div style={{ display: 'flex', gap: 48, fontSize: 13, fontWeight: 800, color: '#1e3a5f', borderTop: '2px solid #1e3a5f', paddingTop: 6, marginTop: 2 }}>
+            <div style={{ display: 'flex', gap: 48, fontSize: 13, fontWeight: 800, color: 'var(--b2)', borderTop: '2px solid var(--b2)', paddingTop: 6, marginTop: 2 }}>
               <span>GRAND TOTAL</span><span style={{ minWidth: 90, textAlign: 'right' }}>{fmtINR(grandTotal)}</span>
             </div>
           </div>
         </div>
       ) : (
-        <div style={{ background: '#fffbeb', borderTop: '1px solid #fde68a', padding: '8px 20px', fontSize: 10, color: '#92400e' }}>
+        <div style={{ background: 'var(--a5)', borderTop: '1px solid var(--a4)', padding: '8px 20px', fontSize: 10, color: 'var(--a2)' }}>
           ℹ️ Unit price will be auto-fetched from your product database. Final value calculated on confirmation.
         </div>
       )}
 
       {/* ── Authorisation Footer ── */}
-      <div style={{ background: '#f1f5f9', borderTop: '1px solid #e2e8f0', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 10, color: '#64748b', maxWidth: 320 }}>
-          <strong style={{ color: '#475569' }}>Authorisation required</strong> — Review all details above.
+      <div style={{ background: 'var(--bg2)', borderTop: '1px solid var(--border)', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 10, color: 'var(--text3)', maxWidth: 320 }}>
+          <strong style={{ color: 'var(--text2)' }}>Authorisation required</strong> — Review all details above.
           By approving, you confirm this PO is accurate and authorised for procurement.
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -548,8 +548,8 @@ function POConfirmCard({ action, onConfirm, onCancel }) {
             onClick={() => onCancel()}
             disabled={busy}
             style={{
-              padding: '8px 16px', background: '#fff', border: '1.5px solid #cbd5e1',
-              borderRadius: 7, fontSize: 12, cursor: 'pointer', color: '#64748b', fontWeight: 600,
+              padding: '8px 16px', background: 'var(--bg1)', border: '1.5px solid var(--border)',
+              borderRadius: 7, fontSize: 12, cursor: 'pointer', color: 'var(--text3)', fontWeight: 600,
             }}
           >
             ✕ Reject PO
@@ -614,7 +614,7 @@ function AiMessage({ msg, isStreaming, onFollowUp, onConfirmPO, onCancelPO }) {
             </span>
             {rcaFlag && <span className="iq-chip rca">🔎 RCA</span>}
             {pendingActions.length > 0 && !isStreaming && (
-              <span className="iq-chip" style={{ background: '#ede9fe', color: '#6d28d9', border: '1px solid #c4b5fd' }}>
+              <span className="iq-chip" style={{ background: 'var(--p3)', color: 'var(--p2)', border: '1px solid var(--p4)' }}>
                 📋 Create PO
               </span>
             )}

@@ -41,6 +41,22 @@ const MODULE_LIST = [
   { icon: '⚙️', id: 'settings',   label: 'Settings',               section: 'Info' },
 ];
 
+const ROLE_OPTS = [
+  { v: 'admin',             l: 'Admin'             },
+  { v: 'sales_manager',    l: 'Sales Manager'     },
+  { v: 'cfo',              l: 'CFO'               },
+  { v: 'warehouse_manager', l: 'Warehouse Manager' },
+  { v: 'finance_manager',  l: 'Finance Manager'   },
+  { v: 'distributor',      l: 'Distributor'       },
+  { v: 'architect',        l: 'Architect'         },
+];
+
+const ROLE_COLORS = {
+  admin: '#7c3aed', sales_manager: '#16a34a', cfo: '#1d4ed8',
+  warehouse_manager: '#0f766e', finance_manager: '#b45309',
+  distributor: '#ea580c', architect: '#7c3aed',
+};
+
 const Check = ({ ok, label, value, sub }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
     <div style={{
@@ -75,6 +91,16 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
   const [testing,   setTesting]   = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [checkedAt, setCheckedAt]  = useState(null);
+  const [users,        setUsers]        = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm,      setAddForm]      = useState({ username: '', display_name: '', email: '', role: 'sales_manager', password: '', allowed_modules: 'all' });
+  const [addError,     setAddError]     = useState('');
+  const [addSaving,    setAddSaving]    = useState(false);
+  const [editUser,     setEditUser]     = useState(null);
+  const [editForm,     setEditForm]     = useState({});
+  const [editSaving,   setEditSaving]   = useState(false);
+  const [editError,    setEditError]    = useState('');
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -89,6 +115,74 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
   }, []);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  const fetchUsers = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const r = await fetch('/api/users');
+      if (r.ok) { const j = await r.json(); setUsers(j.users ?? []); }
+    } catch { } finally { setUsersLoading(false); }
+  }, []);
+
+  useEffect(() => { if (!allowedModules) fetchUsers(); }, [allowedModules, fetchUsers]);
+
+  const handleCreateUser = async () => {
+    setAddError('');
+    if (!addForm.username || !addForm.display_name || !addForm.password)
+      return setAddError('Username, display name, and password are required.');
+    if (addForm.password.length < 6) return setAddError('Password must be at least 6 characters.');
+    setAddSaving(true);
+    try {
+      const r = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addForm),
+      });
+      if (r.status === 409) return setAddError('Username already exists.');
+      if (!r.ok) { const j = await r.json().catch(() => ({})); return setAddError(j.detail || 'Failed to create user.'); }
+      setShowAddModal(false);
+      setAddForm({ username: '', display_name: '', email: '', role: 'sales_manager', password: '', allowed_modules: 'all' });
+      await fetchUsers();
+    } catch (e) { setAddError(e.message); } finally { setAddSaving(false); }
+  };
+
+  const handleDeactivate = async (userId, currentlyActive) => {
+    try {
+      if (currentlyActive) {
+        await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      } else {
+        await fetch(`/api/users/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: true }),
+        });
+      }
+      await fetchUsers();
+    } catch { }
+  };
+
+  const openEdit = (u) => {
+    setEditUser(u);
+    setEditForm({ display_name: u.display_name || '', email: u.email || '', role: u.role || 'sales_manager', allowed_modules: u.allowed_modules || 'all', password: '' });
+    setEditError('');
+  };
+
+  const handleSaveEdit = async () => {
+    setEditError('');
+    setEditSaving(true);
+    try {
+      const body = { ...editForm };
+      if (!body.password) delete body.password;
+      const r = await fetch(`/api/users/${editUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); return setEditError(j.detail || 'Failed to save changes.'); }
+      setEditUser(null);
+      await fetchUsers();
+    } catch (e) { setEditError(e.message); } finally { setEditSaving(false); }
+  };
 
   const testConnection = async () => {
     setTesting(true);
@@ -286,7 +380,7 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
           { cls: dbOk ? 'sg' : 'sr',  l: 'Database',  v: dbOk ? 'Live Data'        : 'Demo Mode',      s: dbOk ? 'Connected — real-time data active' : 'Running on sample data' },
           { cls: aiOk ? 'sg' : 'sb',  l: 'AI Engine', v: aiOk ? 'Active'           : 'Not Configured', s: aiOk ? 'AI features fully operational'     : 'AI features unavailable' },
           { cls: 'sg',                 l: 'Modules',   v: `${moduleCount} Active`,                       s: isUnrestricted ? 'All modules operational' : `${moduleCount} modules accessible` },
-          { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.3',                                s: `June 2026 · Checked ${checkedAt || '…'}` },
+          { cls: 'sg',                 l: 'Version',   v: 'InvenIQ v3.7',                                s: `June 2026 · Checked ${checkedAt || '…'}` },
         ].map(k => (
           <div key={k.l} className={`kc ${k.cls}`}>
             <div className="kt"><div className="kl">{k.l}</div></div>
@@ -295,6 +389,17 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
           </div>
         ))}
       </div>
+
+      {onGoChat && (
+        <div className="ai-opp-strip" style={{ marginBottom: 16 }}>
+          <span className="ai-opp-label">✨ AI</span>
+          <button className="ai-opp-chip" onClick={() => onGoChat(`My InvenIQ system is running in ${dbOk ? 'live database' : 'demo'} mode with AI ${aiOk ? 'active' : 'not configured'}. What are the most important setup steps I should complete to get the most out of this platform?`)}>⚡ Setup recommendations</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('Explain all the AI features available in InvenIQ — the chatbot, WhatsApp scanner, demand forecasting, RCA engine, insights engine, and AI opportunity chips. What can each one do for my business?')}>🤖 AI features explained</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('What are the 7 user roles in InvenIQ — Admin, Sales Manager, CFO, Warehouse Manager, Finance Manager, Distributor, and Architect? Which modules does each role have access to?')}>👤 Role & access guide</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('My business has multiple staff members. How should I set up user roles in InvenIQ? Who should get Admin, who should get Sales Manager, and how do I restrict sensitive financial data?')}>🔐 Multi-user best practices</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('What data does InvenIQ need from my existing systems — Tally, Excel, or ERP — to show live inventory, sales, and financial data? How do I connect my existing data?')}>🔗 Data integration help</button>
+        </div>
+      )}
 
       <div className="gl g55">
         {/* Left column */}
@@ -485,6 +590,405 @@ export default function Settings({ onGoChat, onNavigate, dbStatus, currentUser, 
           ))}
         </div>
       </div>}
+
+      {/* ── User Management — admin only ── */}
+      {isUnrestricted && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="ch">
+            <div>
+              <div className="ctit">User Management</div>
+              <div className="csub">Create, edit, and manage user accounts · Role assignment · Module access control · Admin only</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {!usersLoading && <span className="bdg bg">{users.length} user{users.length !== 1 ? 's' : ''}</span>}
+              <button
+                className="btn-primary"
+                onClick={() => { setShowAddModal(true); setAddError(''); setAddForm({ username: '', display_name: '', email: '', role: 'sales_manager', password: '', allowed_modules: 'all' }); }}
+                style={{ height: 32, padding: '0 14px', fontSize: 12 }}
+              >
+                + Add User
+              </button>
+              <button
+                onClick={fetchUsers}
+                disabled={usersLoading}
+                style={{ height: 32, padding: '0 12px', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: usersLoading ? 'not-allowed' : 'pointer', color: 'var(--text2)' }}
+              >
+                {usersLoading ? '…' : '↻'}
+              </button>
+            </div>
+          </div>
+
+          {usersLoading ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Loading users…</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                    {['User', 'Role', 'Email', 'Modules', 'Last Login', 'Status', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--text3)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '.6px', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u, i) => {
+                    const mods = (!u.allowed_modules || u.allowed_modules === 'all') ? 'All' : (u.allowed_modules.split(',').filter(Boolean).length + ' mods');
+                    const roleColor = ROLE_COLORS[u.role] || 'var(--text3)';
+                    const isSelf = u.username === (currentUser?.username || '');
+                    return (
+                      <tr key={u.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--bg2)', opacity: u.is_active ? 1 : 0.55 }}>
+                        <td style={{ padding: '10px 12px' }}>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{u.display_name}</div>
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>@{u.username}</div>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ padding: '3px 8px', borderRadius: 10, background: roleColor + '22', color: roleColor, fontSize: 10, fontWeight: 700 }}>
+                            {ROLE_OPTS.find(r => r.v === u.role)?.l ?? u.role}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: 'var(--text2)', fontSize: 11 }}>{u.email || '—'}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700 }}>{mods}</span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: 'var(--text3)', fontSize: 11 }}>{u.last_login || '—'}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: u.is_active ? 'var(--g3)' : 'var(--r3)', color: u.is_active ? 'var(--green)' : 'var(--r2)' }}>
+                            {u.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => openEdit(u)}
+                              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', cursor: 'pointer', color: 'var(--text2)' }}
+                            >
+                              Edit
+                            </button>
+                            {!isSelf && (
+                              <button
+                                onClick={() => handleDeactivate(u.id, u.is_active)}
+                                style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: `1px solid ${u.is_active ? '#fca5a5' : 'var(--g4)'}`, borderRadius: 6, background: u.is_active ? 'var(--r3)' : 'var(--g3)', cursor: 'pointer', color: u.is_active ? 'var(--r2)' : 'var(--green)' }}
+                              >
+                                {u.is_active ? 'Deactivate' : 'Reactivate'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>
+                        No users found. Click <strong>+ Add User</strong> to create the first account.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--bg2)', borderRadius: 8, border: '1px solid var(--border)', borderLeft: '3px solid var(--b2)', fontSize: 11, color: 'var(--text3)', lineHeight: 1.7 }}>
+            <strong style={{ color: 'var(--text2)' }}>Security note:</strong> User changes take effect on next login. Deactivated accounts cannot log in but their data is preserved. Passwords must be at least 6 characters. Admin role always grants full access to all modules.
+          </div>
+        </div>
+      )}
+
+      {/* ── Design Quote Studio — Subscription & Licensing ── */}
+      {isUnrestricted && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="ch">
+            <div>
+              <div className="ctit">Design Quote Studio — Subscription &amp; Licensing</div>
+              <div className="csub">Per-month pricing for DQS module, AI scanner, and dependent components · Build-in licensing cost reference</div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span className="bdg bg">LICENSED IN BUILD</span>
+              <span className="bdg bb">v3.7+</span>
+            </div>
+          </div>
+
+          {/* Tier cards */}
+          <div className="lic-tiers">
+            {[
+              {
+                name: 'Starter',
+                price: '₹2,999',
+                color: '#0f766e',
+                seats: '1 Architect seat',
+                highlight: false,
+                features: [
+                  { ok: true,  t: '30 Interior Quotations / month' },
+                  { ok: true,  t: '5 Architect Fee Proposals / month' },
+                  { ok: true,  t: 'AI BOQ Scanner — 50 scans / month' },
+                  { ok: true,  t: 'WhatsApp photo scan — 5 / month' },
+                  { ok: true,  t: 'Standard PDF export (DQS template)' },
+                  { ok: false, t: 'Product Catalog sync' },
+                  { ok: false, t: 'QB↔DQS two-way sync' },
+                  { ok: false, t: 'Custom PDF branding' },
+                ],
+              },
+              {
+                name: 'Professional',
+                price: '₹5,999',
+                color: '#1d4ed8',
+                seats: '3 Architect seats',
+                highlight: true,
+                features: [
+                  { ok: true,  t: 'Unlimited Interior Quotations' },
+                  { ok: true,  t: 'Unlimited Architect Fee Proposals' },
+                  { ok: true,  t: 'AI BOQ Scanner — unlimited scans' },
+                  { ok: true,  t: 'WhatsApp + multi-photo scan — unlimited' },
+                  { ok: true,  t: 'Standard PDF export (DQS template)' },
+                  { ok: true,  t: 'Product Catalog sync (hardware/sanitary)' },
+                  { ok: true,  t: 'QB↔DQS two-way sync' },
+                  { ok: false, t: 'Custom PDF branding & letterhead' },
+                ],
+              },
+              {
+                name: 'Enterprise',
+                price: '₹11,999',
+                color: '#7c3aed',
+                seats: '10 Architect seats',
+                highlight: false,
+                features: [
+                  { ok: true,  t: 'Unlimited Interior Quotations' },
+                  { ok: true,  t: 'Unlimited Architect Fee Proposals' },
+                  { ok: true,  t: 'AI BOQ Scanner — unlimited scans' },
+                  { ok: true,  t: 'WhatsApp + multi-photo scan — unlimited' },
+                  { ok: true,  t: 'Custom PDF branding & letterhead' },
+                  { ok: true,  t: 'Product Catalog + QB↔DQS sync' },
+                  { ok: true,  t: '2 custom template designs (one-time)' },
+                  { ok: true,  t: 'Dedicated account manager + 99.9% SLA' },
+                ],
+              },
+            ].map(tier => (
+              <div key={tier.name} className={`lic-tier${tier.highlight ? ' lic-recommended' : ''}`} style={{ borderTop: `3px solid ${tier.color}` }}>
+                {tier.highlight && <div className="lic-rec-badge">★ RECOMMENDED</div>}
+                <div className="lic-tier-name" style={{ color: tier.color }}>{tier.name}</div>
+                <div className="lic-price-row">
+                  <span className="lic-price">{tier.price}</span>
+                  <span className="lic-price-unit">/month</span>
+                </div>
+                <div className="lic-seats">{tier.seats} included</div>
+                <div className="lic-divider" />
+                <ul className="lic-feat-list">
+                  {tier.features.map((f, i) => (
+                    <li key={i} className={`lic-feat${f.ok ? ' lic-feat-ok' : ' lic-feat-no'}`}>
+                      <span className="lic-feat-icon">{f.ok ? '✓' : '✗'}</span>
+                      <span>{f.t}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button className="lic-cta-btn" style={{ borderColor: tier.color, color: tier.color }}
+                  onClick={() => onGoChat?.(`I want to know more about the InvenIQ Design Quote Studio ${tier.name} plan at ${tier.price}/month for ${tier.seats}. What are the exact features, how do I get started, and what is the onboarding process?`)}>
+                  Get {tier.name} →
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add-on components */}
+          <div style={{ marginTop: 18, padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.6px', color: 'var(--text2)', fontFamily: 'var(--mono)' }}>Add-on Components</div>
+            <div className="lic-addons">
+              {[
+                { icon: '👤', label: 'Extra Architect Seat',        price: '₹799',   unit: '/seat/month',   note: 'Beyond included seats' },
+                { icon: '🤖', label: 'AI Scan Pack — 500 extra',    price: '₹1,499', unit: '/month',        note: 'Starter plan only' },
+                { icon: '📄', label: 'Custom PDF Template Design',  price: '₹2,999', unit: 'one-time',      note: 'Designed by InvenIQ team' },
+                { icon: '💬', label: 'WhatsApp Bot Integration',    price: '₹1,999', unit: '/month',        note: 'Dedicated WA Business API' },
+              ].map(a => (
+                <div key={a.label} className="lic-addon-row">
+                  <span style={{ fontSize: 18 }}>{a.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{a.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{a.note}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>{a.price}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 3 }}>{a.unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Build-in licensing cost disclosure */}
+          <div style={{ marginTop: 12, padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--border)', borderLeft: '3px solid var(--amber)' }}>
+            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.6px', color: 'var(--a2)', fontFamily: 'var(--mono)' }}>
+              Build-in Licensing Cost Reference
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+              {[
+                { label: 'DQS Core Engine',          cost: 'Included',        note: 'InvenIQ Enterprise license — no separate charge' },
+                { label: 'GPT-4o API (per AI scan)', cost: '~₹8–12 / call',  note: '$0.10–$0.15 · billed to your OpenAI account at cost' },
+                { label: 'PDF Generation',           cost: 'Included',        note: 'Client-side rendering — no per-PDF cost' },
+                { label: 'WhatsApp Photo Parsing',   cost: '~₹2–4 / image',  note: 'Vision model tokens · billed at OpenAI cost' },
+                { label: 'Quote Storage',            cost: 'Included',        note: 'MySQL / your own database — no storage fee' },
+                { label: 'Catalog AI Inference',     cost: '~₹1–2 / lookup', note: 'HSN + category inference per product match' },
+              ].map(c => (
+                <div key={c.label} style={{ padding: '10px 12px', background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 3 }}>{c.label}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 13, color: c.cost === 'Included' ? 'var(--green)' : 'var(--a2)', marginBottom: 2 }}>{c.cost}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', lineHeight: 1.5 }}>{c.note}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text3)', lineHeight: 1.6, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+              <strong style={{ color: 'var(--text2)' }}>Note:</strong> All OpenAI API costs are billed directly to your OpenAI account using the <code style={{ fontFamily: 'var(--mono)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 4 }}>OPENAI_API_KEY</code> configured in your environment. InvenIQ does not mark up AI inference costs.
+            </div>
+          </div>
+
+          {/* 30-day trial banner */}
+          <div style={{ marginTop: 12, padding: '12px 16px', background: 'linear-gradient(135deg, rgba(16,185,129,.08), rgba(16,185,129,.04))', borderRadius: 10, border: '1px solid rgba(16,185,129,.25)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>🎁</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--green)' }}>30-Day Free Trial Included</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>All new InvenIQ installations include a full 30-day trial of the Professional plan. No credit card required. Architect role is pre-provisioned — activate immediately.</div>
+            </div>
+            {onGoChat && (
+              <button className="btn-primary" style={{ fontSize: 11, padding: '6px 14px', whiteSpace: 'nowrap' }}
+                onClick={() => onGoChat('How do I activate the Design Quote Studio module for my team? I want to set up the architect user account and get started with interior quotations and architect fee proposals today.')}>
+                Activate DQS →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Add User Modal ── */}
+      {showAddModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(3px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>Add New User</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Create a new InvenIQ user account</div>
+              </div>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, marginTop: -2 }}>×</button>
+            </div>
+            {addError && (
+              <div style={{ padding: '8px 12px', background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 8, color: 'var(--r2)', fontSize: 12, marginBottom: 14, fontWeight: 600 }}>
+                {addError}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { key: 'username',     label: 'Username *',     placeholder: 'e.g. john.smith',       type: 'text' },
+                { key: 'display_name', label: 'Display Name *', placeholder: 'e.g. John Smith',       type: 'text' },
+                { key: 'email',        label: 'Email',          placeholder: 'e.g. john@company.com', type: 'email' },
+                { key: 'password',     label: 'Password *',     placeholder: 'Min. 6 characters',     type: 'password' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                  <input
+                    type={f.type}
+                    placeholder={f.placeholder}
+                    value={addForm[f.key] || ''}
+                    onChange={e => setAddForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, background: 'var(--bg2)', color: 'var(--text)', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Role *</label>
+                <select
+                  value={addForm.role}
+                  onChange={e => setAddForm(p => ({ ...p, role: e.target.value, allowed_modules: e.target.value === 'admin' ? 'all' : p.allowed_modules }))}
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, background: 'var(--bg2)', color: 'var(--text)', outline: 'none' }}
+                >
+                  {ROLE_OPTS.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
+                </select>
+              </div>
+              {addForm.role !== 'admin' && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Allowed Modules</label>
+                  <input
+                    placeholder='e.g. sales,orders,customers  — or leave "all"'
+                    value={addForm.allowed_modules}
+                    onChange={e => setAddForm(p => ({ ...p, allowed_modules: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, background: 'var(--bg2)', color: 'var(--text)', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Comma-separated module IDs or "all" for unrestricted access</div>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22 }}>
+              <button onClick={() => setShowAddModal(false)} style={{ padding: '8px 18px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--bg2)', fontSize: 12, cursor: 'pointer', color: 'var(--text2)', fontWeight: 600 }}>Cancel</button>
+              <button onClick={handleCreateUser} disabled={addSaving} className="btn-primary" style={{ padding: '8px 22px', fontSize: 12 }}>
+                {addSaving ? 'Creating…' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit User Modal ── */}
+      {editUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(3px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>Edit User</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontFamily: 'var(--mono)' }}>@{editUser.username}</div>
+              </div>
+              <button onClick={() => setEditUser(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, marginTop: -2 }}>×</button>
+            </div>
+            {editError && (
+              <div style={{ padding: '8px 12px', background: 'var(--r3)', border: '1px solid var(--r4)', borderRadius: 8, color: 'var(--r2)', fontSize: 12, marginBottom: 14, fontWeight: 600 }}>
+                {editError}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { key: 'display_name', label: 'Display Name', placeholder: 'e.g. John Smith',          type: 'text' },
+                { key: 'email',        label: 'Email',        placeholder: 'e.g. john@company.com',    type: 'email' },
+                { key: 'password',     label: 'New Password', placeholder: 'Leave blank to keep current', type: 'password' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                  <input
+                    type={f.type}
+                    placeholder={f.placeholder}
+                    value={editForm[f.key] || ''}
+                    onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, background: 'var(--bg2)', color: 'var(--text)', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Role</label>
+                <select
+                  value={editForm.role || ''}
+                  onChange={e => setEditForm(p => ({ ...p, role: e.target.value, allowed_modules: e.target.value === 'admin' ? 'all' : p.allowed_modules }))}
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, background: 'var(--bg2)', color: 'var(--text)', outline: 'none' }}
+                >
+                  {ROLE_OPTS.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
+                </select>
+              </div>
+              {editForm.role !== 'admin' && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Allowed Modules</label>
+                  <input
+                    placeholder='e.g. sales,orders,customers  — or "all"'
+                    value={editForm.allowed_modules || ''}
+                    onChange={e => setEditForm(p => ({ ...p, allowed_modules: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, background: 'var(--bg2)', color: 'var(--text)', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Comma-separated module IDs or "all" for unrestricted access</div>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22 }}>
+              <button onClick={() => setEditUser(null)} style={{ padding: '8px 18px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--bg2)', fontSize: 12, cursor: 'pointer', color: 'var(--text2)', fontWeight: 600 }}>Cancel</button>
+              <button onClick={handleSaveEdit} disabled={editSaving} className="btn-primary" style={{ padding: '8px 22px', fontSize: 12 }}>
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI CTA */}
       {onGoChat && (

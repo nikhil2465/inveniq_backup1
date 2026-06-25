@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createChart, baseOpts, gradientFill } from '../utils/chartHelpers';
+import { createChart, baseOpts, gradientFill, axisColors } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
 import SkeletonView from '../components/SkeletonLoader';
 import { ExportButton } from '../utils/exportUtils';
@@ -152,7 +152,7 @@ function QuickPreorderModal({ item, onClose }) {
         ) : (
           <form onSubmit={handleSubmit}>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
+              <div style={{ background: 'var(--a5)', border: '1px solid var(--a4)', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: 'var(--a2)' }}>
                 <strong>AI Signal:</strong> {item.signal} — {item.action}
               </div>
 
@@ -161,11 +161,11 @@ function QuickPreorderModal({ item, onClose }) {
                   Checking for existing open POs…
                 </div>
               ) : existingPO ? (
-                <div style={{ background: '#fff7ed', border: '1px solid #fb923c', borderRadius: 7, padding: '10px 13px', fontSize: 12 }}>
-                  <div style={{ fontWeight: 700, color: '#c2410c', marginBottom: 4 }}>
+                <div style={{ background: 'var(--o3)', border: '1px solid var(--o4)', borderRadius: 7, padding: '10px 13px', fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--o2)', marginBottom: 4 }}>
                     ⚠ Existing Open PO Found — {existingPO.po_number}
                   </div>
-                  <div style={{ color: '#92400e', lineHeight: 1.6 }}>
+                  <div style={{ color: 'var(--a2)', lineHeight: 1.6 }}>
                     <span><strong>Supplier:</strong> {existingPO.supplier}</span>
                     {' · '}
                     <span><strong>Status:</strong> {existingPO.status}</span>
@@ -174,12 +174,12 @@ function QuickPreorderModal({ item, onClose }) {
                     {' · '}
                     <span><strong>ETA:</strong> {existingPO.eta}</span>
                   </div>
-                  <div style={{ marginTop: 5, fontSize: 11, color: '#9a3412' }}>
+                  <div style={{ marginTop: 5, fontSize: 11, color: 'var(--text2)' }}>
                     A PO for this SKU is already in progress. Consider whether a new PO is necessary or if the existing one covers your demand.
                   </div>
                 </div>
               ) : (
-                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#166534' }}>
+                <div style={{ background: 'var(--g5)', border: '1px solid var(--g4)', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: 'var(--g2)' }}>
                   ✓ No existing open PO for this SKU — safe to proceed.
                 </div>
               )}
@@ -238,7 +238,7 @@ function QuickPreorderModal({ item, onClose }) {
                 <input className="fi" value={form.notes} onChange={e => set('notes', e.target.value)} />
               </div>
 
-              {error && <div style={{ color: '#dc2626', fontSize: 12, padding: '6px 10px', background: '#fef2f2', borderRadius: 6 }}>{error}</div>}
+              {error && <div style={{ color: 'var(--r2)', fontSize: 12, padding: '6px 10px', background: 'var(--r5)', borderRadius: 6 }}>{error}</div>}
             </div>
             <div className="modal-footer">
               <button type="button" className="btn-secondary" onClick={onClose} disabled={submitting}>Cancel</button>
@@ -262,11 +262,10 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
   const sRef = useRef(null);
 
   const fetchData = useCallback(() => {
-    setLoading(true);
     fetch(`/api/demand?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
   }, [period]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setLoading(true); fetchData(); }, [fetchData]);
   useAutoRefresh(fetchData, 5 * 60_000);
 
   const src        = d?.data_source ?? 'demo';
@@ -276,6 +275,7 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
 
   useEffect(() => {
     if (!d) return;
+    const c = axisColors();
     return createChart(sRef, {
       type: 'line',
       data: {
@@ -286,7 +286,7 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
           pointRadius: 3, pointBackgroundColor: '#0f766e', fill: true, label: 'Index (100=avg)',
         }],
       },
-      options: baseOpts({ scales: { x: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 9 } } }, y: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' } } } } }),
+      options: baseOpts({ scales: { x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 9 } } }, y: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 9, family: 'JetBrains Mono' } } } } }),
     });
   }, [d]);
 
@@ -311,6 +311,26 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
         </div>
       </div>
 
+      {/* ── AI Demand Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🚀', text: '18mm BWP SURGE +24% — pre-order 300 sheets before stockout',       q: '18mm BWP shows a SURGE signal with 24% demand increase forecast for next 30 days. I currently have only 140 sheets (8 days cover). How many sheets should I pre-order, from which supplier, at what price, and when? Calculate the EOQ and give me the PO details.' },
+            { icon: '📈', text: '12mm BWP GROWING +13.7% — increase stock by 25% this month',       q: '12mm BWP is forecasting GROWING demand at +13.7% over the next 90 days. I currently order at my current rate. How should I revise my next order quantity, supplier allocation, and safety stock to capture this growing demand without overstocking?' },
+            { icon: '📉', text: 'Laminates DECLINING -6.9% — reduce next order to avoid dead stock', q: 'Laminate demand is forecast to decline -6.9% over the next 90 days. How should I adjust my order quantities, run a promotional push to current customers, or negotiate return terms with supplier before I get stuck with slow stock?' },
+            { icon: '🎄', text: 'Oct–Dec peak +28% seasonal — start building buffer stock in Sep',   q: 'My sales peak in Oct–Dec at +28% above average. I need to start building buffer stock in September. Create a month-by-month pre-stocking plan for my top 5 SKUs — how much to order in Aug, Sep, and Oct to avoid stockouts during the peak.' },
+            { icon: '🤖', text: 'AI detected 7 demand signals — act on top 3 within 48 hours',      q: 'I have multiple AI demand signals — SURGE on 18mm BWP, GROWING on 12mm BWP and 8mm Flexi, DECLINING on Laminates and Commercial. Prioritize the top 3 actions I should take in the next 48 hours to maximize profit and avoid both stockouts and overstock.' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: '12px' }}>
         <div className="ch">
           <div><div className="ctit">30/60/90-Day Demand Forecast by SKU</div><div className="csub">AI prediction · Sheets/month</div></div>
@@ -324,7 +344,7 @@ export default function Demand({ onGoChat, period = 'MTD' }) {
             ]} />
           </div>
         </div>
-        <table className="tbl">
+        <table className="tbl tbl-striped">
           <thead>
             <tr>
               <th>SKU</th><th>Current Month</th><th>30-Day Forecast</th>

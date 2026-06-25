@@ -1,0 +1,8 @@
+target-version = "py312"
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # line length handled by formatter discretion, not a hard error
+]

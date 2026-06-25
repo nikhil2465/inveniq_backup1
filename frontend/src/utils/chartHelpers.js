@@ -69,16 +69,27 @@ export function baseOpts(extra = {}) {
   };
 }
 
-/** Standard XY scale config with mono ticks */
+/** Returns axis colors appropriate for the current dark/light mode */
+export function axisColors() {
+  const dark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark-mode');
+  return {
+    grid:  dark ? 'rgba(29,50,37,.45)' : '#e2e6ec',
+    tick:  dark ? '#5c7a62'            : '#9ca3af',
+    label: dark ? '#8aab91'            : '#4b5563',
+  };
+}
+
+/** Standard XY scale config with mono ticks — dark-mode aware */
 export function scaleXY(yCallback) {
+  const c = axisColors();
   return {
     x: {
-      grid: { color: '#e2e6ec' },
-      ticks: { color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' } },
+      grid: { color: c.grid },
+      ticks: { color: c.tick, font: { size: 9, family: 'JetBrains Mono' } },
     },
     y: {
-      grid: { color: '#e2e6ec' },
-      ticks: { color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' }, callback: yCallback },
+      grid: { color: c.grid },
+      ticks: { color: c.tick, font: { size: 9, family: 'JetBrains Mono' }, callback: yCallback },
     },
   };
 }

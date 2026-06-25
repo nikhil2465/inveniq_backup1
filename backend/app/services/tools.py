@@ -1614,6 +1614,128 @@ async def invoices_tool(query: Optional[str] = None) -> dict:
         return _mock
 
 
+async def costing_tool(query: Optional[str] = None) -> dict:
+    """Costing Intelligence: product cost sheets, project budgets, margin analysis, variance."""
+    _mock = {
+        "summary": {
+            "total_sheets": 12,
+            "avg_margin_pct": 21.3,
+            "pending_reviews": 2,
+            "total_projects": 6,
+            "total_budgeted": 22150000,
+            "total_actual": 22490000,
+            "budget_variance_pct": 1.53,
+            "over_budget_projects": 2,
+        },
+        "low_margin_products": [
+            {"product_name": "Asian Paints Royale Shyne 4L", "category": "Paints", "actual_margin_pct": 8.5, "target_margin_pct": 14.0},
+            {"product_name": "Hafele Stainless Handle 160mm", "category": "Hardware", "actual_margin_pct": 14.5, "target_margin_pct": 18.0},
+        ],
+        "over_budget_projects": [
+            {"project_name": "Brigade Lakefront — 24 Units", "client_name": "Brigade Enterprises", "budgeted_cost": 8400000, "actual_cost": 8750000, "variance_pct": 4.2, "progress_pct": 72},
+            {"project_name": "Salarpuria Sattva Penthouse", "client_name": "Salarpuria", "budgeted_cost": 2800000, "actual_cost": 3100000, "variance_pct": 10.7, "progress_pct": 90},
+        ],
+        "pending_review_sheets": [
+            {"product_name": "Merino Exterior HPL", "notes": "Review margin target — market rate changed"},
+            {"product_name": "Grohe Eurosmart Basin Mixer", "notes": "Grohe revised MRP — review pricing"},
+        ],
+        "variance_by_category": [
+            {"category": "CP Fittings",  "budgeted": 1105200, "actual": 1076000, "variance": -29200, "variance_pct": -2.6},
+            {"category": "Hardware",     "budgeted": 408550,  "actual": 397300,  "variance": -11250, "variance_pct": -2.8},
+            {"category": "Laminates",    "budgeted": 246800,  "actual": 243000,  "variance": -3800,  "variance_pct": -1.5},
+            {"category": "Sanitary Ware","budgeted": 701700,  "actual": 690000,  "variance": -11700, "variance_pct": -1.7},
+            {"category": "Paints",       "budgeted": 808400,  "actual": 816000,  "variance": 7600,   "variance_pct": 0.9},
+        ],
+        "action_items": [
+            "Review 2 pending cost sheets (Merino HPL + Grohe) and approve or revise pricing.",
+            "Brigade Lakefront is ₹3.5L over budget at 72% completion — flag to PM.",
+            "Salarpuria Penthouse is 10.7% over budget — client change-order required.",
+            "Paints category showing +₹7,600 cost variance — negotiate supplier rate.",
+        ],
+        "data_source": "mock",
+    }
+
+    pool = None
+    try:
+        from app.db.connection import get_pool
+        pool = await get_pool()
+    except Exception:
+        pass
+
+    if not pool:
+        return _mock
+
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    SELECT COUNT(*),
+                           COALESCE(AVG(CASE WHEN sell_price>0
+                               THEN (sell_price-mat_cost-labor_cost-overhead_cost)/sell_price*100
+                               ELSE 0 END), 0),
+                           SUM(CASE WHEN status='Pending Review' THEN 1 ELSE 0 END)
+                    FROM cost_sheets WHERE status!='Archived'
+                """)
+                r = await cur.fetchone()
+                total_sheets = int(r[0] or 0)
+                avg_margin   = round(float(r[1] or 0), 2)
+                pending_rev  = int(r[2] or 0)
+
+                await cur.execute("""
+                    SELECT COUNT(*), COALESCE(SUM(budgeted_cost),0),
+                           COALESCE(SUM(actual_cost),0),
+                           SUM(CASE WHEN actual_cost>budgeted_cost*1.02 THEN 1 ELSE 0 END)
+                    FROM project_budgets
+                """)
+                r2 = await cur.fetchone()
+                tb = float(r2[1] or 0); ta = float(r2[2] or 0)
+                bv = round((ta-tb)/tb*100, 2) if tb > 0 else 0
+
+                await cur.execute("""
+                    SELECT product_name, category, brand, sell_price,
+                           mat_cost+labor_cost+overhead_cost AS total_cost,
+                           target_margin_pct,
+                           CASE WHEN sell_price>0
+                               THEN (sell_price-mat_cost-labor_cost-overhead_cost)/sell_price*100
+                               ELSE 0 END AS actual_margin
+                    FROM cost_sheets WHERE status='Active'
+                    ORDER BY actual_margin ASC LIMIT 5
+                """)
+                lm_cols = ["product_name","category","brand","sell_price","total_cost","target_margin_pct","actual_margin_pct"]
+                low_margin = [dict(zip(lm_cols, r)) for r in await cur.fetchall()]
+
+                await cur.execute("""
+                    SELECT project_name, client_name, budgeted_cost, actual_cost, progress_pct,
+                           (actual_cost-budgeted_cost)/budgeted_cost*100 AS variance_pct
+                    FROM project_budgets WHERE actual_cost > budgeted_cost*1.02
+                    ORDER BY variance_pct DESC LIMIT 5
+                """)
+                ob_cols = ["project_name","client_name","budgeted_cost","actual_cost","progress_pct","variance_pct"]
+                over_budget = [dict(zip(ob_cols, r)) for r in await cur.fetchall()]
+
+                await cur.execute(
+                    "SELECT product_name, notes FROM cost_sheets WHERE status='Pending Review' LIMIT 10"
+                )
+                pending = [{"product_name": r[0], "notes": r[1]} for r in await cur.fetchall()]
+
+                return {
+                    "summary": {
+                        "total_sheets": total_sheets, "avg_margin_pct": avg_margin,
+                        "pending_reviews": pending_rev, "total_projects": int(r2[0] or 0),
+                        "total_budgeted": tb, "total_actual": ta,
+                        "budget_variance_pct": bv, "over_budget_projects": int(r2[3] or 0),
+                    },
+                    "low_margin_products": low_margin,
+                    "over_budget_projects": over_budget,
+                    "pending_review_sheets": pending,
+                    "data_source": "live",
+                }
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("costing_tool DB failed: %s", exc)
+        return _mock
+
+
 TOOLS = {
     "stock":            stock_tool,
     "demand":           demand_tool,
@@ -1643,4 +1765,5 @@ TOOLS = {
     "invoice_matching": invoice_matching_tool,
     "design_quote":     design_quote_tool,
     "invoices":         invoices_tool,
+    "costing":          costing_tool,
 }

@@ -9,6 +9,7 @@ import logging
 import base64
 import math
 import os
+import secrets
 import smtplib
 import asyncio
 from datetime import datetime, timedelta
@@ -93,7 +94,26 @@ CREATE TABLE IF NOT EXISTS architect_proposals (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+_APPROVAL_TOKENS_DDL = """
+CREATE TABLE IF NOT EXISTS quote_approval_tokens (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    token           VARCHAR(80)     NOT NULL UNIQUE,
+    quote_id        BIGINT UNSIGNED NOT NULL,
+    created_at      DATETIME        DEFAULT CURRENT_TIMESTAMP,
+    expires_at      DATETIME        NOT NULL,
+    used_at         DATETIME        DEFAULT NULL,
+    used_action     VARCHAR(30)     DEFAULT NULL,
+    approver_name   VARCHAR(255)    DEFAULT NULL,
+    approver_notes  TEXT            DEFAULT NULL,
+    INDEX idx_token    (token),
+    INDEX idx_quote_id (quote_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 _tables_initialized = False
+
+# In-memory token store for demo mode (keyed by token string)
+_demo_tokens: dict = {}
 
 
 async def _ensure_tables(pool) -> None:
@@ -105,15 +125,20 @@ async def _ensure_tables(pool) -> None:
             async with conn.cursor() as cur:
                 await cur.execute(_DESIGN_QUOTES_DDL)
                 await cur.execute(_ARCHITECT_PROPOSALS_DDL)
+                await cur.execute(_APPROVAL_TOKENS_DDL)
                 # Additive migrations — safe to run on existing installs; silently pass if column exists
                 for stmt in (
                     "ALTER TABLE design_quotes ADD COLUMN margin_mode VARCHAR(20) DEFAULT 'per_line'",
                     "ALTER TABLE design_quotes ADD COLUMN overall_margin_pct DECIMAL(8,4) DEFAULT 0",
+                    "ALTER TABLE design_quotes ADD COLUMN approval_cycle INT DEFAULT 0",
+                    "ALTER TABLE design_quotes ADD COLUMN last_approver VARCHAR(255) DEFAULT NULL",
+                    # Extend status ENUM to include PENDING levels if upgrading from older installs
+                    "ALTER TABLE design_quotes MODIFY COLUMN status ENUM('DRAFT','SENT','APPROVED','REVISION','IN_PROGRESS','COMPLETED','CANCELLED','PENDING_L1','PENDING_L2','PENDING_L3') DEFAULT 'DRAFT'",
                 ):
                     try:
                         await cur.execute(stmt)
                     except Exception:
-                        pass  # column already exists (error 1060)
+                        pass  # column/enum already exists — safe to ignore
         _tables_initialized = True
         logger.info("design_quotes: tables verified OK")
     except Exception as exc:
@@ -2388,6 +2413,205 @@ async def get_pending_approvals(request: Request):
     return {"quotes": pending, "total": len(pending), "role": role, "data_source": "demo"}
 
 
+# ── Token-based Approval Link ─────────────────────────────────────────────────
+# Generate a secure one-time token; share the link with any approver.
+# The review + approve endpoints are PUBLIC (no JWT) — token IS the credential.
+
+@router.post("/design-quotes/{quote_id}/generate-approval-link")
+async def generate_approval_link(quote_id: int):
+    """Generate a secure 72-hour approval token for a quote. Frontend builds the full URL."""
+    _init_demo()
+    token      = secrets.token_urlsafe(40)
+    expires_at = datetime.now() + timedelta(hours=72)
+
+    pool = await _get_db_pool()
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "INSERT INTO quote_approval_tokens (token, quote_id, expires_at) VALUES (%s,%s,%s)",
+                        (token, quote_id, expires_at),
+                    )
+                    await conn.commit()
+            return {"token": token, "expires_hours": 72,
+                    "expires_at": expires_at.isoformat(), "data_source": "live"}
+        except Exception as exc:
+            logger.warning("design_quotes: token insert failed — %s", exc)
+
+    # Demo fallback
+    _demo_tokens[token] = {"quote_id": quote_id, "expires_at": expires_at, "used_at": None}
+    return {"token": token, "expires_hours": 72,
+            "expires_at": expires_at.isoformat(), "data_source": "demo"}
+
+
+@router.get("/design-quotes/token-review/{token}")
+async def token_review(token: str):
+    """
+    PUBLIC — no JWT required. Returns a safe summary of the quote linked to this token.
+    Used by the standalone approve.html page to display quote details to the approver.
+    """
+    _init_demo()
+    pool = await _get_db_pool()
+    quote_id: Optional[int] = None
+
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "SELECT quote_id, expires_at, used_at FROM quote_approval_tokens WHERE token=%s",
+                        (token,),
+                    )
+                    row = await cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Invalid or expired approval link.")
+            quote_id_val, expires_at_val, used_at_val = row
+            if datetime.now() > expires_at_val:
+                raise HTTPException(status_code=410, detail="This approval link has expired (valid 72 hours).")
+            if used_at_val:
+                raise HTTPException(status_code=409, detail="This approval link has already been used.")
+            quote_id = int(quote_id_val)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("design_quotes: token review DB failed — %s", exc)
+    else:
+        td = _demo_tokens.get(token)
+        if not td:
+            raise HTTPException(status_code=404, detail="Invalid or expired approval link.")
+        if datetime.now() > td["expires_at"]:
+            raise HTTPException(status_code=410, detail="This approval link has expired.")
+        if td.get("used_at"):
+            raise HTTPException(status_code=409, detail="This approval link has already been used.")
+        quote_id = td["quote_id"]
+
+    # Fetch quote
+    quote: Optional[dict] = None
+    if pool and quote_id:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("SELECT * FROM design_quotes WHERE id=%s", (quote_id,))
+                    cols = [d[0] for d in cur.description]
+                    row  = await cur.fetchone()
+                    if row:
+                        quote = dict(zip(cols, row))
+                        quote["sections"] = json.loads(quote.get("sections_json") or "[]")
+                        for k, v in quote.items():
+                            if hasattr(v, "isoformat"):
+                                quote[k] = str(v)[:10]
+        except Exception as exc:
+            logger.warning("design_quotes: token review quote fetch failed — %s", exc)
+
+    if not quote:
+        quote = _demo_quotes.get(quote_id) or (list(_demo_quotes.values())[0] if _demo_quotes else None)
+    if not quote:
+        raise HTTPException(status_code=404, detail="Quote not found.")
+
+    sections_summary = [
+        {"section_name": s.get("section_name", "—"),
+         "section_total": float(s.get("section_total") or 0),
+         "item_count":    len(s.get("items") or [])}
+        for s in (quote.get("sections") or [])
+    ]
+    return {
+        "quote_number":    quote.get("quote_number"),
+        "client_name":     quote.get("client_name"),
+        "project_name":    quote.get("project_name"),
+        "project_type":    quote.get("project_type"),
+        "designer_name":   quote.get("designer_name"),
+        "designer_company":quote.get("designer_company"),
+        "grand_total":     float(quote.get("grand_total") or 0),
+        "subtotal":        float(quote.get("subtotal") or 0),
+        "gst_amount":      float(quote.get("gst_amount") or 0),
+        "gst_rate":        float(quote.get("gst_rate") or 18),
+        "status":          quote.get("status"),
+        "sections":        sections_summary,
+        "created_at":      str(quote.get("created_at") or "")[:10],
+        "valid_till":      quote.get("valid_till"),
+        "notes":           quote.get("notes"),
+        "payment_terms":   quote.get("payment_terms"),
+        "data_source":     "live" if pool else "demo",
+    }
+
+
+@router.post("/design-quotes/token-approve/{token}")
+async def token_approve(token: str, body: dict):
+    """
+    PUBLIC — no JWT required. Submit an approval decision via one-time token.
+    action: 'APPROVE' → status=APPROVED  |  'REJECT' → status=DRAFT (returned for revision)
+    """
+    _init_demo()
+    action = (body.get("action") or "").upper().strip()
+    if action not in ("APPROVE", "REJECT"):
+        raise HTTPException(status_code=422, detail="action must be APPROVE or REJECT.")
+    approver_name  = (body.get("approver_name") or "").strip() or "External Approver"
+    approver_notes = (body.get("notes") or "").strip()
+    new_status     = "APPROVED" if action == "APPROVE" else "DRAFT"
+
+    pool = await _get_db_pool()
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "SELECT quote_id, expires_at, used_at FROM quote_approval_tokens WHERE token=%s",
+                        (token,),
+                    )
+                    row = await cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Invalid or expired approval link.")
+            quote_id_val, expires_at_val, used_at_val = row
+            if datetime.now() > expires_at_val:
+                raise HTTPException(status_code=410, detail="This approval link has expired.")
+            if used_at_val:
+                raise HTTPException(status_code=409, detail="This approval link has already been used.")
+            quote_id = int(quote_id_val)
+
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "UPDATE quote_approval_tokens SET used_at=NOW(), used_action=%s, "
+                        "approver_name=%s, approver_notes=%s WHERE token=%s",
+                        (action, approver_name, approver_notes, token),
+                    )
+                    await cur.execute(
+                        "UPDATE design_quotes SET status=%s, last_approver=%s WHERE id=%s",
+                        (new_status, approver_name, quote_id),
+                    )
+                    await conn.commit()
+
+            await _record_approval_history(
+                pool, quote_id, 1, action, "external_approver", approver_name, approver_notes
+            )
+            return {"success": True, "action": action, "new_status": new_status,
+                    "approver": approver_name, "data_source": "live"}
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("design_quotes: token approve DB failed — %s", exc)
+
+    # Demo fallback
+    td = _demo_tokens.get(token)
+    if not td:
+        raise HTTPException(status_code=404, detail="Invalid or expired approval link.")
+    if datetime.now() > td["expires_at"]:
+        raise HTTPException(status_code=410, detail="This approval link has expired.")
+    if td.get("used_at"):
+        raise HTTPException(status_code=409, detail="This approval link has already been used.")
+
+    td["used_at"]      = datetime.now()
+    td["used_action"]  = action
+    td["approver_name"] = approver_name
+    qid = td["quote_id"]
+    if qid in _demo_quotes:
+        _demo_quotes[qid]["status"]        = new_status
+        _demo_quotes[qid]["last_approver"] = approver_name
+    return {"success": True, "action": action, "new_status": new_status,
+            "approver": approver_name, "data_source": "demo"}
+
+
 @router.delete("/design-quotes/{quote_id}")
 async def delete_quote(quote_id: int):
     _init_demo()
@@ -2568,6 +2792,81 @@ async def scan_requirements(
         raise HTTPException(status_code=400, detail="Provide at least one file or text_input")
 
     return await _ai_scan(combined_text, images if images else None)
+
+
+# ── Routes: Voice Brief ───────────────────────────────────────────────────────
+
+@router.post("/design-quotes/voice-brief")
+async def parse_voice_brief(audio: UploadFile = File(...)):
+    """
+    Transcribe a voice recording (WebM / OGG / WAV / MP4 / M4A) with OpenAI Whisper,
+    then run architecture-aware extraction (same engine as /scan) to produce a BOQ.
+    Returns: { extracted: {...}, transcript: "...", data_source: "ai"|"demo"|"error" }
+    """
+    from app.core.config import get_settings
+    cfg = get_settings()
+
+    raw = await audio.read()
+    if len(raw) == 0:
+        raise HTTPException(status_code=400, detail="Audio file is empty. Please record a voice note first.")
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file exceeds 25 MB limit. Please record a shorter note.")
+
+    if not cfg.openai_api_key:
+        demo = _demo_scan_result()
+        demo["transcript"] = (
+            "Demo mode — no OpenAI API key configured. "
+            "In production, your voice note will be transcribed and analysed here."
+        )
+        return demo
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=cfg.openai_api_key, timeout=60.0)
+
+        # ── Step 1: Transcribe audio with Whisper ─────────────────────────────
+        fn  = audio.filename or "voice.webm"
+        ext = fn.rsplit(".", 1)[-1].lower()
+        if ext not in ("flac", "m4a", "mp3", "mp4", "mpeg", "mpga", "oga", "ogg", "wav", "webm"):
+            ext = "webm"
+
+        audio_buf      = io.BytesIO(raw)
+        audio_buf.name = f"voice_note.{ext}"
+
+        transcription = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_buf,
+            language="en",
+            prompt=(
+                "Architect, interior design project, CP fittings, sanitary ware, "
+                "kitchen, bathroom, bedroom, living room, flooring, tiles, hardware, "
+                "hinges, handles, channels, plumbing, 2BHK, 3BHK, villa, "
+                "office fit-out, budget, square feet, units, blocks."
+            ),
+        )
+        transcript = (transcription.text or "").strip()
+        if not transcript:
+            raise ValueError(
+                "Whisper returned an empty transcript. "
+                "Please speak clearly and ensure your microphone is working."
+            )
+
+        logger.info("design_quotes: voice transcription done (%d chars)", len(transcript))
+
+        # ── Step 2: Extract structured BOQ using the same AI scan engine ──────
+        result = await _ai_scan(transcript)
+        result["transcript"] = transcript
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("design_quotes: voice_brief failed — %s", exc)
+        demo = _demo_scan_result()
+        demo["data_source"] = "error"
+        demo["scan_error"]  = f"Voice analysis failed: {str(exc)[:220]}"
+        demo["transcript"]  = ""
+        return demo
 
 
 # ── Routes: Architect Proposals ───────────────────────────────────────────────

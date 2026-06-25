@@ -248,7 +248,7 @@ function SuccessCard({ result, type, onClose, onAskAI }) {
         {isDraftPO ? 'Draft PO Created — Pending Approval' : type === 'po' ? 'Purchase Order Created' : 'GRN Recorded Successfully'}
       </div>
       {isDraftPO && (
-        <div style={{ fontSize: 11.5, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 16px', marginBottom: 12, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11.5, color: 'var(--a2)', background: 'var(--a3)', border: '1px solid var(--a4)', borderRadius: 8, padding: '8px 16px', marginBottom: 12, lineHeight: 1.5 }}>
           This PO is saved as <strong>Draft</strong> and requires <strong>Sales &amp; Finance approval</strong> before it can be issued to the supplier.<br />
           Go to the <strong>Pending Approvals</strong> tab to review and approve.
         </div>
@@ -807,8 +807,8 @@ function CreateGRNModal({ industry, onClose, onSuccess, prefillPo }) {
                   const matchType  = selPo.matching_type || '';
                   const qcRequired = matchType.includes('3-Way') || matchType.includes('4-Way');
                   return (
-                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginTop: 6, color: '#1e293b' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Linked PO Reference (Read-only)</div>
+                    <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 14px', marginTop: 6, color: 'var(--text)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--b2)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Linked PO Reference (Read-only)</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
                         <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e40af' }}>{selPo.po_number}</strong></div>
                         <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>SUPPLIER</div><strong>{selPo.supplier_name || selPo.supplier || '—'}</strong></div>
@@ -901,16 +901,16 @@ function CreateGRNModal({ industry, onClose, onSuccess, prefillPo }) {
           </div>
           {/* Dual UOM — show box + pieces breakdown when receiving box-wise */}
           {form.unit && (form.unit.toLowerCase().includes('box') || form.unit.toLowerCase().includes('carton')) && (
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>📦 Box-wise Receiving (Dual UOM)</div>
+            <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--b2)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>📦 Box-wise Receiving (Dual UOM)</div>
               <div style={ROW2}>
                 <Inp label="No. of Boxes Received" value={form.box_count} onChange={set('box_count')} type="number" placeholder="e.g. 10" />
                 <Inp label="Pieces per Box" value={form.pieces_per_box} onChange={set('pieces_per_box')} type="number" placeholder="e.g. 20" />
               </div>
               {form.box_count && form.pieces_per_box && (
-                <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', borderRadius: 6, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: '#1e40af' }}>Total Pieces (computed)</span>
-                  <span style={{ fontWeight: 700, fontFamily: 'var(--mono)', color: '#1e40af', fontSize: 14 }}>
+                <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 6, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--b2)' }}>Total Pieces (computed)</span>
+                  <span style={{ fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--b2)', fontSize: 14 }}>
                     {Number(form.box_count) * Number(form.pieces_per_box)} pcs
                   </span>
                 </div>
@@ -983,7 +983,7 @@ function CreateGRNModal({ industry, onClose, onSuccess, prefillPo }) {
           {showLandingCost && (
             <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
               {selectedPoFreight === 'Company Own Operated' && (
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 7, padding: '8px 12px', marginBottom: 12, fontSize: 11.5, color: '#1e40af', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 7, padding: '8px 12px', marginBottom: 12, fontSize: 11.5, color: 'var(--b2)', display: 'flex', gap: 8, alignItems: 'center' }}>
                   🚛 <strong>Company Own Operated</strong> — This PO uses your own fleet. Please enter all freight and handling charges to compute the accurate landed cost.
                 </div>
               )}
@@ -1175,7 +1175,7 @@ function QuotationsSection({ goChat, onRaisePO, industry }) {
                 {/* Quote rows */}
                 {isOpen && (
                   <div style={{ overflowX: 'auto' }}>
-                    <table className="tbl" style={{ marginBottom: 0 }}>
+                    <table className="tbl tbl-striped" style={{ marginBottom: 0 }}>
                       <thead>
                         <tr>
                           <th>Supplier</th>
@@ -1643,7 +1643,7 @@ function POPreviewModal({ scanResult, onEdit, onClose, onSuccess }) {
 
             {/* Line items table */}
             <div style={{ overflowX: 'auto' }}>
-              <table className="tbl" style={{ marginBottom: 0 }}>
+              <table className="tbl tbl-striped" style={{ marginBottom: 0 }}>
                 <thead>
                   <tr>
                     <th style={{ width: 32 }}>#</th>
@@ -1822,15 +1822,15 @@ function POApproveModal({ po, action, level, onClose, onDone }) {
 // ── PO APPROVAL PANEL ─────────────────────────────────────────────────────────
 
 const APPROVAL_STATUS_STYLES = {
-  approved: { bg: '#dcfce7', color: '#15803d', icon: '✓' },
-  rejected: { bg: '#fee2e2', color: '#dc2626', icon: '✗' },
-  pending:  { bg: '#fef3c7', color: '#92400e', icon: '⏳' },
+  approved: { bg: 'var(--g5)', color: 'var(--g2)', icon: '✓' },
+  rejected: { bg: 'var(--r5)', color: 'var(--r2)', icon: '✗' },
+  pending:  { bg: 'var(--a5)', color: 'var(--a2)', icon: '⏳' },
 };
 const PO_STATUS_COLORS = {
-  DRAFT:            { bg: '#f3f4f6', color: '#374151' },
-  PENDING_APPROVAL: { bg: '#fef3c7', color: '#92400e' },
-  APPROVED:         { bg: '#dcfce7', color: '#15803d' },
-  REJECTED:         { bg: '#fee2e2', color: '#dc2626' },
+  DRAFT:            { bg: 'var(--s3)', color: 'var(--text2)' },
+  PENDING_APPROVAL: { bg: 'var(--a5)', color: 'var(--a2)' },
+  APPROVED:         { bg: 'var(--g5)', color: 'var(--g2)' },
+  REJECTED:         { bg: 'var(--r5)', color: 'var(--r2)' },
 };
 
 function POApprovalPanel({ pendingApprovals, loading, onRefresh, goChat }) {
@@ -1942,35 +1942,35 @@ function POApprovalPanel({ pendingApprovals, loading, onRefresh, goChat }) {
                 <div className="poa-actions">
                   {salesApproval.status === 'pending' && (
                     <button onClick={() => setModal({ po, action: 'approve', level: 'sales' })}
-                      style={{ padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      style={{ padding: '6px 12px', background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       ✓ A/P Approve
                     </button>
                   )}
                   {financeApproval.status === 'pending' && salesApproval.status === 'approved' && (
                     <button onClick={() => setModal({ po, action: 'approve', level: 'finance' })}
-                      style={{ padding: '6px 12px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      style={{ padding: '6px 12px', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       ✓ Finance Approve
                     </button>
                   )}
                   {financeApproval.status === 'pending' && salesApproval.status !== 'approved' && (
-                    <span style={{ fontSize: 10, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 5, padding: '4px 8px', fontFamily: 'var(--mono)' }}>
+                    <span style={{ fontSize: 10, color: 'var(--a2)', background: 'var(--a3)', border: '1px solid var(--a4)', borderRadius: 5, padding: '4px 8px', fontFamily: 'var(--mono)' }}>
                       🔒 Finance locked — awaiting A/P approval
                     </span>
                   )}
                   {fullyApproved && (
                     <button onClick={() => setModal({ po, action: 'release', level: null })}
-                      style={{ padding: '6px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      style={{ padding: '6px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       🚀 Release to Supplier
                     </button>
                   )}
                   <button onClick={() => setModal({ po, action: 'reject', level: salesApproval.status !== 'approved' ? 'sales' : 'finance' })}
-                    style={{ padding: '6px 12px', background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    style={{ padding: '6px 12px', background: 'none', color: 'var(--r2)', border: '1px solid var(--r4)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                     ✗ Reject
                   </button>
                 </div>
               )}
               {isRejected && (
-                <div style={{ fontSize: 11, color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 12px', fontStyle: 'italic' }}>
+                <div style={{ fontSize: 11, color: 'var(--r2)', background: 'var(--r5)', border: '1px solid var(--r4)', borderRadius: 6, padding: '6px 12px', fontStyle: 'italic' }}>
                   This PO has been rejected. Create a new PO or revise and resubmit.
                 </div>
               )}
@@ -2059,7 +2059,7 @@ function PurchaseReturnModal({ po, onClose, onSuccess }) {
         </div>
         <div style={MODAL_BODY}>
           {/* Approval workflow info */}
-          <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <div style={{ background: 'var(--a3)', border: '1px solid var(--a4)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--a2)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <span style={{ fontSize: 16, flexShrink: 0 }}>&#8505;</span>
             <div>
               <strong>Approval Workflow:</strong> This return will be submitted as <strong>PENDING</strong>.
@@ -2068,17 +2068,17 @@ function PurchaseReturnModal({ po, onClose, onSuccess }) {
             </div>
           </div>
           {/* PO Reference — read-only */}
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, color: '#1e293b' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Purchase Order Reference</div>
+          <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, color: 'var(--text)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--b2)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Purchase Order Reference</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e40af' }}>{po?.po_number || '—'}</strong></div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>SUPPLIER</div><strong>{po?.supplier_name || po?.supplier || '—'}</strong></div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>DOCUMENT TYPE</div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', display: 'inline-block' }}>DEBIT NOTE</span>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: 'var(--b2)' }}>{po?.po_number || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>SUPPLIER</div><strong>{po?.supplier_name || po?.supplier || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>DOCUMENT TYPE</div>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'var(--a3)', color: 'var(--a2)', display: 'inline-block' }}>DEBIT NOTE</span>
               </div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>QTY ORDERED</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e293b' }}>{po?.qty_ordered ?? po?.quantity ?? '—'} {po?.unit || ''}</strong></div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11, color: '#1e293b' }}>{po?.sku || po?.sku_name || po?.product_name || '—'}</strong></div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>UNIT PRICE (DERIVED)</div><strong style={{ fontFamily: 'var(--mono)', color: '#7c3aed' }}>{derivedUnitPrice > 0 ? `₹${derivedUnitPrice.toLocaleString('en-IN')}` : '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>QTY ORDERED</div><strong style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>{po?.qty_ordered ?? po?.quantity ?? '—'} {po?.unit || ''}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11, color: 'var(--text)' }}>{po?.sku || po?.sku_name || po?.product_name || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>UNIT PRICE (DERIVED)</div><strong style={{ fontFamily: 'var(--mono)', color: 'var(--purple)' }}>{derivedUnitPrice > 0 ? `₹${derivedUnitPrice.toLocaleString('en-IN')}` : '—'}</strong></div>
             </div>
           </div>
 
@@ -2132,7 +2132,7 @@ function PurchaseReturnModal({ po, onClose, onSuccess }) {
         <div style={MODAL_FTR}>
           <button onClick={onClose} style={BTN_GHOST} disabled={submitting}>Cancel</button>
           <button onClick={handleSubmit} disabled={submitting}
-            style={{ ...BTN_PRIMARY, background: '#7c3aed', opacity: submitting ? 0.7 : 1 }}>
+            style={{ ...BTN_PRIMARY, background: 'var(--purple)', opacity: submitting ? 0.7 : 1 }}>
             {submitting ? '⏳ Submitting…' : '↩ Submit Return for Approval'}
           </button>
         </div>
@@ -2264,26 +2264,26 @@ function CreateInvoiceModal({ po, onClose, onSuccess }) {
         </div>
         <div style={MODAL_BODY}>
           {/* PO Reference */}
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, color: '#1e293b' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Purchase Order Reference</div>
+          <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, color: 'var(--text)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--b2)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>📋 Purchase Order Reference</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e40af' }}>{po?.po_number || '—'}</strong></div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>SUPPLIER</div><strong style={{ color: '#1e293b' }}>{po?.supplier_name || po?.supplier || '—'}</strong></div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>STATUS</div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#fef9c3', color: '#854d0e', display: 'inline-block' }}>{po?.status || '—'}</span>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PO NUMBER</div><strong style={{ fontFamily: 'var(--mono)', color: 'var(--b2)' }}>{po?.po_number || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>SUPPLIER</div><strong style={{ color: 'var(--text)' }}>{po?.supplier_name || po?.supplier || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>STATUS</div>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'var(--a3)', color: 'var(--a2)', display: 'inline-block' }}>{po?.status || '—'}</span>
               </div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>QTY ORDERED</div><strong style={{ fontFamily: 'var(--mono)', color: '#1e293b' }}>{qtyOrdered} {po?.unit || ''}</strong></div>
-              <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11, color: '#1e293b' }}>{po?.sku || po?.sku_name || po?.product_name || '—'}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>QTY ORDERED</div><strong style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>{qtyOrdered} {po?.unit || ''}</strong></div>
+              <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>PRODUCT / SKU</div><strong style={{ fontSize: 11, color: 'var(--text)' }}>{po?.sku || po?.sku_name || po?.product_name || '—'}</strong></div>
               {derivedUnitCost > 0 && (
-                <div><div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>UNIT PRICE</div><strong style={{ fontFamily: 'var(--mono)', color: '#7c3aed' }}>₹{derivedUnitCost.toLocaleString('en-IN')}</strong></div>
+                <div><div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>UNIT PRICE</div><strong style={{ fontFamily: 'var(--mono)', color: 'var(--purple)' }}>₹{derivedUnitCost.toLocaleString('en-IN')}</strong></div>
               )}
             </div>
           </div>
 
           {/* GRN Selection */}
           {(grnLoading || grnList.length > 0) && (
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+            <div style={{ background: 'var(--g5)', border: '1px solid var(--g4)', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--g2)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
                 📦 Link GRNs to this Invoice
               </div>
               {grnLoading ? (
@@ -2339,7 +2339,7 @@ function CreateInvoiceModal({ po, onClose, onSuccess }) {
         </div>
         <div style={MODAL_FTR}>
           <button onClick={handleSubmit} disabled={submitting}
-            style={{ ...BTN_PRIMARY, background: '#0891b2', opacity: submitting ? 0.7 : 1 }}>
+            style={{ ...BTN_PRIMARY, background: 'var(--teal)', opacity: submitting ? 0.7 : 1 }}>
             {submitting ? '⏳ Creating…' : '🧾 Create Invoice (DRAFT)'}
           </button>
           <button onClick={onClose} style={BTN_GHOST}>Cancel</button>
@@ -2403,7 +2403,7 @@ function ClosePOModal({ po, onClose, onSuccess }) {
         </div>
         <div style={MODAL_FTR}>
           <button onClick={handleSubmit} disabled={submitting}
-            style={{ ...BTN_PRIMARY, background: '#64748b', opacity: submitting ? 0.7 : 1 }}>
+            style={{ ...BTN_PRIMARY, background: 'var(--text3)', opacity: submitting ? 0.7 : 1 }}>
             {submitting ? '⏳ Closing…' : '🔒 Confirm Close'}
           </button>
           <button onClick={onClose} style={BTN_GHOST}>Cancel</button>
@@ -2474,7 +2474,7 @@ function CancelRemainingModal({ po, onClose, onSuccess }) {
         </div>
         <div style={MODAL_FTR}>
           <button onClick={handleSubmit} disabled={submitting}
-            style={{ ...BTN_PRIMARY, background: '#ea580c', opacity: submitting ? 0.7 : 1 }}>
+            style={{ ...BTN_PRIMARY, background: 'var(--o2)', opacity: submitting ? 0.7 : 1 }}>
             {submitting ? '⏳ Processing…' : `✕ ${action === 'CANCEL' ? 'Cancel Remaining' : 'Raise Debit Note'}`}
           </button>
           <button onClick={onClose} style={BTN_GHOST}>Back</button>
@@ -2978,6 +2978,26 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
         ))}
       </div>
 
+      {/* ── AI Opportunity Chips ────────────────────────────────────────── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '📦', text: `${kpis.overdue_pos ?? 2} overdue POs — contact suppliers before stock runs out`, q: `I have ${kpis.overdue_pos ?? 2} overdue purchase orders with suppliers. Which ones are most critical to my operations? Give me exact escalation messages for each supplier and tell me what safety stock I should maintain while waiting.` },
+            { icon: '⚠', text: `GRN match rate ${kpis.grn_match_rate ?? '96%'} — ${kpis.grn_mismatches_mtd ?? 3} mismatches need resolution`, q: `My GRN to invoice match rate is ${kpis.grn_match_rate ?? '96%'} with ${kpis.grn_mismatches_mtd ?? 3} mismatches this month worth ${kpis.grn_variance_value ?? '₹8,400'}. What is the most efficient process to resolve each mismatch type — quantity short, price variance, and damaged goods? How do I issue debit notes correctly?` },
+            { icon: '🔄', text: `${kpis.partial_pos ?? 3} partial POs open — check fill rates and follow up`, q: `I have ${kpis.partial_pos ?? 3} partially fulfilled purchase orders. How do I decide whether to wait for the balance, raise a new PO, or source from an alternative supplier? What fill rate threshold should trigger an automatic escalation?` },
+            { icon: '🤖', text: `${kpis.open_pos ?? 8} open POs — ${kpis.ai_auto_pos ?? 4} AI-generated — validate before releasing`, q: `I have ${kpis.ai_auto_pos ?? 4} AI auto-generated purchase orders among ${kpis.open_pos ?? 8} open POs. What validation checks should I perform on AI-generated POs before releasing to suppliers? What are the risk flags to review in pricing, quantities, and supplier selection?` },
+            { icon: '📋', text: 'Three-way match best practices — reduce AP disputes by 80%', q: 'What is the three-way match process in accounts payable — how do I reconcile PO, GRN, and supplier invoice efficiently? What tolerance levels should I set for quantity and price variances? How do the best procurement teams reduce AP disputes in a hardware/building materials business?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Tab Bar ─────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 3, background: 'var(--s3)', borderRadius: 10, padding: 4, border: '1px solid var(--border)', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         {[
@@ -3114,7 +3134,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
           return displayPOs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)', fontSize: 13 }}>No open purchase orders.</div>
         ) : (
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead>
               <tr><th>PO#</th><th>PR#</th><th>GRN#</th><th>Supplier</th><th>SKU / Product</th><th>Ordered</th><th>Received</th><th>Pending</th><th>Fill %</th><th>Value</th><th>ETA</th><th>Status</th><th>Action</th></tr>
             </thead>
@@ -3167,7 +3187,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
                         {po.status === 'PARTIAL' && (
                           <button onClick={(e) => { e.stopPropagation(); setCancelRemainingModal(po); }}
                             title="Cancel or raise debit note for remaining quantity"
-                            style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #ea580c', borderRadius: 4, cursor: 'pointer', color: '#ea580c', fontWeight: 600 }}>
+                            style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid var(--o2)', borderRadius: 4, cursor: 'pointer', color: 'var(--o2)', fontWeight: 600 }}>
                             ✕ Cancel Rem.
                           </button>
                         )}
@@ -3225,7 +3245,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
             ✓ No GRN discrepancies — all receipts matched.
           </div>
         ) : (
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead>
               <tr><th>GRN#</th><th>PO#</th><th>Supplier</th><th>Invoice</th><th>GRN Value</th><th>Variance</th><th>Issue</th><th>Recommended Action</th><th>Actions</th></tr>
             </thead>
@@ -3236,14 +3256,14 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
                   <td style={{ fontFamily: 'var(--mono)' }}>{g.po_number}</td>
                   <td style={{ fontWeight: 600 }}>{g.supplier}</td>
                   <td style={{ fontFamily: 'var(--mono)' }}>{g.invoice_value}</td>
-                  <td style={{ fontFamily: 'var(--mono)', color: '#dc2626' }}>{g.grn_value}</td>
-                  <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#dc2626' }}>{g.discrepancy_amt}</td>
+                  <td style={{ fontFamily: 'var(--mono)', color: 'var(--r2)' }}>{g.grn_value}</td>
+                  <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--r2)' }}>{g.discrepancy_amt}</td>
                   <td style={{ fontSize: 11 }}>{g.notes}</td>
                   <td style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>{g.action}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       <button onClick={() => goChat(`Explain the GRN discrepancy ${g.grn_number} for ${g.supplier}: ${g.notes}. Give me a step-by-step action plan to resolve it.`)}
-                        style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid #dc2626', borderRadius: 4, cursor: 'pointer', color: '#dc2626', fontWeight: 600 }}>
+                        style={{ fontSize: 10, padding: '2px 7px', background: 'none', border: '1px solid var(--r4)', borderRadius: 4, cursor: 'pointer', color: 'var(--r2)', fontWeight: 600 }}>
                         RCA + Fix
                       </button>
                       <button onClick={() => printCreditNote(g)}
@@ -3282,7 +3302,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
               No purchase returns recorded yet. Click "↩ Return" on any open PO to raise one.
             </div>
           ) : (
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr>
                   <th>Return #</th><th>PO #</th><th>Supplier</th><th>Product</th>
@@ -3327,7 +3347,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
                         <button
                           onClick={() => handleApproveReturn(r.return_id)}
                           disabled={approvingReturnId === r.return_id}
-                          style={{ fontSize: 10, padding: '3px 9px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap', opacity: approvingReturnId === r.return_id ? 0.6 : 1 }}>
+                          style={{ fontSize: 10, padding: '3px 9px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap', opacity: approvingReturnId === r.return_id ? 0.6 : 1 }}>
                           {approvingReturnId === r.return_id ? 'Approving…' : '✓ Approve'}
                         </button>
                       ) : (
@@ -3372,7 +3392,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table className="tbl">
+              <table className="tbl tbl-striped">
                 <thead>
                   <tr>
                     <th>PI #</th><th>GRN #</th><th>PO #</th><th>Supplier</th><th>Product</th>
@@ -3423,7 +3443,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
                               <button
                                 disabled={busy}
                                 onClick={() => handleApproveInvoice(inv)}
-                                style={{ fontSize: 10, padding: '3px 9px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                                style={{ fontSize: 10, padding: '3px 9px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
                                 {busy ? '…' : '✓ Approve'}
                               </button>
                             )}
@@ -3431,7 +3451,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
                               <button
                                 disabled={busy}
                                 onClick={() => { setPayMode('Bank Transfer'); setPayRef(''); setInvoicePayModal(inv); }}
-                                style={{ fontSize: 10, padding: '3px 9px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                                style={{ fontSize: 10, padding: '3px 9px', background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
                                 💳 Pay
                               </button>
                             )}
@@ -3528,13 +3548,13 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
               <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 {isDraft && !isPaid && (
                   <button disabled={busy} onClick={() => handleApproveInvoice(inv)}
-                    style={{ padding: '7px 18px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
+                    style={{ padding: '7px 18px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
                     {busy ? 'Approving…' : '✓ Approve Invoice'}
                   </button>
                 )}
                 {isApproved && !isPaid && (
                   <button disabled={busy} onClick={() => { setPayMode('Bank Transfer'); setPayRef(''); setInvoiceDetailModal(null); setInvoicePayModal(inv); }}
-                    style={{ padding: '7px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
+                    style={{ padding: '7px 18px', background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
                     💳 Mark as Paid
                   </button>
                 )}
@@ -3586,7 +3606,7 @@ export default function POGRN({ onGoChat, dbStatus, period }) {
               </div>
               <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button disabled={busy} onClick={() => handlePayInvoice(inv, payMode, payRef)}
-                  style={{ padding: '8px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
+                  style={{ padding: '8px 20px', background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: busy ? 0.6 : 1 }}>
                   {busy ? 'Processing…' : '💳 Confirm Payment'}
                 </button>
                 <button onClick={() => setInvoicePayModal(null)}

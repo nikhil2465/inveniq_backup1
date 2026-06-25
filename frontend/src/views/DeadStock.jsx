@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createChart, baseOpts } from '../utils/chartHelpers';
+import { createChart, baseOpts, axisColors } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
 import SkeletonView from '../components/SkeletonLoader';
 import { ExportButton } from '../utils/exportUtils';
@@ -16,26 +16,49 @@ const STATIC_AGING = [
 export default function DeadStock({ onGoChat, period = 'MTD' }) {
   const [d, setD] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dsSort, setDsSort] = useState({ field: 'value', dir: 'desc' });
   const agingRef = useRef(null);
 
   const fetchData = useCallback(() => {
-    setLoading(true);
     fetch(`/api/dead-stock?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
   }, [period]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setLoading(true); fetchData(); }, [fetchData]);
   useAutoRefresh(fetchData, 5 * 60_000);
 
   const src = d?.data_source ?? 'demo';
-  const items = d?.items?.length ? d.items : STATIC_AGING;
-  const chartLabels = items.map(it => `${it.sku ?? it.name} (${it.days_old}d)`);
-  const chartData = items.map(it => {
+  const parseLakh = (s) => {
+    const m = /([\d.]+)\s*(L|Cr)?/i.exec(String(s ?? '').replace(/[₹,]/g, ''));
+    if (!m) return 0;
+    const n = parseFloat(m[1]);
+    return m[2]?.toUpperCase() === 'CR' ? n * 1e7 : m[2]?.toUpperCase() === 'L' ? n * 1e5 : n;
+  };
+  const dsSic = (f) => dsSort.field === f ? (dsSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+  const dsStc = (f) => `sth${dsSort.field === f ? ` sth-${dsSort.dir}` : ''}`;
+  const toggleDsSort = (f) => setDsSort(s => ({ field: f, dir: s.field === f && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const rawItems = d?.items?.length ? d.items : STATIC_AGING;
+  const items = [...rawItems].sort((a, b) => {
+    const { field, dir } = dsSort;
+    const fmap = {
+      sku: r => r.sku ?? r.name ?? '',
+      stock: r => r.stock ?? 0,
+      days_old: r => r.days_old ?? 0,
+      value: r => parseLakh(r.value),
+      recovery: r => parseLakh(r.recovery ?? r.value),
+    };
+    const av = fmap[field]?.(a) ?? 0, bv = fmap[field]?.(b) ?? 0;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  });
+  const chartLabels = rawItems.map(it => `${it.sku ?? it.name} (${it.days_old}d)`);
+  const chartData = rawItems.map(it => {
     const raw = String(it.value ?? '0').replace('₹', '').replace('L', '');
     return Math.round(parseFloat(raw) * 100000);
   });
 
   useEffect(() => {
     if (!d) return;
+    const c = axisColors();
     return createChart(agingRef, {
       type: 'bar', indexAxis: 'y',
       data: {
@@ -43,8 +66,8 @@ export default function DeadStock({ onGoChat, period = 'MTD' }) {
         datasets: [{ data: chartData, backgroundColor: chartData.map((_, i) => i < 3 ? '#dc2626aa' : '#d97706aa'), borderWidth: 0, borderRadius: 3 }],
       },
       options: baseOpts({ scales: {
-        x: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' }, callback: v => '₹' + (v / 1000).toFixed(0) + 'K' } },
-        y: { grid: { display: false }, ticks: { color: '#4b5563', font: { size: 9 } } },
+        x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 9, family: 'JetBrains Mono' }, callback: v => '₹' + (v / 1000).toFixed(0) + 'K' } },
+        y: { grid: { display: false }, ticks: { color: c.label, font: { size: 9 } } },
       }}),
     });
   }, [d]);
@@ -85,6 +108,26 @@ export default function DeadStock({ onGoChat, period = 'MTD' }) {
         ))}
       </div>
 
+      {/* ── AI Dead Stock Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '💸', text: 'Call 5 contractors today about 6mm Gurjan — recover ₹84K in 7 days',  q: 'I have 186 sheets of 6mm Gurjan BWP sitting for 118 days worth ₹1.79L. Draft a WhatsApp message to my top 5 contractors offering a 12% discount. Include exact price, quantity available, and a call-to-action.' },
+            { icon: '📦', text: 'Bundle 4mm MR with 18mm BWP orders — clears stock in 45 days',         q: 'I can bundle 5 sheets of 4mm MR Plain with every 18mm BWP order above 50 sheets to clear dead stock. How do I implement this as a default sales policy and what is the financial impact?' },
+            { icon: '🔄', text: 'Return 19mm Commercial to supplier — recover ₹99K within 2 weeks',     q: 'I have 102 sheets of 19mm Commercial Ply sitting for 91 days worth ₹99K. How do I negotiate a return or credit from supplier? What is the best approach and what concessions to ask for?' },
+            { icon: '📱', text: 'WhatsApp blast to 28 interior firms about 10mm Flexi + 16mm Teak',      q: 'I want to run a WhatsApp campaign to my 28 interior design firm contacts to sell 10mm Flexi BWP and 16mm Teak slow stock. Draft the message with product details, benefits, and special offer price.' },
+            { icon: '⏱',  text: 'Every 30 days of delay on dead stock costs 8% of recovery value',      q: 'What is the time-cost of holding dead stock? Calculate the ongoing storage, financing, and obsolescence cost per month for my ₹7.8L of slow and dead stock, and why I should act this week.' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="gl g57">
         <div className="card">
           <div className="ch"><div><div className="ctit">Ageing Inventory — AI Action Plan</div></div>
@@ -94,8 +137,15 @@ export default function DeadStock({ onGoChat, period = 'MTD' }) {
               { key: 'action', label: 'AI Recommendation' }, { key: 'recovery', label: 'Expected Recovery' },
             ]} />
           </div>
-          <table className="tbl">
-            <thead><tr><th>Product / SKU</th><th>Stock</th><th>Days Old</th><th>Value Locked</th><th>AI Recommendation</th><th>Exp. Recovery</th></tr></thead>
+          <table className="tbl tbl-striped">
+            <thead><tr>
+              <th className={dsStc('sku')} onClick={() => toggleDsSort('sku')}>Product / SKU <span className="sort-ic">{dsSic('sku')}</span></th>
+              <th className={dsStc('stock')} onClick={() => toggleDsSort('stock')}>Stock <span className="sort-ic">{dsSic('stock')}</span></th>
+              <th className={dsStc('days_old')} onClick={() => toggleDsSort('days_old')}>Days Old <span className="sort-ic">{dsSic('days_old')}</span></th>
+              <th className={dsStc('value')} onClick={() => toggleDsSort('value')}>Value Locked <span className="sort-ic">{dsSic('value')}</span></th>
+              <th>AI Recommendation</th>
+              <th className={dsStc('recovery')} onClick={() => toggleDsSort('recovery')}>Exp. Recovery <span className="sort-ic">{dsSic('recovery')}</span></th>
+            </tr></thead>
             <tbody>
               {items.map(row => {
                 const days = row.days_old ?? 0;

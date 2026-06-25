@@ -52,7 +52,6 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
   const [catalogProducts, setCatalogProducts] = useState([]);
 
   const fetchData = useCallback(() => {
-    setLoading(true);
     fetch(`/api/inward?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
   }, [period]);
 
@@ -70,7 +69,7 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
       .catch(() => {});
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setLoading(true); fetchData(); }, [fetchData]);
   useEffect(() => { fetchGrn(); }, [fetchGrn]);
   useEffect(() => { fetchTransfers(); }, [fetchTransfers]);
 
@@ -306,6 +305,26 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
         ))}
       </div>
 
+      {/* ── AI Inward/Outward Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '⚠',  text: 'GRN mismatch detected — Hafele ₹3,840 discrepancy to resolve',     q: 'GRN-4426 from Hafele India shows a ₹3,840 discrepancy — 200 pcs received vs 212 billed. Draft a credit note request letter to Hafele, state the exact shortfall, and tell me what the claim process should be.' },
+            { icon: '📦', text: 'QC pending 2 batches >2 hrs — delay risk for dispatch SLA',          q: 'I have 2 QC inspections pending for more than 2 hours, risking dispatch SLA. What is causing QC delays and how should I redesign the QC process for standard grades to reduce average inspection time below 30 minutes?' },
+            { icon: '🔄', text: 'Net stock change positive today — verify all units are put away',     q: 'My net stock change today shows more inward than outward. How do I verify that all received units are correctly put away in their designated slots and none are sitting at the receiving bay? What scan-based verification process should I implement?' },
+            { icon: '📉', text: 'Shrinkage at ₹0.24L MTD — investigate and prevent recurring losses',  q: 'My shrinkage is ₹0.24L this month. What is the most likely cause — theft, damage, recording error, or GRN mismatch? How do I investigate, identify the source, and prevent this from recurring next month?' },
+            { icon: '🤖', text: 'Automate GRN scanning — reduce put-away time from 38 to 15 minutes',  q: 'My average put-away time is 38 minutes per consignment. How do I implement a barcode/QR scan-based GRN process to reduce this to 15 minutes, and what hardware and software changes are needed?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Section Tab Toggle ── */}
       <div className="stabs" style={{ marginTop: 16, marginBottom: 0 }}>
         <button className={`stab${inwardTab === 'grn' ? ' active' : ''}`} onClick={() => setInwardTab('grn')}>
@@ -343,7 +362,7 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
               ]} />
             </div>
           </div>
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead><tr>
               <th>GRN #</th><th>Supplier</th><th>Product</th>
               <th style={{ textAlign: 'right' }}>GRN Value</th>
@@ -587,7 +606,7 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
 
             {/* Accounting preview */}
             {transferForm.from_godown_name && transferForm.to_godown_name && transferForm.qty && transferForm.buy_price && (
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
+              <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
                 <div style={{ fontWeight: 700, color: 'var(--b2)', marginBottom: 6, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', fontFamily: 'var(--mono)' }}>
                   📊 Accounting Entry Preview
                 </div>
@@ -657,7 +676,7 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
                 No transfers recorded yet. Use the form above to create one.
               </div>
             ) : (
-              <table className="tbl" style={{ fontSize: 12 }}>
+              <table className="tbl tbl-striped" style={{ fontSize: 12 }}>
                 <thead>
                   <tr>
                     <th>Transfer #</th>
@@ -854,7 +873,7 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
 
             {/* Accounting preview */}
             {dispatchForm.distributor_name && dispatchForm.qty && dispatchForm.buy_price && (
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
+              <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
                 <div style={{ fontWeight: 700, color: 'var(--b2)', marginBottom: 6, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', fontFamily: 'var(--mono)' }}>
                   📊 Accounting Entry Preview
                 </div>
@@ -919,7 +938,7 @@ export default function Inward({ onGoChat, period = 'MTD' }) {
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'var(--mono)', marginBottom: 10 }}>
                 📋 Active Distributor Inventory Summary
               </div>
-              <table className="tbl" style={{ fontSize: 12 }}>
+              <table className="tbl tbl-striped" style={{ fontSize: 12 }}>
                 <thead>
                   <tr>
                     <th>Distributor</th>

@@ -146,9 +146,12 @@ export default function Topbar({ title, period, onPeriodChange, alerts = [], onG
     .join('')
     .toUpperCase() || 'IQ';
 
+  const visibleSuggestions = QUICK_SEARCH_SUGGESTIONS.filter(s =>
+    s.view === null || canNav(s.view)
+  );
   const filteredSuggestions = searchVal.trim()
-    ? QUICK_SEARCH_SUGGESTIONS.filter(s => s.label.toLowerCase().includes(searchVal.toLowerCase()))
-    : QUICK_SEARCH_SUGGESTIONS;
+    ? visibleSuggestions.filter(s => s.label.toLowerCase().includes(searchVal.toLowerCase()))
+    : visibleSuggestions;
 
   const KBD = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

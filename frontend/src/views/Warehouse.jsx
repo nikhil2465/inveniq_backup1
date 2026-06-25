@@ -137,7 +137,7 @@ function WarehouseDetail({ wh }) {
               No products tracked in this warehouse.
             </div>
           ) : (
-            <table className="tbl" style={{ fontSize: 13 }}>
+            <table className="tbl tbl-striped" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
                   <th>SKU</th>
@@ -180,7 +180,7 @@ function WarehouseDetail({ wh }) {
               No recent GRN activity for this warehouse.
             </div>
           ) : (
-            <table className="tbl" style={{ fontSize: 13 }}>
+            <table className="tbl tbl-striped" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
                   <th>GRN #</th>
@@ -429,10 +429,30 @@ export default function Warehouse({ onGoChat, dbStatus }) {
         </div>
       </div>
 
+      {/* ── AI Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '📊', text: `Avg utilisation ${avgUtil.toFixed(1)}% — which warehouse is at capacity risk?`, q: `My warehouse average utilisation is ${avgUtil.toFixed(1)}% with ${totalStock.toLocaleString('en-IN')} sheets stored. Which specific warehouses are nearing capacity and what categories of stock are driving the fill? Should I rebalance stock between locations or increase capacity at the highest-utilisation site?` },
+            { icon: '🔄', text: 'Stock concentrated in one location — multi-warehouse risk alert', q: 'Are any high-velocity SKUs stored in only one warehouse location? What is the supply risk if that location has a stockout or access issue? Recommend how to distribute fast-moving stock across multiple locations to reduce single-point-of-failure risk.' },
+            { icon: '📦', text: 'Slow-moving stock taking up warehouse space — free up capacity', q: `I have ${totalStock.toLocaleString('en-IN')} units of stock across ${warehouses.length} warehouses. Which SKUs have the lowest movement rate and are occupying the most shelf space? What is the opportunity cost of this slow-moving stock in terms of holding cost per month?` },
+            { icon: '🏭', text: 'Optimal warehouse layout — put-away and pick path efficiency', q: 'What is the best warehouse slotting strategy for a hardware and building materials distributor? How should I organise fast-moving vs slow-moving SKUs, heavy vs light items, and fragile vs durable goods? What put-away rules reduce pick time by the most?' },
+            { icon: '📋', text: 'Distributor stock visibility — which partners need replenishment?', q: 'Looking at distributor stock levels held at my partner locations, which distributors have less than 30 days cover on key SKUs? What is the recommended replenishment schedule and order quantity for each distributor to prevent stockouts at their end?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── GRN alert banner (only if mismatches) ── */}
       {mismatchCount > 0 && (
         <div style={{
-          background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 10,
+          background: 'var(--a5)', border: '1px solid var(--a4)', borderRadius: 10,
           padding: '12px 18px', marginBottom: 16,
           display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
         }}>
@@ -548,6 +568,80 @@ export default function Warehouse({ onGoChat, dbStatus }) {
                 ))}
               </div>
 
+              {/* ── Stock Health Analysis ── */}
+              {(() => {
+                const allProds = warehouses.flatMap(w => (w.products || []).map(p => ({ ...p, warehouse: w.godown_name })));
+                const critical  = allProds.filter(p => p.stock_status === 'CRITICAL');
+                const low       = allProds.filter(p => p.stock_status === 'LOW');
+                const overstock = allProds.filter(p => p.stock_status === 'OVERSTOCK');
+                const healthy   = allProds.filter(p => p.stock_status === 'HEALTHY');
+                if (!allProds.length) return null;
+                return (
+                  <div className="card" style={{ marginTop: 16 }}>
+                    <div className="ch">
+                      <div>
+                        <div className="ctit">Stock Health Analysis — All Warehouses</div>
+                        <div className="csub">{allProds.length} SKUs tracked · Identifies critical stock and overstocked items</div>
+                      </div>
+                      {onGoChat && (
+                        <button className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
+                          onClick={() => onGoChat(`I have ${critical.length} critical stock SKUs and ${overstock.length} overstocked SKUs across my warehouses. Analyse my stock health — what are the highest priority actions? Which critical SKUs should I reorder urgently and which overstocked SKUs should I push to distributors or run promotions on?`)}>
+                          ✨ AI Health Plan
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 4-stat strip */}
+                    <div className="kg g4" style={{ marginBottom: 14 }}>
+                      {[
+                        { cls: 'sr', l: 'Critical', v: critical.length, sub: 'Immediate reorder needed', q: critical.length ? `I have ${critical.length} SKUs at critical stock levels: ${critical.slice(0,3).map(p=>p.sku_name).join(', ')}. What should I reorder first and at what quantity?` : '' },
+                        { cls: 'sa', l: 'Low Stock', v: low.length, sub: 'Reorder soon', q: `I have ${low.length} low stock SKUs. Which ones are fast-moving and should be reordered before they hit critical?` },
+                        { cls: 'sg', l: 'Healthy', v: healthy.length, sub: 'Adequate stock', q: `My healthy stock SKUs are ${healthy.length}. How should I maintain this level while not overstocking?` },
+                        { cls: 'sb', l: 'Overstocked', v: overstock.length, sub: 'Capital tied up', q: overstock.length ? `I have ${overstock.length} overstocked SKUs including ${overstock.slice(0,2).map(p=>p.sku_name).join(', ')}. What is the best strategy to liquidate this overstocked inventory — promotions, distributor push, or price reduction?` : '' },
+                      ].map(k => (
+                        <div key={k.l} className={`kc ${k.cls}`} style={{ cursor: k.q && onGoChat ? 'pointer' : 'default', padding: '12px 14px' }}
+                          onClick={() => k.q && onGoChat?.(k.q)}>
+                          <div className="kt"><div className="kl">{k.l}</div></div>
+                          <div className="kv" style={{ fontSize: 22 }}>{k.v}</div>
+                          <div className="ks">{k.sub}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Critical SKUs quick list */}
+                    {critical.length > 0 && (
+                      <div style={{ background: 'var(--r5)', border: '1px solid var(--r4)', borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--r2)', marginBottom: 8 }}>🚨 Critical Stock — Reorder Immediately</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {critical.slice(0, 8).map((p, i) => (
+                            <div key={i} style={{ background: 'var(--bg1)', border: '1px solid var(--r4)', borderRadius: 6, padding: '4px 10px', fontSize: 11 }}>
+                              <span style={{ fontWeight: 600, color: 'var(--r2)' }}>{p.sku_name || p.sku_code}</span>
+                              <span style={{ color: 'var(--text3)', marginLeft: 5, fontFamily: 'var(--mono)' }}>{p.warehouse}</span>
+                            </div>
+                          ))}
+                          {critical.length > 8 && <span style={{ fontSize: 11, color: 'var(--r2)', fontWeight: 600 }}>+{critical.length - 8} more</span>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Overstock SKUs quick list */}
+                    {overstock.length > 0 && (
+                      <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 14px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--b2)', marginBottom: 8 }}>📦 Overstocked — Push or Promote</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {overstock.slice(0, 8).map((p, i) => (
+                            <div key={i} style={{ background: 'var(--bg1)', border: '1px solid var(--b4)', borderRadius: 6, padding: '4px 10px', fontSize: 11 }}>
+                              <span style={{ fontWeight: 600, color: 'var(--b2)' }}>{p.sku_name || p.sku_code}</span>
+                              {p.stock_value && <span style={{ color: 'var(--text3)', marginLeft: 5, fontFamily: 'var(--mono)' }}>{fmtL(p.stock_value)}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Selected warehouse detail */}
               {selectedWarehouse && <WarehouseDetail wh={selectedWarehouse} />}
             </>
@@ -604,7 +698,7 @@ export default function Warehouse({ onGoChat, dbStatus }) {
                 ]}
               />
             </div>
-            <table className="tbl" style={{ fontSize: 13 }}>
+            <table className="tbl tbl-striped" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
                   <th>Distributor</th>
@@ -674,7 +768,7 @@ export default function Warehouse({ onGoChat, dbStatus }) {
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>Total stock value at distributor</div>
                 </div>
               </div>
-              <table className="tbl" style={{ fontSize: 13 }}>
+              <table className="tbl tbl-striped" style={{ fontSize: 13 }}>
                 <thead>
                   <tr>
                     <th>SKU</th>
@@ -811,12 +905,12 @@ export default function Warehouse({ onGoChat, dbStatus }) {
                   </div>
                 </div>
                 {distDispatchError && (
-                  <div style={{ color: 'var(--r2)', fontSize: 12, marginBottom: 8, padding: '6px 10px', background: '#fef2f2', borderRadius: 6 }}>
+                  <div style={{ color: 'var(--r2)', fontSize: 12, marginBottom: 8, padding: '6px 10px', background: 'var(--r5)', borderRadius: 6 }}>
                     ⚠ {distDispatchError}
                   </div>
                 )}
                 {distDispatchSuccess && (
-                  <div style={{ color: 'var(--green)', fontSize: 12, marginBottom: 8, padding: '6px 10px', background: '#f0fdf4', borderRadius: 6 }}>
+                  <div style={{ color: 'var(--green)', fontSize: 12, marginBottom: 8, padding: '6px 10px', background: 'var(--g5)', borderRadius: 6 }}>
                     ✅ {distDispatchSuccess.qty} units of {distDispatchSuccess.sku_name} dispatched to <strong>{distDispatchSuccess.distributor_name}</strong>
                   </div>
                 )}
@@ -885,13 +979,13 @@ export default function Warehouse({ onGoChat, dbStatus }) {
           {/* Discrepancy summary strip */}
           {mismatchCount > 0 && (
             <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
+              <div style={{ background: 'var(--r5)', border: '1px solid var(--r4)', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
                 <span style={{ fontWeight: 700, color: 'var(--r2)' }}>⚠ {mismatchCount} MISMATCH GRNs</span>
               </div>
-              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
+              <div style={{ background: 'var(--r5)', border: '1px solid var(--r4)', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
                 <span style={{ fontWeight: 700, color: 'var(--r2)' }}>Total Discrepancy: {fmt(totalDiscrepancy)}</span>
               </div>
-              <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
+              <div style={{ background: 'var(--g5)', border: '1px solid var(--g4)', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
                 <span style={{ fontWeight: 700, color: 'var(--green)' }}>
                   {grnLog.filter(g => g.match_status === 'MATCH').length} MATCH GRNs
                 </span>
@@ -900,7 +994,7 @@ export default function Warehouse({ onGoChat, dbStatus }) {
           )}
 
           <div className="card-table">
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr>
                   <th>GRN #</th>
@@ -1020,7 +1114,7 @@ export default function Warehouse({ onGoChat, dbStatus }) {
                 No products match "{productSearch}".
               </div>
             ) : (
-              <table className="tbl">
+              <table className="tbl tbl-striped">
                 <thead>
                   <tr>
                     <th>Product / SKU</th>

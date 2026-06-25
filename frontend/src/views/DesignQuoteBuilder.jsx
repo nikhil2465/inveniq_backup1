@@ -224,6 +224,14 @@ function QuoteFormModal({ quote, onClose, onSaved }) {
     } catch {}
   }, [isEdit]);
 
+  // Auto-compute valid_till from validity_days for new quotes
+  useEffect(() => {
+    if (isEdit || form.valid_till) return;
+    const d = new Date();
+    d.setDate(d.getDate() + Number(form.validity_days || 30));
+    setForm(f => ({ ...f, valid_till: d.toISOString().slice(0, 10) }));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const addSection = () => {
@@ -591,6 +599,9 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
   const [approvalNotes, setApprovalNotes]     = useState('');
   const [aiRec, setAiRec]                     = useState(null);
   const [loadingAiRec, setLoadingAiRec]       = useState(false);
+  const [approvalLink, setApprovalLink]        = useState(null);  // { url, expiresAt }
+  const [generatingLink, setGeneratingLink]    = useState(false);
+  const [showLinkPanel, setShowLinkPanel]      = useState(false);
   const printRef = useRef();
 
   const myRole = currentUser?.role || 'architect';
@@ -608,6 +619,20 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
       const d = await r.json();
       setApprovalHistory(d.history || []);
     } catch {}
+  };
+
+  const generateApprovalLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const r = await fetch(`/api/design-quotes/${quote.id}/generate-approval-link`, { method: 'POST' });
+      const d = await r.json();
+      if (r.ok) {
+        const url = `${window.location.origin}/approve.html?token=${d.token}`;
+        setApprovalLink({ url, expiresAt: d.expires_at });
+        setShowLinkPanel(true);
+      }
+    } catch {}
+    finally { setGeneratingLink(false); }
   };
 
   const fetchAiRec = async () => {
@@ -635,6 +660,11 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
         onStatusChange(quote.id, newStatus);
         setApprovalNotes('');
         await refreshHistory();
+        // Auto-generate shareable link whenever a SUBMIT action moves quote to PENDING
+        if (action === 'SUBMIT' || action === 'ESCALATE_L2' || action === 'ESCALATE_L3') {
+          setApprovalLink(null);
+          setTimeout(() => generateApprovalLink(), 200);
+        }
       } else {
         alert(d.detail || 'Action failed. You may not have permission.');
       }
@@ -742,6 +772,15 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
             {(quote.approval_cycle > 0) && (
               <span style={{ fontSize: 11, color: '#0f766e', background: 'rgba(15,118,110,0.09)', borderRadius: 6, padding: '3px 8px', fontWeight: 700 }}>🔄 Cycle {quote.approval_cycle + 1}</span>
             )}
+            {isPendingApproval && (
+              <button
+                onClick={() => { setShowLinkPanel(p => !p); if (!approvalLink && !generatingLink) generateApprovalLink(); }}
+                disabled={generatingLink}
+                style={{ ...SEC_BTN, color: '#7c3aed', borderColor: 'rgba(124,58,237,0.4)', fontWeight: 700, opacity: generatingLink ? 0.7 : 1 }}
+              >
+                {generatingLink ? '⏳ Generating…' : '🔗 Share Approval Link'}
+              </button>
+            )}
             <button onClick={shareWhatsApp} style={{ ...SEC_BTN, color: '#16a34a', borderColor: 'rgba(37,211,102,0.4)', fontWeight: 700 }}>📱 WhatsApp</button>
             <button onClick={handlePrint} style={{ ...SEC_BTN, color: '#14b8a6', borderColor: 'rgba(20,184,166,0.4)' }}>🖨 Print</button>
             <button onClick={() => setShowEmail(true)} style={{ ...SEC_BTN, color: '#0891b2', borderColor: 'rgba(8,145,178,0.4)' }}>📧 Email</button>
@@ -778,6 +817,56 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
             <button onClick={onClose} style={CLOSE_BTN}>✕</button>
           </div>
         </div>
+
+        {/* ── Shareable Approval Link Panel ── */}
+        {showLinkPanel && (
+          <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(124,58,237,0.2)', background: 'rgba(124,58,237,0.04)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>🔗 Shareable Approval Link</span>
+              <span style={{ fontSize: 11, color: '#6b7280', fontFamily: 'monospace' }}>· Valid 72 hours · One-time use</span>
+              <button onClick={() => setShowLinkPanel(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 14 }}>✕</button>
+            </div>
+            {approvalLink ? (
+              <>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    readOnly
+                    value={approvalLink.url}
+                    onClick={e => e.target.select()}
+                    style={{ flex: 1, padding: '8px 12px', border: '1.5px solid rgba(124,58,237,0.3)', borderRadius: 8, fontSize: 12, fontFamily: 'monospace', color: '#374151', background: '#faf5ff', outline: 'none', cursor: 'text' }}
+                  />
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(approvalLink.url).catch(() => {}); }}
+                    style={{ padding: '8px 14px', background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    📋 Copy Link
+                  </button>
+                  <button
+                    onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Please review and approve this interior design quote:\n${approvalLink.url}`)}`, '_blank')}
+                    style={{ padding: '8px 12px', background: 'rgba(37,211,102,0.1)', color: '#16a34a', border: '1px solid rgba(37,211,102,0.35)', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                  >
+                    📱 WhatsApp
+                  </button>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>
+                  Expires: {approvalLink.expiresAt ? new Date(approvalLink.expiresAt).toLocaleString('en-IN') : '72 hours from now'} · Approver does not need an InvenIQ account
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#6b7280' }}>Generating secure link…</div>
+            )}
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={generateApprovalLink}
+                disabled={generatingLink}
+                style={{ fontSize: 11, color: '#7c3aed', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontWeight: 600, opacity: generatingLink ? 0.6 : 1 }}
+              >
+                {generatingLink ? '⏳ Generating…' : '🔄 Generate New Link'}
+              </button>
+              <span style={{ fontSize: 11, color: '#9ca3af', alignSelf: 'center' }}>Each new link invalidates the previous one (separate tokens)</span>
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }} ref={printRef}>
@@ -993,7 +1082,7 @@ function QuoteDetailModal({ quote: initialQuote, onClose, onEdit, onStatusChange
 
 // ── WhatsAppScannerModal ──────────────────────────────────────────────────────
 function WhatsAppScannerModal({ onClose, onCreateQuote }) {
-  const [mode, setMode]         = useState('text'); // 'text' | 'doc'
+  const [mode, setMode]         = useState('text'); // 'text' | 'doc' | 'voice'
   const [text, setText]         = useState('');
   const [files, setFiles]       = useState([]);
   const [scanning, setScanning] = useState(false);
@@ -1001,6 +1090,15 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
   const [collapsed, setCollapsed] = useState({});
   const [parseStep, setParseStep] = useState(0); // 0=idle 1=ocr 2=structuring (doc mode only)
   const fileRef = useRef();
+  // Voice recording state
+  const [recording, setRecording]   = useState(false);
+  const [audioBlob, setAudioBlob]   = useState(null);
+  const [audioUrl, setAudioUrl]     = useState(null);
+  const [recSecs, setRecSecs]       = useState(0);
+  const [micError, setMicError]     = useState('');
+  const mediaRecRef = useRef(null);
+  const chunksRef   = useRef([]);
+  const timerRef    = useRef(null);
 
   const scan = async () => {
     setScanning(true);
@@ -1025,6 +1123,63 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
       }
     } catch { setResult(null); }
     finally { setScanning(false); setParseStep(0); }
+  };
+
+  const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
+  const startRecording = async () => {
+    setMicError('');
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setResult(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+          ? 'audio/ogg;codecs=opus'
+          : 'audio/webm';
+      const mr = new MediaRecorder(stream, { mimeType });
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mr.start(100);
+      mediaRecRef.current = mr;
+      setRecording(true);
+      setRecSecs(0);
+      timerRef.current = setInterval(() => setRecSecs(s => s + 1), 1000);
+    } catch (e) {
+      setMicError('Microphone access denied — please allow microphone access in your browser and try again.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecRef.current && recording) {
+      mediaRecRef.current.stop();
+      clearInterval(timerRef.current);
+      setRecording(false);
+    }
+  };
+
+  const scanVoice = async () => {
+    if (!audioBlob) return;
+    setScanning(true);
+    setResult(null);
+    try {
+      const fd = new FormData();
+      const ext = audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+      fd.append('audio', audioBlob, `voice_note.${ext}`);
+      const r = await fetch('/api/design-quotes/voice-brief', { method: 'POST', body: fd });
+      const d = await r.json();
+      setResult(d);
+    } catch {
+      setResult({ scan_error: 'Network error — please check your connection and retry.', extracted: { rooms: [] } });
+    } finally { setScanning(false); }
   };
 
   const saveToCatalog = async (item) => {
@@ -1097,8 +1252,8 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'linear-gradient(135deg,#0f2744 0%,#15803d 100%)', borderRadius: '14px 14px 0 0' }}>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 15, color: '#ffffff' }}>📱 WhatsApp / Document / Image Scanner</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Paste text, upload files (PDF, Word, Excel) or photos — AI reads everything and builds your BOQ</div>
+            <div style={{ fontWeight: 900, fontSize: 15, color: '#ffffff' }}>📱 AI Requirement Scanner</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Paste text, upload files (PDF, Word, Excel), photos — or record a voice note — AI builds your BOQ instantly</div>
           </div>
           <button onClick={onClose} style={{ background:'rgba(220,38,38,0.2)', border:'1px solid rgba(220,38,38,0.4)', color:'#fca5a5', borderRadius:7, padding:'5px 10px', fontSize:13, cursor:'pointer', fontWeight:700 }}>✕</button>
         </div>
@@ -1106,9 +1261,10 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
         <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
 
           {/* Mode tabs */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
-            {[['text','💬 Text / WhatsApp'], ['doc','📄 AI Document Parser']].map(([m, l]) => (
-              <button key={m} onClick={() => { setMode(m); setResult(null); }} style={{ ...SEC_BTN, background: mode === m ? 'rgba(8,145,178,0.12)' : 'transparent', color: mode === m ? '#0891b2' : 'var(--muted)', borderColor: mode === m ? '#0891b2' : 'var(--border)', fontWeight: mode === m ? 700 : 600 }}>{l}</button>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 14, flexWrap: 'wrap' }}>
+            {[['text','💬 Text / WhatsApp'], ['doc','📄 AI Document Parser'], ['voice','🎙️ Voice Note']].map(([m, l]) => (
+              <button key={m} onClick={() => { setMode(m); setResult(null); setAudioBlob(null); setAudioUrl(null); setRecording(false); clearInterval(timerRef.current); setRecSecs(0); setMicError(''); }}
+                style={{ ...SEC_BTN, background: mode === m ? 'rgba(8,145,178,0.12)' : 'transparent', color: mode === m ? '#0891b2' : 'var(--muted)', borderColor: mode === m ? '#0891b2' : 'var(--border)', fontWeight: mode === m ? 700 : 600 }}>{l}</button>
             ))}
           </div>
 
@@ -1163,16 +1319,87 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
             </div>
           )}
 
-          {/* Scan buttons */}
+          {/* Voice Note UI */}
+          {mode === 'voice' && (
+            <div>
+              <div style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.18)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+                Describe your project aloud — client name, property type (2BHK, villa), room requirements, preferred brands, budget range. AI transcribes and extracts all architecture keywords to build your BOQ.
+              </div>
+
+              {micError && (
+                <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+                  ⚠ {micError}
+                </div>
+              )}
+
+              {/* Recording controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                {!recording && !audioBlob && (
+                  <button onClick={startRecording} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#7c3aed,#a855f7)', padding: '10px 22px', fontSize: 13 }}>
+                    🎙️ Start Recording
+                  </button>
+                )}
+                {recording && (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#dc2626', display: 'inline-block', animation: 'livePulse 1.2s ease-in-out infinite' }} />
+                      <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, color: '#dc2626', letterSpacing: 2 }}>{fmtTime(recSecs)}</span>
+                    </div>
+                    <button onClick={stopRecording} style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#dc2626,#ef4444)', padding: '10px 22px', fontSize: 13 }}>
+                      ⏹ Stop Recording
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>Recording… speak clearly</span>
+                  </>
+                )}
+                {audioBlob && !recording && (
+                  <button onClick={() => { setAudioBlob(null); setAudioUrl(null); setResult(null); setRecSecs(0); }} style={{ ...SEC_BTN, fontSize: 12 }}>
+                    🔄 Re-record
+                  </button>
+                )}
+              </div>
+
+              {/* Playback */}
+              {audioUrl && !recording && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontWeight: 600 }}>
+                    RECORDED · {fmtTime(recSecs)}
+                  </div>
+                  <audio controls src={audioUrl} style={{ width: '100%', borderRadius: 8, background: 'var(--bg)' }} />
+                </div>
+              )}
+
+              {/* Keyword hint chips */}
+              {!audioBlob && !recording && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>AI will extract</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {['👤 Client name','🏠 Property type (2BHK, villa)','🛁 Room names + sizes','🚿 CP / sanitary brands','🪵 Material preferences','💰 Budget range','📐 Area in sq.ft','🏗️ No. of units / floors'].map(k => (
+                      <span key={k} style={{ fontSize: 11, background: 'rgba(139,92,246,0.08)', color: '#7c3aed', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 20, padding: '4px 11px', fontWeight: 600 }}>{k}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Scan / Analyze buttons */}
           <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-            <button onClick={scan} disabled={scanning || oversized.length > 0}
-              style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: (scanning || oversized.length > 0) ? 0.5 : 1, fontSize: 13, padding: '10px 22px' }}>
-              {scanning && mode === 'doc'
-                ? parseStep === 2 ? '🧠 Step 2/2: Building BOQ…' : '📖 Step 1/2: Reading Document…'
-                : scanning ? '⏳ AI Reading…'
-                : mode === 'doc' ? '⚡ Extract & Build Quote' : '⚡ Scan & Extract'}
-            </button>
-            {scanning && mode !== 'doc' && <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>GPT-4o is analysing your requirements…</span>}
+            {mode === 'voice' ? (
+              <button onClick={scanVoice} disabled={scanning || !audioBlob || recording}
+                style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#7c3aed,#a855f7)', opacity: (scanning || !audioBlob || recording) ? 0.45 : 1, fontSize: 13, padding: '10px 22px' }}>
+                {scanning ? '⏳ AI Transcribing + Extracting…' : '⚡ Analyze Voice Note'}
+              </button>
+            ) : (
+              <button onClick={scan} disabled={scanning || oversized.length > 0}
+                style={{ ...PRI_BTN, background: 'linear-gradient(135deg,#0891b2,#06b6d4)', opacity: (scanning || oversized.length > 0) ? 0.5 : 1, fontSize: 13, padding: '10px 22px' }}>
+                {scanning && mode === 'doc'
+                  ? parseStep === 2 ? '🧠 Step 2/2: Building BOQ…' : '📖 Step 1/2: Reading Document…'
+                  : scanning ? '⏳ AI Reading…'
+                  : mode === 'doc' ? '⚡ Extract & Build Quote' : '⚡ Scan & Extract'}
+              </button>
+            )}
+            {scanning && mode !== 'doc' && mode !== 'voice' && <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>GPT-4o is analysing your requirements…</span>}
+            {scanning && mode === 'voice' && <span style={{ fontSize: 11, color: '#7c3aed', alignSelf: 'center' }}>Whisper is transcribing → GPT-4o is extracting BOQ…</span>}
           </div>
           {scanning && mode === 'doc' && (
             <div style={{ fontSize: 11, color: '#0891b2', background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.15)', borderRadius: 7, padding: '8px 12px', marginTop: 8 }}>
@@ -1210,6 +1437,37 @@ function WhatsAppScannerModal({ onClose, onCreateQuote }) {
           {/* Results area */}
           {result?.extracted && (
             <div style={{ marginTop: 20 }}>
+
+              {/* Voice transcript panel */}
+              {mode === 'voice' && result.transcript && (
+                <div style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.22)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: '#7c3aed', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🎙️ TRANSCRIPT
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.7, fontStyle: 'italic' }}>
+                    "{result.transcript}"
+                  </div>
+                  {/* Extracted keyword chips */}
+                  {(() => {
+                    const ex = result.extracted;
+                    const chips = [];
+                    if (ex.client_name)  chips.push(['👤', ex.client_name]);
+                    if (ex.project_type) chips.push(['🏠', ex.project_type]);
+                    if (ex.project_name) chips.push(['📋', ex.project_name]);
+                    if (ex.budget_indication) chips.push(['💰', ex.budget_indication]);
+                    if (ex.total_area_sqft)   chips.push(['📐', `${ex.total_area_sqft} sq.ft`]);
+                    (ex.rooms || []).slice(0, 4).forEach(r => chips.push(['🚪', r.room_name]));
+                    if (ex.notes) chips.push(['📝', ex.notes.slice(0, 40) + (ex.notes.length > 40 ? '…' : '')]);
+                    return chips.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>
+                        {chips.map(([icon, label], i) => (
+                          <span key={i} style={{ fontSize: 11, background: 'rgba(139,92,246,0.1)', color: '#6d28d9', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 20, padding: '3px 10px', fontWeight: 600 }}>{icon} {label}</span>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              )}
 
               {/* Error banner — shown when AI call failed (key exists but call errored) */}
               {result.scan_error && (
@@ -1790,7 +2048,9 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
   const [sortDir, setSortDir] = useState('desc');
   const [dateFilter, setDateFilter] = useState('');
   const [showArchived, setShowArchived] = useState(false);
-  const [qbHeroSync, setQbHeroSync] = useState(null);
+  const [qbHeroSync, setQbHeroSync]           = useState(null);
+  const [clientSearch, setClientSearch]       = useState('');
+  const [expandedClient, setExpandedClient]   = useState(null);
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -1818,7 +2078,12 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
     finally { setLoading(false); }
   }, [statusFilter, search]);
 
-  useEffect(() => { setLoading(true); if (tab === 'quotes') fetchQuotes(); else fetchProposals(); }, [tab, fetchQuotes, fetchProposals]);
+  useEffect(() => {
+    setLoading(true);
+    if (tab === 'clients') { fetchQuotes(); fetchProposals(); }
+    else if (tab === 'quotes') fetchQuotes();
+    else fetchProposals();
+  }, [tab, fetchQuotes, fetchProposals]);
 
   useEffect(() => {
     const role = currentUser?.role;
@@ -1896,6 +2161,102 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
       return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
     });
   }, [proposals, sortBy, sortDir, dateFilter, showArchived]);
+
+  // ── Pipeline dashboard data (all computed client-side from already-fetched quotes) ──
+  const pipelineStats = useMemo(() => {
+    const stages = [
+      { key:'DRAFT',       label:'Draft',       color:'#6b7280', icon:'📄', keys:['DRAFT'] },
+      { key:'PENDING',     label:'Pending',      color:'#d97706', icon:'⏳', keys:['PENDING_L1','PENDING_L2','PENDING_L3'] },
+      { key:'APPROVED',    label:'Approved',     color:'#16a34a', icon:'✅', keys:['APPROVED'] },
+      { key:'SENT',        label:'Sent',         color:'#0891b2', icon:'📨', keys:['SENT'] },
+      { key:'IN_PROGRESS', label:'In Progress',  color:'#0f766e', icon:'🔨', keys:['IN_PROGRESS'] },
+      { key:'COMPLETED',   label:'Completed',    color:'#059669', icon:'🎉', keys:['COMPLETED'] },
+    ];
+    const stageData = stages.map(s => {
+      const arr = quotes.filter(q => s.keys.includes(q.status));
+      return { ...s, count: arr.length, value: arr.reduce((sum, q) => sum + Number(q.grand_total || 0), 0) };
+    });
+
+    const _totalValue = quotes.reduce((s, q) => s + Number(q.grand_total || 0), 0);
+    const _wonValue   = quotes.filter(q => q.status === 'APPROVED').reduce((s, q) => s + Number(q.grand_total || 0), 0);
+    const winRate = _totalValue > 0 ? Math.round(_wonValue / _totalValue * 100) : 0;
+
+    const clientMap = {};
+    quotes.forEach(q => {
+      const k = q.client_name || 'Unknown';
+      if (!clientMap[k]) clientMap[k] = { name: k, count: 0, value: 0 };
+      clientMap[k].count++;
+      clientMap[k].value += Number(q.grand_total || 0);
+    });
+    const topClients = Object.values(clientMap).sort((a, b) => b.value - a.value).slice(0, 5);
+
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      return { label: d.toLocaleString('en-IN', { month: 'short' }), year: d.getFullYear(), month: d.getMonth(), value: 0, count: 0 };
+    });
+    quotes.forEach(q => {
+      if (!q.created_at) return;
+      const d = new Date(q.created_at);
+      const idx = months.findIndex(m => m.year === d.getFullYear() && m.month === d.getMonth());
+      if (idx >= 0) { months[idx].value += Number(q.grand_total || 0); months[idx].count++; }
+    });
+    const maxMonthValue = Math.max(...months.map(m => m.value), 1);
+
+    const expiringQuotes = quotes
+      .filter(q => {
+        if (!q.valid_till || ['APPROVED','COMPLETED','CANCELLED'].includes(q.status)) return false;
+        const days = Math.ceil((new Date(q.valid_till) - new Date()) / 86400000);
+        return days >= 0 && days <= 7;
+      })
+      .sort((a, b) => new Date(a.valid_till) - new Date(b.valid_till))
+      .slice(0, 6);
+
+    const recentQuotes = [...quotes]
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .slice(0, 6);
+
+    return { stageData, winRate, topClients, months, maxMonthValue, expiringQuotes, recentQuotes };
+  }, [quotes]);
+
+  // ── Client Directory — aggregates all unique clients from quotes + proposals ──
+  const clientDirectory = useMemo(() => {
+    const map = {};
+    const upsert = (name, phone, email) => {
+      const key  = (name || 'Unknown').trim();
+      const norm = key.toLowerCase();
+      if (!map[norm]) map[norm] = { name: key, phone: '', email: '', quotes: [], proposals: [], totalValue: 0, lastActivity: '' };
+      const e = map[norm];
+      if (!e.phone && phone) e.phone = phone;
+      if (!e.email && email) e.email = email;
+      return e;
+    };
+    quotes.forEach(q => {
+      const e = upsert(q.client_name, q.client_phone, q.client_email);
+      e.quotes.push({ id: q.id, number: q.quote_number, project: q.project_name || '—', value: Number(q.grand_total || 0), status: q.status, date: q.created_at });
+      e.totalValue += Number(q.grand_total || 0);
+      if (q.created_at && (!e.lastActivity || q.created_at > e.lastActivity)) e.lastActivity = q.created_at;
+    });
+    proposals.forEach(p => {
+      const e = upsert(p.client_name, p.client_phone, p.client_email);
+      e.proposals.push({ id: p.id, number: p.proposal_number, project: p.project_name || '—', value: Number(p.total_fee || 0), status: p.status, date: p.created_at });
+      e.totalValue += Number(p.total_fee || 0);
+      if (p.created_at && (!e.lastActivity || p.created_at > e.lastActivity)) e.lastActivity = p.created_at;
+    });
+    return Object.values(map).sort((a, b) => b.totalValue - a.totalValue);
+  }, [quotes, proposals]);
+
+  const displayClients = useMemo(() => {
+    if (!clientSearch.trim()) return clientDirectory;
+    const s = clientSearch.toLowerCase();
+    return clientDirectory.filter(c =>
+      c.name.toLowerCase().includes(s) ||
+      c.email.toLowerCase().includes(s) ||
+      c.phone.includes(s) ||
+      c.quotes.some(q => q.project.toLowerCase().includes(s)) ||
+      c.proposals.some(p => p.project.toLowerCase().includes(s))
+    );
+  }, [clientDirectory, clientSearch]);
 
   const deleteQuote = async (id) => {
     if (!window.confirm('Delete this quote?')) return;
@@ -1994,6 +2355,8 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                 <div style={{ fontSize:10.5,color:'rgba(255,255,255,0.45)',marginTop:2 }}>
                   {tab === 'quotes'
                     ? <>Pipeline: <strong style={{ color:'#5eead4' }}>{fmtC(totalValue)}</strong> · Won: <strong style={{ color:'#34d399' }}>{fmtC(wonValue)}</strong> · {activeCount} active</>
+                    : tab === 'clients'
+                    ? <>{clientDirectory.length} unique clients · <strong style={{ color:'#5eead4' }}>{fmtC(clientDirectory.reduce((s,c) => s + c.totalValue, 0))}</strong> total value</>
                     : <>Total fees: <strong style={{ color:'#5eead4' }}>{fmtC(totalFees)}</strong> · Approved: <strong style={{ color:'#34d399' }}>{fmtC(approvedFees)}</strong> · {activeProps} active</>}
                 </div>
               </div>
@@ -2003,7 +2366,12 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                 ['📊 Pipeline Analysis', 'Analyse my interior design quote pipeline — win rates, average deal size, top clients, and which projects are most likely to close this month.'],
                 ['⏰ Expiry Follow-ups',  'Which design quotations are expiring soon? For each, suggest the best follow-up strategy to convert or extend before they expire.'],
                 ['💰 Pricing Strategy',  'Based on my won and lost interior design quotations, what is the optimal pricing strategy by project type and client segment?'],
-                ['📐 BOQ Estimator',     'Help me estimate a complete BOQ for a typical 2BHK interior fit-out — room-wise material breakdown with quantities and market rates.'],
+                ['📐 Readymade Quotation', 'Help me estimate a complete BOQ for a typical 2BHK interior fit-out — room-wise material breakdown with quantities and market rates.'],
+              ] : tab === 'clients' ? [
+                ['👥 Client Overview',   'Give me a complete overview of all my design studio clients — who has the most projects, highest total value, and which clients need follow-up now.'],
+                ['💰 Revenue by Client', 'Rank my clients by total quoted value across all quotations and proposals. Who are my top 5 clients and what makes them high value?'],
+                ['📊 Engagement History','For each client, summarise their complete engagement history — number of quotes, proposals, won/lost ratio, and total outstanding value.'],
+                ['🎯 Follow-up Priority','Which clients should I follow up with immediately? Prioritise by pending quotes, expiring proposals, and time since last activity.'],
               ] : [
                 ['📋 Approval Status',   'Which architect fee proposals are awaiting approval? Summarise each with client, scope, fee amount, and days pending.'],
                 ['📐 Phase Payments',    'Analyse my architect fee proposals — which phases are pending payment, and what is the total outstanding fee across all projects?'],
@@ -2036,13 +2404,19 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
         )}
 
         {/* ── KPI strip ── */}
-        <div style={{ display:'grid',gridTemplateColumns:tab==='quotes'?'repeat(5,1fr)':'repeat(4,1fr)',gap:10,marginTop:16,position:'relative',zIndex:1 }}>
+        <div style={{ display:'grid',gridTemplateColumns:tab==='quotes'?'repeat(6,1fr)':'repeat(4,1fr)',gap:10,marginTop:16,position:'relative',zIndex:1 }}>
           {(tab === 'quotes' ? [
             { icon:'💰', label:'Pipeline',      value:fmtC(totalValue),  sub:'total quoted',     top:'#0d9488', q:'Analyse my interior design quote pipeline — total value, deal stages, and top clients by project value.' },
             { icon:'✅', label:'Won / Approved', value:fmtC(wonValue),    sub:'confirmed value',  top:'#34d399', q:'Show all won and approved interior design quotations. What is my win rate and average deal size?' },
+            { icon:'🎯', label:'Win Rate',       value:totalValue>0?`${Math.round(wonValue/totalValue*100)}%`:'—', sub:'approved / pipeline', top:'#6366f1', q:'What is my win rate for interior design quotations? Break down by project type, value range, and how I can improve close rates.' },
             { icon:'📋', label:'Active',         value:activeCount,        sub:'open quotes',      top:'#14b8a6', q:'List all active interior design quotations with client, project value, status, and days since creation.' },
             { icon:'⏰', label:'Expiring',       value:expiredCount,       sub:'need attention',   top:expiredCount>0?'#fb7185':'#14b8a6', q:'Which interior design quotations are expiring or have expired? For each, suggest the best follow-up action.' },
             { icon:'📁', label:'Total Quotes',   value:quotes.length,      sub:'all time',         top:'#0d9488', q:'Give me a complete summary of all my design quotations — status breakdown, monthly trend, and average deal size.' },
+          ] : tab === 'clients' ? [
+            { icon:'👥', label:'Total Clients',  value:clientDirectory.length, sub:'unique clients', top:'#0d9488', q:'Give me a complete overview of all my design studio clients — project count, total value, and engagement status.' },
+            { icon:'💰', label:'Total Value',    value:fmtC(clientDirectory.reduce((s,c)=>s+c.totalValue,0)), sub:'across all clients', top:'#14b8a6', q:'What is the total pipeline value across all my design studio clients? Rank by client and highlight top contributors.' },
+            { icon:'📋', label:'Engagements',   value:clientDirectory.reduce((s,c)=>s+c.quotes.length+c.proposals.length,0), sub:'quotes + proposals', top:'#6366f1', q:'How many design quotations and architect fee proposals have I created in total? What is the average per client?' },
+            { icon:'✅', label:'Active Clients', value:clientDirectory.filter(c=>c.quotes.some(q=>!['CANCELLED','COMPLETED'].includes(q.status))||c.proposals.some(p=>!['CANCELLED','COMPLETED'].includes(p.status))).length, sub:'with open work', top:'#16a34a', q:'Which clients currently have active design quotations or architect proposals in progress?' },
           ] : [
             { icon:'💼', label:'Total Fees',    value:fmtC(totalFees),    sub:'total pipeline',  top:'#0d9488', q:'What is my total architect fee pipeline? Break down by project type, status, and fee range.' },
             { icon:'✅', label:'Approved Fees', value:fmtC(approvedFees), sub:'won value',        top:'#34d399', q:'Which architect fee proposals have been approved? What is the total approved value and which phases are pending payment?' },
@@ -2065,8 +2439,10 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
           {[
             ['quotes',    '🏠 Interior Quotations', quotes.length],
             ['proposals', '📐 Architect Proposals',  proposals.length],
+            ['pipeline',  '📊 Dashboard',            null],
+            ['clients',   '👥 Clients',              clientDirectory.length || null],
           ].map(([t,lbl,cnt]) => (
-            <button key={t} onClick={() => { setTab(t); setStatusFilter(''); setSearch(''); if (['grand_total','total_fee'].includes(sortBy)) setSortBy('created_at'); }} style={{
+            <button key={t} onClick={() => { setTab(t); setStatusFilter(''); setSearch(''); setClientSearch(''); setExpandedClient(null); if (['grand_total','total_fee'].includes(sortBy)) setSortBy('created_at'); }} style={{
               background: tab===t ? 'var(--card)' : 'transparent',
               color: tab===t ? '#0d9488' : 'rgba(255,255,255,0.45)',
               border: tab===t ? '1px solid var(--border)' : '1px solid transparent',
@@ -2084,8 +2460,8 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
       {/* ══ BODY ══ */}
       <div className="dqs-content" style={{ padding:'0 40px 40px', background:'#f0fdfc', borderLeft:'1px solid #ccfbf1', borderRight:'1px solid #ccfbf1', borderBottom:'1px solid #ccfbf1', marginBottom:24 }}>
 
-        {/* Toolbar */}
-        <div style={{ display:'flex',gap:10,alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap' }}>
+        {/* Toolbar — hidden on clients tab (has its own search) */}
+        <div style={{ display: tab === 'clients' ? 'none' : 'flex', gap:10,alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap' }}>
           <div style={{ position:'relative',flex:'1 1 220px',maxWidth:280 }}>
             <span style={{ position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'var(--muted)',fontSize:13,pointerEvents:'none' }}>🔍</span>
             <input style={{ ...INP,paddingLeft:34,fontSize:12.5,borderRadius:8,background:'#ffffff',border:'1.5px solid #ccfbf1',color:'#0d1b2e' }} placeholder={tab==='quotes'?'Search client, project, quote#…':'Search client, project, proposal#…'} value={search} onChange={e => setSearch(e.target.value)} />
@@ -2212,6 +2588,9 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                       daysSince <= 90 ? { bg:'rgba(217,119,6,.07)', tc:'#d97706', bc:'rgba(217,119,6,.2)',   lbl:`${Math.floor(daysSince/7)}w` } :
                                         { bg:'rgba(220,38,38,.07)', tc:'#dc2626', bc:'rgba(220,38,38,.2)',   lbl:`${Math.floor(daysSince/30)}m` };
                     const isPendingApproval = ['PENDING_L1','PENDING_L2','PENDING_L3'].includes(q.status);
+                    const daysUntilExpiry = q.valid_till && !['APPROVED','COMPLETED','CANCELLED'].includes(q.status)
+                      ? Math.ceil((new Date(q.valid_till) - new Date()) / 86400000) : null;
+                    const expiringSoon = !expired && daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
                     return (
                       <tr key={q.id}
                         onClick={() => !mergeMode && setViewQuote(q)}
@@ -2257,8 +2636,9 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                           {q.gst_amount > 0 && <div style={{ fontSize:10, color:'var(--muted)' }}>incl. GST</div>}
                         </td>
                         <td style={{ padding:'12px 14px', textAlign:'center' }}>
-                          <div style={{ fontSize:12, fontWeight: expired ? 700 : 400, color: expired ? '#dc2626' : 'var(--muted)' }}>{q.valid_till || '—'}</div>
+                          <div style={{ fontSize:12, fontWeight: (expired || expiringSoon) ? 700 : 400, color: expired ? '#dc2626' : expiringSoon ? '#d97706' : 'var(--muted)' }}>{q.valid_till || '—'}</div>
                           {expired && <div style={{ fontSize:10, color:'#dc2626', fontWeight:700 }}>EXPIRED</div>}
+                          {expiringSoon && <div style={{ fontSize:10, color:'#d97706', fontWeight:700 }}>⚡ {daysUntilExpiry}d left</div>}
                         </td>
                         <td style={{ padding:'12px 14px', textAlign:'center' }}>
                           <div style={{ fontSize:13, fontWeight:700, color:'var(--muted)' }}>{(q.sections || []).length}</div>
@@ -2375,8 +2755,13 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
                         </td>
                         <td style={{ padding:'12px 14px', textAlign:'center', fontSize:12, color:'var(--muted)' }}>{p.valid_till || '—'}</td>
                         <td style={{ padding:'12px 14px', textAlign:'center' }}>
-                          <div style={{ fontSize:12, fontWeight:700 }}>{paidPhases} / {(p.phases || []).length}</div>
-                          <div style={{ fontSize:10, color:'var(--muted)' }}>paid</div>
+                          <div style={{ fontSize:12, fontWeight:700 }}>{paidPhases} / {(p.phases || []).length || 0}</div>
+                          {(p.phases || []).length > 0 && (
+                            <div style={{ background:'var(--border)', borderRadius:3, height:5, width:70, margin:'4px auto 0' }}>
+                              <div style={{ height:5, borderRadius:3, background: paidPhases === (p.phases||[]).length ? '#16a34a' : '#0d9488', width:`${((paidPhases / (p.phases||[1]).length) * 100).toFixed(0)}%`, transition:'width 0.3s' }} />
+                            </div>
+                          )}
+                          <div style={{ fontSize:9, color:'var(--muted)', marginTop:2 }}>phases paid</div>
                         </td>
                         <td style={{ padding:'12px 10px', textAlign:'right' }} onClick={e => e.stopPropagation()}>
                           <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
@@ -2400,13 +2785,345 @@ export default function DesignQuoteBuilder({ onGoChat, dbStatus, currentUser }) 
             )}
           </>
         )}
+        {/* ── Client Directory ── */}
+        {tab === 'clients' && (
+          <div style={{ paddingTop: 20 }}>
+
+            {/* Search bar + summary row */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:18, flexWrap:'wrap' }}>
+              <div style={{ position:'relative', flex:'1 1 260px', maxWidth:380 }}>
+                <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'var(--muted)', fontSize:13, pointerEvents:'none' }}>🔍</span>
+                <input
+                  style={{ width:'100%', paddingLeft:34, fontSize:12.5, borderRadius:8, background:'#ffffff', border:'1.5px solid #ccfbf1', color:'#0d1b2e', padding:'9px 12px 9px 34px', outline:'none', boxSizing:'border-box' }}
+                  placeholder="Search by client name, email, or project…"
+                  value={clientSearch}
+                  onChange={e => setClientSearch(e.target.value)}
+                />
+              </div>
+              <div style={{ fontSize:12, color:'var(--muted)', fontWeight:600, whiteSpace:'nowrap' }}>
+                {displayClients.length} client{displayClients.length !== 1 ? 's' : ''}
+                {clientDirectory.length > 0 && ` · ${clientDirectory.reduce((s,c)=>s+c.quotes.length+c.proposals.length,0)} total engagements`}
+              </div>
+              {clientSearch && (
+                <button onClick={() => setClientSearch('')}
+                  style={{ fontSize:11, fontWeight:700, padding:'5px 12px', borderRadius:8, cursor:'pointer', background:'transparent', color:'var(--muted)', border:'1.5px solid var(--border)', flexShrink:0 }}>
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {displayClients.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'60px 20px', color:'var(--muted)' }}>
+                <div style={{ fontSize:44, marginBottom:12 }}>👥</div>
+                <div style={{ fontSize:16, fontWeight:700, marginBottom:6, color:'var(--heading)' }}>
+                  {clientSearch ? 'No clients match your search' : 'No clients yet'}
+                </div>
+                <div style={{ fontSize:13 }}>
+                  {clientSearch ? 'Try a different name, email, or project keyword.' : 'Create your first interior quotation or architect proposal to see clients here.'}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(330px, 1fr))', gap:14 }}>
+                {displayClients.map(client => {
+                  const isExpanded = expandedClient === client.name;
+                  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '—';
+                  const activeQ  = client.quotes.filter(q => !['CANCELLED','COMPLETED'].includes(q.status)).length;
+                  const wonQ     = client.quotes.filter(q => q.status === 'APPROVED').length;
+                  const totalEng = client.quotes.length + client.proposals.length;
+
+                  return (
+                    <div key={client.name} style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden', transition:'box-shadow 0.15s', boxShadow: isExpanded ? '0 4px 24px rgba(13,148,136,0.14)' : 'none' }}>
+
+                      {/* Card header — click to expand */}
+                      <div style={{ padding:'18px 18px 14px', cursor:'pointer' }} onClick={() => setExpandedClient(isExpanded ? null : client.name)}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:14 }}>
+                          {/* Avatar */}
+                          <div style={{ width:46, height:46, borderRadius:12, background:'linear-gradient(135deg,#0d9488,#14b8a6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:900, color:'#fff', flexShrink:0, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(13,148,136,0.35)' }}>
+                            {avatar(client.name)}
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontWeight:800, fontSize:15, color:'var(--heading)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', letterSpacing:'-0.3px', marginBottom:2 }}>{client.name}</div>
+                            {client.phone && <div style={{ fontSize:11, color:'var(--muted)', marginTop:1 }}>📞 {client.phone}</div>}
+                            {client.email && <div style={{ fontSize:11, color:'var(--muted)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>✉️ {client.email}</div>}
+                          </div>
+                          <div style={{ fontSize:15, color: isExpanded ? '#0d9488' : 'var(--muted)', flexShrink:0, transition:'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', marginTop:2 }}>⌃</div>
+                        </div>
+
+                        {/* Stat chips */}
+                        <div style={{ display:'flex', gap:6, marginTop:12, flexWrap:'wrap' }}>
+                          <span style={{ background:'rgba(13,148,136,0.1)', borderRadius:20, padding:'3px 10px', fontSize:10.5, fontWeight:700, color:'#0d9488', border:'1px solid rgba(13,148,136,0.2)' }}>
+                            {client.quotes.length} quote{client.quotes.length !== 1 ? 's' : ''}
+                          </span>
+                          {client.proposals.length > 0 && (
+                            <span style={{ background:'rgba(99,102,241,0.1)', borderRadius:20, padding:'3px 10px', fontSize:10.5, fontWeight:700, color:'#6366f1', border:'1px solid rgba(99,102,241,0.2)' }}>
+                              {client.proposals.length} proposal{client.proposals.length !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {activeQ > 0 && (
+                            <span style={{ background:'rgba(20,184,166,0.1)', borderRadius:20, padding:'3px 10px', fontSize:10.5, fontWeight:700, color:'#14b8a6', border:'1px solid rgba(20,184,166,0.2)' }}>
+                              {activeQ} active
+                            </span>
+                          )}
+                          {wonQ > 0 && (
+                            <span style={{ background:'rgba(22,163,74,0.1)', borderRadius:20, padding:'3px 10px', fontSize:10.5, fontWeight:700, color:'#16a34a', border:'1px solid rgba(22,163,74,0.2)' }}>
+                              {wonQ} won
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Value + last activity */}
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginTop:12, paddingTop:10, borderTop:'1px solid var(--border)' }}>
+                          <div>
+                            <div style={{ fontSize:9.5, color:'var(--muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, marginBottom:3 }}>Total Value</div>
+                            <div style={{ fontSize:19, fontWeight:900, color:'#0d9488', letterSpacing:'-0.6px', fontFamily:"'JetBrains Mono','Courier New',monospace", lineHeight:1 }}>{fmtC(client.totalValue)}</div>
+                          </div>
+                          <div style={{ textAlign:'right' }}>
+                            <div style={{ fontSize:9.5, color:'var(--muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, marginBottom:3 }}>Last Activity</div>
+                            <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{fmtDate(client.lastActivity)}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expanded accordion */}
+                      {isExpanded && (
+                        <div style={{ borderTop:'1.5px solid rgba(13,148,136,0.2)', background:'rgba(13,148,136,0.03)', padding:'14px 18px 16px' }}>
+
+                          {/* Quick-action buttons */}
+                          <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+                            <button
+                              onClick={() => { setEditQuote({ client_name: client.name, client_phone: client.phone, client_email: client.email }); setShowForm(true); setTab('quotes'); }}
+                              style={{ fontSize:11, fontWeight:700, padding:'6px 14px', borderRadius:8, cursor:'pointer', background:'#0d9488', color:'#fff', border:'none', boxShadow:'0 2px 8px rgba(13,148,136,0.35)' }}>
+                              + New Quote
+                            </button>
+                            <button
+                              onClick={() => { setEditProposal({ client_name: client.name, client_phone: client.phone, client_email: client.email }); setShowProposalForm(true); setTab('proposals'); }}
+                              style={{ fontSize:11, fontWeight:700, padding:'6px 14px', borderRadius:8, cursor:'pointer', background:'rgba(99,102,241,0.1)', color:'#6366f1', border:'1px solid rgba(99,102,241,0.3)' }}>
+                              + New Proposal
+                            </button>
+                            {onGoChat && (
+                              <button
+                                onClick={() => onGoChat(`Summarise all design quotations and architect fee proposals for client "${client.name}". Include project names, values, statuses, and what the next recommended steps are.`)}
+                                style={{ fontSize:11, fontWeight:700, padding:'6px 14px', borderRadius:8, cursor:'pointer', background:'rgba(13,148,136,0.08)', color:'#0d9488', border:'1px solid rgba(13,148,136,0.25)', marginLeft:'auto' }}>
+                                🤖 Ask AI
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Interior Quotations list */}
+                          {client.quotes.length > 0 && (
+                            <div style={{ marginBottom: client.proposals.length > 0 ? 14 : 0 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:'#0d9488', textTransform:'uppercase', letterSpacing:0.8, marginBottom:7 }}>🏠 Interior Quotations</div>
+                              {client.quotes.map(q => {
+                                const sc = Q_STATUS[q.status] || { color:'#6b7280', label: q.status, bg:'rgba(107,114,128,0.08)' };
+                                return (
+                                  <div key={q.id}
+                                    onClick={() => { const full = quotes.find(x => x.id === q.id); if (full) setViewQuote(full); }}
+                                    style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', marginBottom:4, background:'var(--card)', border:'1px solid var(--border)', transition:'background 0.1s' }}
+                                    onMouseEnter={e => e.currentTarget.style.background='rgba(13,148,136,0.05)'}
+                                    onMouseLeave={e => e.currentTarget.style.background='var(--card)'}>
+                                    <span style={{ fontSize:10, fontWeight:800, color:'#0d9488', minWidth:74, fontFamily:"'JetBrains Mono',monospace", flexShrink:0 }}>{q.number}</span>
+                                    <span style={{ flex:1, fontSize:11.5, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{q.project}</span>
+                                    <span style={{ fontSize:10.5, fontWeight:700, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace", flexShrink:0 }}>{fmtC(q.value)}</span>
+                                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background: sc.bg || 'rgba(107,114,128,0.1)', color: sc.color, border:`1px solid ${sc.color}30`, whiteSpace:'nowrap', flexShrink:0 }}>{sc.label || q.status}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Architect Proposals list */}
+                          {client.proposals.length > 0 && (
+                            <div>
+                              <div style={{ fontSize:10, fontWeight:700, color:'#6366f1', textTransform:'uppercase', letterSpacing:0.8, marginBottom:7 }}>📐 Architect Proposals</div>
+                              {client.proposals.map(p => {
+                                const sc = P_STATUS[p.status] || { color:'#6b7280', label: p.status, bg:'rgba(107,114,128,0.08)' };
+                                return (
+                                  <div key={p.id}
+                                    onClick={() => { const full = proposals.find(x => x.id === p.id); if (full) setViewProposal(full); }}
+                                    style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', marginBottom:4, background:'var(--card)', border:'1px solid var(--border)', transition:'background 0.1s' }}
+                                    onMouseEnter={e => e.currentTarget.style.background='rgba(99,102,241,0.05)'}
+                                    onMouseLeave={e => e.currentTarget.style.background='var(--card)'}>
+                                    <span style={{ fontSize:10, fontWeight:800, color:'#6366f1', minWidth:74, fontFamily:"'JetBrains Mono',monospace", flexShrink:0 }}>{p.number}</span>
+                                    <span style={{ flex:1, fontSize:11.5, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.project}</span>
+                                    <span style={{ fontSize:10.5, fontWeight:700, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace", flexShrink:0 }}>{fmtC(p.value)}</span>
+                                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background: sc.bg || 'rgba(107,114,128,0.1)', color: sc.color, border:`1px solid ${sc.color}30`, whiteSpace:'nowrap', flexShrink:0 }}>{sc.label || p.status}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* ── Pipeline Dashboard ── */}
+        {tab === 'pipeline' && (
+          <div style={{ paddingTop: 20 }}>
+
+            {/* Conversion Funnel */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize:10,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1,marginBottom:12 }}>Conversion Funnel — click any stage to filter</div>
+              <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
+                {pipelineStats.stageData.map(s => (
+                  <div key={s.key}
+                    onClick={() => {
+                      if (s.key === 'PENDING') { setStatusFilter('PENDING_L1'); setTab('quotes'); }
+                      else { setStatusFilter(s.count > 0 ? s.key : ''); setTab('quotes'); }
+                    }}
+                    style={{ flex:'1 1 110px',background:'var(--card)',border:`1px solid ${s.color}30`,borderTop:`3px solid ${s.color}`,borderRadius:12,padding:'16px 14px',cursor:'pointer',transition:'all 0.12s',userSelect:'none' }}
+                    onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow=`0 4px 16px ${s.color}20`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='none';}}
+                  >
+                    <div style={{ fontSize:20,marginBottom:6 }}>{s.icon}</div>
+                    <div style={{ fontSize:10,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:8 }}>{s.label}</div>
+                    <div style={{ fontSize:26,fontWeight:900,color:s.color,lineHeight:1,letterSpacing:'-0.8px' }}>{s.count}</div>
+                    {s.value > 0 && <div style={{ fontSize:11,fontWeight:700,color:'var(--muted)',marginTop:5,fontFamily:"'JetBrains Mono','Courier New',monospace" }}>{fmtC(s.value)}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Win Rate + 6-Month Trend + Top Clients */}
+            <div style={{ display:'grid',gridTemplateColumns:'200px 1fr 1fr',gap:16,marginBottom:16 }}>
+
+              {/* Win Rate donut */}
+              <div style={{ background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:'20px 18px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12 }}>
+                <div style={{ position:'relative',width:84,height:84 }}>
+                  <svg width="84" height="84" viewBox="0 0 84 84">
+                    <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="10"/>
+                    <circle cx="42" cy="42" r="34" fill="none" stroke="#16a34a" strokeWidth="10"
+                      strokeDasharray={`${2*Math.PI*34 * pipelineStats.winRate/100} ${2*Math.PI*34 * (1-pipelineStats.winRate/100)}`}
+                      strokeDashoffset={2*Math.PI*34*0.25}
+                      strokeLinecap="round"
+                      style={{ transition:'stroke-dasharray 0.6s ease' }}/>
+                    <text x="42" y="46" textAnchor="middle" fill="#16a34a" fontSize="16" fontWeight="900" fontFamily="monospace">{pipelineStats.winRate}%</text>
+                  </svg>
+                </div>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontWeight:800,fontSize:14,marginBottom:3 }}>Win Rate</div>
+                  <div style={{ fontSize:11,color:'var(--muted)' }}>{fmtC(wonValue)} won</div>
+                  <div style={{ fontSize:11,color:'var(--muted)' }}>{fmtC(totalValue)} pipeline</div>
+                </div>
+              </div>
+
+              {/* 6-Month Trend */}
+              <div style={{ background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:'18px 18px' }}>
+                <div style={{ fontSize:10,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1,marginBottom:14 }}>6-Month Quote Volume</div>
+                <div style={{ display:'flex',alignItems:'flex-end',gap:8,height:90 }}>
+                  {pipelineStats.months.map(m => (
+                    <div key={`${m.year}-${m.month}`} style={{ flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4 }}>
+                      {m.count > 0 && (
+                        <div style={{ fontSize:8,fontWeight:700,color:'#0d9488',fontFamily:'monospace' }}>{m.count}</div>
+                      )}
+                      <div style={{ width:'100%',borderRadius:'4px 4px 0 0',background: m.value > 0 ? '#0d9488' : 'var(--border)',height:Math.max(4,(m.value/pipelineStats.maxMonthValue)*80),minHeight:m.value>0?10:4,opacity:m.value>0?1:0.3,transition:'height 0.4s ease' }} />
+                      <div style={{ fontSize:9,color:'var(--muted)',fontWeight:600 }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop:10,display:'flex',justifyContent:'space-between',fontSize:11,borderTop:'1px solid var(--border)',paddingTop:8 }}>
+                  <span style={{ color:'var(--muted)' }}>{pipelineStats.months.reduce((s,m)=>s+m.count,0)} quotes in 6 months</span>
+                  <span style={{ fontWeight:800,color:'#0d9488' }}>{fmtC(pipelineStats.months.reduce((s,m)=>s+m.value,0))}</span>
+                </div>
+              </div>
+
+              {/* Top Clients */}
+              <div style={{ background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:'18px 18px' }}>
+                <div style={{ fontSize:10,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1,marginBottom:14 }}>Top Clients by Value</div>
+                {pipelineStats.topClients.length === 0 ? (
+                  <div style={{ color:'var(--muted)',fontSize:12,textAlign:'center',paddingTop:20 }}>No data yet</div>
+                ) : pipelineStats.topClients.map((c,i) => (
+                  <div key={c.name} style={{ display:'flex',alignItems:'center',gap:10,marginBottom:11 }}>
+                    <div style={{ width:22,height:22,borderRadius:6,background:'linear-gradient(135deg,#0f766e,#0d9488)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:10,fontWeight:800,flexShrink:0 }}>{i+1}</div>
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ fontWeight:700,fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{c.name}</div>
+                      <div style={{ fontSize:10,color:'var(--muted)' }}>{c.count} quote{c.count!==1?'s':''}</div>
+                    </div>
+                    <div style={{ fontSize:12,fontWeight:800,color:'#0d9488',flexShrink:0,fontFamily:'monospace' }}>{fmtC(c.value)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Expiring Soon + Recent Activity */}
+            <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16 }}>
+
+              {/* Expiring Soon */}
+              <div style={{ background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:'18px 18px' }}>
+                <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14 }}>
+                  <div style={{ fontSize:10,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1 }}>⚡ Expiring in 7 Days</div>
+                  {pipelineStats.expiringQuotes.length > 0 && (
+                    <span style={{ fontSize:10,fontWeight:800,color:'#d97706',background:'rgba(217,119,6,0.1)',padding:'2px 8px',borderRadius:20,border:'1px solid rgba(217,119,6,0.3)' }}>{pipelineStats.expiringQuotes.length}</span>
+                  )}
+                </div>
+                {pipelineStats.expiringQuotes.length === 0 ? (
+                  <div style={{ textAlign:'center',paddingTop:20,fontSize:28,marginBottom:8 }}>
+                    <div>🎉</div>
+                    <div style={{ fontSize:12,color:'var(--muted)',marginTop:8 }}>No quotes expiring soon</div>
+                  </div>
+                ) : pipelineStats.expiringQuotes.map(q => {
+                  const days = Math.ceil((new Date(q.valid_till) - new Date()) / 86400000);
+                  const urgent = days <= 2;
+                  return (
+                    <div key={q.id} onClick={() => setViewQuote(q)} style={{ marginBottom:8,cursor:'pointer',padding:'10px 12px',background:urgent?'rgba(220,38,38,0.04)':'rgba(217,119,6,0.04)',borderRadius:9,border:`1px solid ${urgent?'rgba(220,38,38,0.15)':'rgba(217,119,6,0.15)'}`,transition:'background 0.1s' }}
+                      onMouseEnter={e=>e.currentTarget.style.background=urgent?'rgba(220,38,38,0.09)':'rgba(217,119,6,0.09)'}
+                      onMouseLeave={e=>e.currentTarget.style.background=urgent?'rgba(220,38,38,0.04)':'rgba(217,119,6,0.04)'}
+                    >
+                      <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center' }}>
+                        <div style={{ fontWeight:700,fontSize:12 }}>{q.client_name}</div>
+                        <div style={{ fontSize:11,fontWeight:800,color:urgent?'#dc2626':'#d97706',fontFamily:'monospace' }}>{days === 0 ? 'TODAY' : `${days}d left`}</div>
+                      </div>
+                      <div style={{ fontSize:11,color:'var(--muted)',marginTop:2 }}>{q.quote_number} · {fmtC(q.grand_total)} · {q.project_name || '—'}</div>
+                    </div>
+                  );
+                })}
+                {pipelineStats.expiringQuotes.length > 0 && (
+                  <button onClick={() => { setTab('quotes'); }} style={{ ...SEC_BTN,width:'100%',marginTop:8,justifyContent:'center',color:'#d97706',borderColor:'rgba(217,119,6,0.3)',display:'flex',alignItems:'center' }}>View All Quotes →</button>
+                )}
+              </div>
+
+              {/* Recent Activity */}
+              <div style={{ background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:'18px 18px' }}>
+                <div style={{ fontSize:10,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1,marginBottom:14 }}>Recent Quotes</div>
+                {pipelineStats.recentQuotes.length === 0 ? (
+                  <div style={{ color:'var(--muted)',fontSize:12,textAlign:'center',paddingTop:20 }}>No quotes yet</div>
+                ) : pipelineStats.recentQuotes.map(q => {
+                  const sc = Q_STATUS[q.status] || Q_STATUS.DRAFT;
+                  return (
+                    <div key={q.id} onClick={() => setViewQuote(q)} style={{ display:'flex',alignItems:'center',gap:10,marginBottom:12,cursor:'pointer',padding:'8px 10px',borderRadius:8,transition:'background 0.1s' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                    >
+                      <div style={{ width:6,height:6,borderRadius:'50%',background:sc.color,flexShrink:0 }} />
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontWeight:700,fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{q.client_name}</div>
+                        <div style={{ fontSize:10,color:'var(--muted)' }}>{q.quote_number}{q.project_name ? ` · ${q.project_name}` : ''}</div>
+                      </div>
+                      <StatusBadge status={q.status} cfg={Q_STATUS} />
+                      <div style={{ fontSize:12,fontWeight:800,color:'#0d9488',flexShrink:0,fontFamily:'monospace' }}>{fmtC(q.grand_total)}</div>
+                    </div>
+                  );
+                })}
+                <button onClick={() => setTab('quotes')} style={{ ...SEC_BTN,width:'100%',marginTop:4,justifyContent:'center',display:'flex',alignItems:'center' }}>View All Quotes →</button>
+              </div>
+            </div>
+
+          </div>
+        )}
+
       </div>
 
       {/* AI CTA */}
       <div style={{ padding: '0 32px 24px' }}>
-        <div className="ai-cta-bar">
-          <span>💬 Ask AI about your design pipeline, quote win rates, or pending approvals</span>
-          <button className="ai-cta-btn" onClick={() => onGoChat && onGoChat('Analyse my design quote pipeline and flag any quotes needing attention')}>Ask AI</button>
+        <div className="ai-cta-bar no-print" onClick={() => onGoChat && onGoChat('Analyse my design quote pipeline — flag quotes needing attention, expiring soon, or at risk of being lost')}>
+          💬 Ask AI about your design pipeline, quote win rates, or pending approvals →
         </div>
       </div>
 

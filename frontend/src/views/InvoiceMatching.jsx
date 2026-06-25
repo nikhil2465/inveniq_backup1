@@ -21,9 +21,10 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+const IM_BADGE_CLS = { MATCHED: 'bg', DISCREPANCY: 'br', PENDING_REVIEW: 'ba', APPROVED: 'bi', PAID: 'bb' };
 function StatusBadge({ status }) {
   const s = STATUS_STYLES[status] || STATUS_STYLES.PENDING_REVIEW;
-  return <span className="im-badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>;
+  return <span className={`bdg ${IM_BADGE_CLS[status] || 'bsl'}`}>{s.label}</span>;
 }
 
 function MatchValueBar({ po, grn, invoice }) {
@@ -399,6 +400,26 @@ export default function InvoiceMatching({ onGoChat, dbStatus, period }) {
           </div>
         ))}
       </div>
+
+      {/* AI Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '⚠', text: `${kpiCards[1].value} discrepancies unresolved — ${fmtCurrency(totalDiscrepancy)} at stake`, q: `I have ${kpiCards[1].value} invoice matching discrepancies worth ${fmtCurrency(totalDiscrepancy)}. For each discrepancy type — price variance, quantity shortfall, and damaged goods — what is the correct accounting and documentation process? How do I issue debit notes, raise disputes, and close them within 30 days?` },
+            { icon: '⏳', text: `${kpiCards[0].value} invoices pending AP review — cash flow risk if delayed`, q: `I have ${kpiCards[0].value} invoices awaiting AP approval. What is the risk of payment delays — supplier credit hold, late payment penalties, or missed early payment discounts? How do I speed up the three-way match process to keep AP cycle time under 7 days?` },
+            { icon: '📊', text: `Match rate ${kpiCards[3].value} — what's causing the gap to 100%?`, q: `My invoice match rate is ${kpiCards[3].value}. In a hardware and sanitary fittings business, what are the most common causes of match failures — incorrect PO references, GRN quantity errors, or supplier billing errors? Give me a checklist to prevent each type.` },
+            { icon: '🏭', text: 'Which suppliers consistently fail 3-way match — renegotiate terms', q: 'Analyse my invoice matching data and identify which suppliers have the most frequent discrepancies. For each problematic supplier, what should I include in a vendor quality agreement to reduce AP disputes? At what point should I require prepayment or LC instead of credit terms?' },
+            { icon: '🤖', text: 'Automate invoice matching — reduce manual AP effort by 60%', q: 'What is the best approach to automate invoice matching in a distribution business? What document standards (OCR, PDF invoices, e-invoicing) reduce manual keying errors? How do I set up tolerance rules for automatic approval vs manual review so my AP team focuses only on genuine discrepancies?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="im-filters">
         <input className="im-search-input" placeholder="Search match#, supplier, invoice, PO…" value={search} onChange={e => setSearch(e.target.value)} />

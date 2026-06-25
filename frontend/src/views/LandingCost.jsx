@@ -194,6 +194,26 @@ export default function LandingCost({ dbStatus, period, onGoChat }) {
         <div className="kpi-card sb"><div className="kl">Avg Overhead</div><div className="kv">{sheets.length ? fmtP(sheets.reduce((s, sh) => s + (sh.margin_impact_pct || 0), 0) / sheets.length) : '—'}</div><div className="ks">Charges as % of base cost</div></div>
       </div>
 
+      {/* AI Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '💰', text: `Avg overhead ${sheets.length ? (sheets.reduce((s,sh) => s+(sh.margin_impact_pct||0),0)/sheets.length).toFixed(1) : 0}% of base cost — what's the benchmark?`, q: `My average landing cost overhead is ${sheets.length ? (sheets.reduce((s,sh) => s+(sh.margin_impact_pct||0),0)/sheets.length).toFixed(1) : 0}% of base cost. In the hardware and building materials distribution industry in India, what is the expected landing cost overhead percentage? Which charge heads — labour, duty, freight, unloading — are typically the biggest and how do I negotiate each down?` },
+            { icon: '🚛', text: 'Freight charges analysis — which routes are overpriced per kg?', q: 'Analyse my landing cost sheets by operation type and supplier location. Which inbound freight routes have the highest cost per kg or per unit? What minimum order quantity would justify hiring a full truck vs LCL? How do I benchmark my freight rates against market rates for this month?' },
+            { icon: '📦', text: 'Consolidate inbound shipments — reduce landing cost by 15–25%', q: 'Looking at my purchase orders and landing cost sheets, which suppliers could I consolidate into combined shipments? What is the saving from combining 2-3 small orders into one full truck load? What coordination is needed with suppliers and transporters to make consolidation work in practice?' },
+            { icon: '🏭', text: 'Unloading and labour charges — are we overpaying per unit?', q: 'My landing cost sheets include labour and unloading charges. What is the typical unloading cost per unit for hardware fittings, sanitary ware, and plywood in a warehouse operation? How do I compare our current rates against market rates? What changes — shift optimisation, equipment hire, vendor renegotiation — will reduce unloading cost?' },
+            { icon: '📊', text: 'True cost per unit after landing — are all products still profitable?', q: 'Using my landing cost sheets, what is the true landed cost per unit for my key product categories after all charges? Compared to our sell price, are there any products where the margin after landed cost is below 10%? Which products need sell price adjustment or supplier renegotiation to remain profitable?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="lc-tabs">
         {['Sheets', 'New Sheet'].map(t => (

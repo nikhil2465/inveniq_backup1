@@ -110,6 +110,7 @@ export default function CounterPOS({ onGoChat, dbStatus }) {
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerSaved, setCustomerSaved] = useState(false);
   const [billNo] = useState(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`);
+  const [sessionStats, setSessionStats] = useState({ bills: 0, revenue: 0, items: 0, topCat: '' });
   const searchRef = useRef(null);
 
   // Fetch catalog from DB
@@ -189,6 +190,15 @@ export default function CounterPOS({ onGoChat, dbStatus }) {
     if (!cart.length) { showToast('Add items to cart first', 'warning'); return; }
     setSaleStatus('SOLD');
     setShowReceipt(true);
+    const cats = cart.map(i => i.category);
+    const freq = cats.reduce((m, c) => { m[c] = (m[c] || 0) + 1; return m; }, {});
+    const topCat = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+    setSessionStats(s => ({
+      bills: s.bills + 1,
+      revenue: s.revenue + grandTotal,
+      items: s.items + cart.reduce((a, b) => a + b.qty, 0),
+      topCat: topCat || s.topCat,
+    }));
   };
 
   const handleCancel = () => {
@@ -234,9 +244,9 @@ export default function CounterPOS({ onGoChat, dbStatus }) {
   };
 
   const saleStatusBadge = saleStatus === 'SOLD'
-    ? { label: 'Sold', bg: '#d1fae5', color: '#065f46' }
+    ? { label: 'Sold', bg: 'var(--g5)', color: 'var(--g2)' }
     : saleStatus === 'CANCELLED'
-    ? { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' }
+    ? { label: 'Cancelled', bg: 'var(--r5)', color: 'var(--r2)' }
     : { label: 'Draft', bg: 'var(--s3)', color: 'var(--text3)' };
 
   return (
@@ -260,6 +270,41 @@ export default function CounterPOS({ onGoChat, dbStatus }) {
           <button className="btn-primary" onClick={handleNewSale}>＋ New Sale</button>
         </div>
       </div>
+
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">✨ AI</span>
+          <button className="ai-opp-chip" onClick={() => onGoChat('What are my top 5 best-selling products at the counter this month? Which items have the highest margin and should I push more at POS?')}>📦 Best sellers & margins</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat(`I have ${catalog.filter(p => p.stock < 10).length} products with low stock in my POS catalog. Which ones are fast-moving and need urgent reorder before I run out at the counter?`)}>⚠ Low stock — {catalog.filter(p => p.stock < 10).length} items critical</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('What is the average basket size at my counter POS? Are customers buying single items or bundled sets? How can I increase average order value?')}>🛒 Basket size analysis</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('Which product categories — hardware fittings, sanitary CP, kitchen systems, or door hardware — have the highest counter sales? Where should I stock more for walk-in customers?')}>📊 Category mix insights</button>
+          <button className="ai-opp-chip" onClick={() => onGoChat('What upsell and cross-sell combinations work best at the hardware counter? For example, if someone buys hinges, what else should I suggest to increase the bill value?')}>💡 Upsell combinations</button>
+        </div>
+      )}
+
+      {/* ── Session Summary Bar (shows after first bill) ── */}
+      {sessionStats.bills > 0 && (
+        <div style={{ display: 'flex', gap: 10, padding: '10px 14px', background: 'var(--s2)', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>Today's Session:</span>
+          {[
+            { l: 'Bills', v: sessionStats.bills, c: 'var(--b2)' },
+            { l: 'Revenue', v: `₹${sessionStats.revenue.toLocaleString('en-IN')}`, c: 'var(--g2)' },
+            { l: 'Items Sold', v: sessionStats.items, c: 'var(--purple)' },
+            { l: 'Top Category', v: sessionStats.topCat || '—', c: 'var(--a2)' },
+          ].map(s => (
+            <div key={s.l} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', borderRadius: 6, padding: '5px 10px', border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text3)' }}>{s.l}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, color: s.c, fontSize: 13 }}>{s.v}</span>
+            </div>
+          ))}
+          {onGoChat && (
+            <button className="btn-secondary" style={{ marginLeft: 'auto', fontSize: 11, padding: '4px 10px' }}
+              onClick={() => onGoChat(`I've completed ${sessionStats.bills} counter sales today worth ₹${sessionStats.revenue.toLocaleString('en-IN')} for ${sessionStats.items} items. The top category is ${sessionStats.topCat}. Analyse my today's session — what trends do you see and what should I focus on for the remaining hours?`)}>
+              ✨ Analyse Session
+            </button>
+          )}
+        </div>
+      )}
 
       {!showReceipt ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 14 }}>
@@ -381,6 +426,40 @@ export default function CounterPOS({ onGoChat, dbStatus }) {
                   </div>
                 )}
 
+                {/* Smart Cross-sell suggestions */}
+                {cart.length > 0 && (() => {
+                  const cartCatSet = new Set(cart.map(i => i.category));
+                  const csMap = {
+                    'Door Hardware':      ['Hardware Fittings', 'Kitchen Systems'],
+                    'Hardware Fittings':  ['Door Hardware'],
+                    'Kitchen Systems':    ['Hardware Fittings'],
+                    'Sanitary CP':        ['Sanitary Ware'],
+                    'Sanitary Ware':      ['Sanitary CP'],
+                  };
+                  const sugCats = [...new Set([...cartCatSet].flatMap(c => csMap[c] || []).filter(c => !cartCatSet.has(c)))];
+                  const sugg = catalog.filter(p => sugCats.includes(p.category) && p.stock > 0).slice(0, 3);
+                  if (!sugg.length) return null;
+                  return (
+                    <div style={{ background: 'var(--s2)', borderRadius: 7, border: '1px solid var(--border)', padding: '8px 10px', marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', marginBottom: 6 }}>💡 Customers also buy</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {sugg.map(p => (
+                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                              <div style={{ fontSize: 9, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>₹{p.price}/{p.unit}</div>
+                            </div>
+                            <button onClick={() => addToCart(p)}
+                              style={{ padding: '3px 9px', borderRadius: 5, border: '1px solid var(--brand)', background: 'transparent', color: 'var(--brand)', fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              + Add
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Discount */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <label style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'nowrap' }}>Discount %</label>
@@ -472,7 +551,7 @@ export default function CounterPOS({ onGoChat, dbStatus }) {
                 {customerPhone && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{customerPhone}</div>}
               </div>
             </div>
-            <table className="tbl" style={{ marginBottom: 12 }}>
+            <table className="tbl tbl-striped" style={{ marginBottom: 12 }}>
               <thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
               <tbody>
                 {cart.map(i => (

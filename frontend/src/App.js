@@ -60,6 +60,7 @@ const InvoiceMatching      = lazy(() => import('./views/InvoiceMatching'));
 const DesignQuoteBuilder   = lazy(() => import('./views/DesignQuoteBuilder'));
 const Invoices             = lazy(() => import('./views/Invoices'));
 const Reports              = lazy(() => import('./views/Reports'));
+const Costing              = lazy(() => import('./views/Costing'));
 const VIEW_TITLES = {
   credit:      'Credit Management — Limits · Overdue · PDC Tracking',
   pos:         'Counter POS — Walk-In Sales & Fast Billing',
@@ -98,6 +99,7 @@ const VIEW_TITLES = {
   designquote:  'Design Quote Studio — Hardware & Sanitary Fit-Out BOQ · Architect Fee Proposals',
   invoices:     'Sales Invoices — GST-Compliant Billing · IGST/CGST/SGST · Payments',
   reports:      'Management Reports — Sales · GST Summary · AR Aging · Stock Valuation',
+  costing:      'Costing Intelligence — Product & Project Cost Analysis · Margin Optimisation',
 };
 
 export default function App() {
@@ -215,7 +217,7 @@ export default function App() {
       b: 'catalog',   k: 'credit',    v: 'pos',         y: 'schemes',
       j: 'about',     g: 'warehouse', '1': 'tally',
       '2': 'salesreturn', '3': 'landingcost', '4': 'distributor', '5': 'damage',
-      '6': 'pr', '7': 'qc', '8': 'invoicematch', '9': 'invoices', '0': 'reports', '-': 'designquote',
+      '6': 'pr', '7': 'qc', '8': 'invoicematch', '9': 'invoices', '0': 'reports', '-': 'designquote', '=': 'costing',
     };
     let active = false;
     let goTimer = null;
@@ -227,6 +229,14 @@ export default function App() {
     const handler = (e) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return;
       if (e.target?.contentEditable === 'true') return;
+      // Ctrl+K / ⌘K → open AI assistant panel
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setAiOpen(prev => !prev);
+        setAiMin(false);
+        exitGoMode();
+        return;
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'Escape') { exitGoMode(); return; }
       if (e.key === 'g' && !active) {
@@ -339,23 +349,15 @@ export default function App() {
       />
       <PWAInstallBanner />
       {goMode && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(15,23,42,.92)', color: '#e2e8f0', padding: '10px 20px',
-          borderRadius: 10, fontSize: 13, fontFamily: 'var(--mono)', fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 10, zIndex: 9999,
-          boxShadow: '0 8px 32px rgba(0,0,0,.4)', backdropFilter: 'blur(8px)',
-          animation: 'goModeIn .15s ease',
-        }}>
-          <span style={{ background: '#16a34a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#fff' }}>g</span>
-          Type a key · h=home · i=inventory · s=sales · c=customers · f=finance · x=AI · e=settings · b=catalog · k=credit · v=pos · y=schemes · g=warehouse · 1=tally · 2=sales-ret · 3=landing · 4=dist · 5=damage · 6=pr · 7=qc · 8=invoice-match · 9=invoices · 0=reports · -=design-quote
-          <span style={{ marginLeft: 8, opacity: .6, fontSize: 11 }}>· Press <strong>?</strong> for full shortcuts</span>
+        <div className="go-mode-badge">
+          <span style={{ background: '#16a34a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#fff', flexShrink: 0 }}>g</span>
+          <span>Type a key to navigate · Press <strong>?</strong> for full shortcut list</span>
         </div>
       )}
-      <main className={`main${aiOpen && !aiMin ? ' sp-open' : ''}${aiOpen && aiMin ? ' sp-min' : ''}`}>
+      <main className={`main${aiOpen && !aiMin ? ' sp-open' : ''}${aiOpen && aiMin ? ' sp-min' : ''}`} data-view={activeView}>
         <Suspense fallback={<PageLoader />}>
           <ErrorBoundary key={activeView} onReset={() => setActiveView('overview')}>
-            {activeView === 'overview'    && <Overview     onGoChat={goChat} dbStatus={dbStatus} onNavigate={setActiveView} period={period} />}
+            {activeView === 'overview'    && <Overview     onGoChat={goChat} dbStatus={dbStatus} onNavigate={setActiveView} period={period} allowedModules={authState.allowedModules} />}
             {activeView === 'inventory'   && <Inventory    onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'deadstock'   && <DeadStock    onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'inward'      && <Inward       onGoChat={goChat} dbStatus={dbStatus} period={period} />}
@@ -398,6 +400,7 @@ export default function App() {
             {activeView === 'designquote'  && <DesignQuoteBuilder   onGoChat={goChat} dbStatus={dbStatus} currentUser={authState.user} />}
             {activeView === 'invoices'     && <Invoices             onGoChat={goChat} dbStatus={dbStatus} period={period} />}
             {activeView === 'reports'      && <Reports              onGoChat={goChat} dbStatus={dbStatus} period={period} />}
+            {activeView === 'costing'      && <Costing              onGoChat={goChat} dbStatus={dbStatus} period={period} />}
           </ErrorBoundary>
         </Suspense>
       </main>

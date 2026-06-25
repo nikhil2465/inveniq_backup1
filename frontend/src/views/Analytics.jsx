@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { baseOpts, scaleXY, createChart, gradientFill } from '../utils/chartHelpers';
+import { baseOpts, scaleXY, createChart, gradientFill, axisColors } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
 import PageLoader from '../components/PageLoader';
 import { useAutoRefresh } from '../utils/useAutoRefresh';
@@ -17,6 +17,40 @@ function TrendArrow({ pct }) {
 const CTYPE_COLORS = { Developer: '#0f766e', Contractor: '#2563eb', 'Interior Firm': '#d97706', Architect: '#7c3aed', Retailer: '#9ca3af' };
 const SUP_STATUS   = { preferred: 'bg', good: 'bb', review: 'br' };
 
+const STATIC_COHORTS = [
+  { cohort: 'Jan 2026', size: 14, rev_L: [2.1, 1.6, 1.3, 1.1, 0.9, 0.8] },
+  { cohort: 'Feb 2026', size: 11, rev_L: [1.6, 1.2, 1.0, 0.8, 0.7, null] },
+  { cohort: 'Mar 2026', size: 18, rev_L: [2.7, 2.2, 1.8, 1.5, null, null] },
+  { cohort: 'Apr 2026', size: 9,  rev_L: [1.3, 1.0, 0.8, null, null, null] },
+  { cohort: 'May 2026', size: 13, rev_L: [2.0, 1.5, null, null, null, null] },
+  { cohort: 'Jun 2026', size: 16, rev_L: [2.4, null, null, null, null, null] },
+];
+
+const STATIC_COHORT_RET = [
+  { cohort: 'Jan 2026', size: 14, ret: [100, 78, 64, 57, 50, 43] },
+  { cohort: 'Feb 2026', size: 11, ret: [100, 73, 61, 54, 46, null] },
+  { cohort: 'Mar 2026', size: 18, ret: [100, 82, 70, 59, null, null] },
+  { cohort: 'Apr 2026', size: 9,  ret: [100, 75, 64, null, null, null] },
+  { cohort: 'May 2026', size: 13, ret: [100, 78, null, null, null, null] },
+  { cohort: 'Jun 2026', size: 16, ret: [100, null, null, null, null, null] },
+];
+
+const STATIC_BASKET = [
+  { product_a: 'HPL Sheet 1mm',     product_b: 'Edge Band PVC',       support: 42, confidence: 78, lift: 2.3, orders: 38 },
+  { product_a: 'Gypsum Board',      product_b: 'Grid Runner System',  support: 38, confidence: 82, lift: 2.6, orders: 35 },
+  { product_a: 'Aluminium Section', product_b: 'Glass Panel 8mm',     support: 31, confidence: 65, lift: 1.9, orders: 28 },
+  { product_a: 'PVC Foam Board',    product_b: 'HPL Sheet 1mm',       support: 28, confidence: 61, lift: 1.7, orders: 25 },
+  { product_a: 'WPC Door Frame',    product_b: 'Door Hinge SS',       support: 25, confidence: 72, lift: 2.1, orders: 23 },
+  { product_a: 'Acrylic Sheet 3mm', product_b: 'LED Strip Profile',   support: 22, confidence: 58, lift: 1.6, orders: 20 },
+];
+
+function retColor(pct) {
+  if (pct >= 80) return { bg: '#15803d1a', color: '#15803d', fw: 700 };
+  if (pct >= 60) return { bg: '#0f766e1a', color: '#0f766e', fw: 600 };
+  if (pct >= 40) return { bg: '#d977061a', color: '#d97706', fw: 600 };
+  return { bg: '#dc26261a', color: '#dc2626', fw: 600 };
+}
+
 export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
   const [d, setD]             = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +59,7 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
   const catRef  = useRef(null);
   const custRef = useRef(null);
   const margRef = useRef(null);
+  const cohRef  = useRef(null);
 
   const fetchData = useCallback(() => {
     fetch(`/api/analytics?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
@@ -38,6 +73,7 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
     const destroy = [];
 
     if (revRef.current) {
+      const ac = axisColors();
       destroy.push(createChart(revRef, {
         type: 'line',
         data: {
@@ -52,8 +88,8 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
           ...baseOpts(),
           scales: {
             x: scaleXY().x,
-            y:  { type: 'linear', position: 'left',  ticks: { callback: v => '₹' + v + 'L', color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#e2e6ec' } },
-            y2: { type: 'linear', position: 'right', ticks: { callback: v => v + '%',        color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' } }, grid: { drawOnChartArea: false } },
+            y:  { type: 'linear', position: 'left',  ticks: { callback: v => '₹' + v + 'L', color: ac.tick, font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: ac.grid } },
+            y2: { type: 'linear', position: 'right', ticks: { callback: v => v + '%',        color: ac.tick, font: { size: 9, family: 'JetBrains Mono' } }, grid: { drawOnChartArea: false } },
           },
         },
       }));
@@ -93,6 +129,34 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
 
     return () => destroy.forEach(fn => fn && fn());
   }, [d, tab]);
+
+  useEffect(() => {
+    if (!cohRef.current || tab !== 'cohort') return;
+    const ac = axisColors();
+    const labels = ['M+0', 'M+1', 'M+2', 'M+3', 'M+4', 'M+5'];
+    const colors = ['#0f766e', '#2563eb', '#d97706', '#9333ea', '#ea580c', '#06b6d4'];
+    const datasets = STATIC_COHORTS.map((c, i) => ({
+      label: c.cohort,
+      data: c.rev_L,
+      backgroundColor: colors[i] + 'AA',
+      borderColor: colors[i],
+      borderWidth: 1.5,
+      borderRadius: 4,
+      skipNull: true,
+    }));
+    const destroy = createChart(cohRef, {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        ...baseOpts(),
+        scales: {
+          x: scaleXY().x,
+          y: { ticks: { callback: v => '₹' + v + 'L', color: ac.tick, font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: ac.grid } },
+        },
+      },
+    });
+    return () => destroy && destroy();
+  }, [tab]);
 
   if (loading) return <PageLoader />;
 
@@ -150,9 +214,29 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
         ))}
       </div>
 
+      {/* ── AI Analytics Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '📊', text: `Revenue at ${fmtPct(kpis.achievement_pct ?? 88)} of target — what's driving the gap`, q: `My revenue achievement is ${fmtPct(kpis.achievement_pct ?? 88)} of target this month. Analyse what is causing the gap — is it volume, pricing, customer mix, or product mix? Give me 3 specific actions to close the gap this month.` },
+            { icon: '📉', text: `Working capital at ${kpis.working_capital_days ?? 48}d — compress below 40 days`,    q: `My working capital cycle is ${kpis.working_capital_days ?? 48} days, target is <40 days. Which of the three levers — Days Inventory Outstanding (DIO), Days Sales Outstanding (DSO), Days Payable Outstanding (DPO) — should I attack first and what specific actions reduce each?` },
+            { icon: '🏆', text: 'Win rate vs industry avg — what my quote loss patterns reveal',                q: `My quote win rate is ${fmtPct(kpis.quote_win_rate_pct ?? 38)} vs industry average of 35–45%. Analyse the likely loss reasons — is it pricing, speed, product match, or follow-up? What are the top 3 things I should change in my quoting process?` },
+            { icon: '👥', text: 'Customer type mix — rebalance toward highest-margin segments',                 q: 'Analyse my customer type revenue mix. Which segments (Contractors, Interior Firms, Developers, Retailers, Architects) give the best margin and volume combination? How should I shift my sales effort allocation?' },
+            { icon: '🔄', text: `Stock turnover at ${kpis.stock_turnover_x ?? '4.2'}× — identify capital inefficiency`,  q: `My stock turnover is ${kpis.stock_turnover_x ?? '4.2'}× against a target of 5×. Which specific SKUs are tying up the most capital with the slowest turns? How much capital can I free up if I hit the 5× target?` },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Tab bar ── */}
       <div className="vtabs">
-        {[['overview','Overview'],['products','Products'],['customers','Customers'],['suppliers','Suppliers']].map(([id, label]) => (
+        {[['overview','Overview'],['products','Products'],['customers','Customers'],['suppliers','Suppliers'],['cohort','Cohort & Basket']].map(([id, label]) => (
           <button key={id} className={`vtab${tab === id ? ' active' : ''}`} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -218,7 +302,7 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
                 { key: 'units_sold', label: 'Units Sold' }, { key: 'trend_pct', label: 'YoY %' },
               ]} />
             </div>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr><th>#</th><th>Product</th><th>Category</th><th>Revenue</th><th>Margin ₹</th><th>Margin %</th><th>Units Sold</th><th>YoY Growth</th></tr>
               </thead>
@@ -247,7 +331,7 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
                 { key: 'yoy_growth', label: 'YoY Growth %' },
               ]} />
             </div>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr><th>Category</th><th>Revenue</th><th>Orders</th><th>Avg Margin</th><th>YoY Growth</th></tr>
               </thead>
@@ -281,7 +365,7 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
                 { key: 'status', label: 'Status' },
               ]} />
             </div>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr><th>#</th><th>Customer</th><th>Type</th><th>Revenue</th><th>Orders</th><th>Avg Order</th><th>Margin</th><th>Outstanding</th><th>YoY</th><th>Status</th></tr>
               </thead>
@@ -327,7 +411,7 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
                 { key: 'quality_score', label: 'Quality Score' }, { key: 'overall_rating', label: 'Rating' },
               ]} />
             </div>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr><th>Supplier</th><th>Category</th><th>Orders</th><th>Value</th><th>On-Time %</th><th>Price vs Mkt</th><th>Quality</th><th>Rating</th></tr>
               </thead>
@@ -359,6 +443,215 @@ export default function Analytics({ onGoChat, dbStatus, period = 'MTD' }) {
           {onGoChat && (
             <div className="ai-cta-bar" onClick={() => onGoChat('Which suppliers need immediate review? Who is costing me the most in late deliveries and price premium?')}>
               ✨ Ask AI: Supplier risk analysis →
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Cohort & Basket tab ── */}
+      {tab === 'cohort' && (
+        <div>
+
+          {/* Cohort Revenue chart */}
+          <div className="gl g55" style={{ marginBottom: 12 }}>
+            <div className="card">
+              <div className="ch">
+                <div>
+                  <div className="ctit">Revenue by Acquisition Cohort</div>
+                  <div className="csub">₹L earned per month after first purchase (M+0 = acquisition month)</div>
+                </div>
+                {onGoChat && (
+                  <button className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
+                    onClick={() => onGoChat('Analyse my customer cohort revenue curves. Which cohorts are the most valuable over time? What does the drop-off pattern tell me about my retention strategy and where should I invest to improve LTV?')}>
+                    ✨ AI Insight
+                  </button>
+                )}
+              </div>
+              <div style={{ height: 210, position: 'relative' }}><canvas ref={cohRef} /></div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {STATIC_COHORTS.map((c, i) => {
+                  const clrs = ['#0f766e','#2563eb','#d97706','#9333ea','#ea580c','#06b6d4'];
+                  const totalL = c.rev_L.filter(Boolean).reduce((a, b) => a + b, 0);
+                  return (
+                    <div key={c.cohort} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, background: 'var(--s4)', borderRadius: 4, padding: '3px 8px' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: clrs[i], flexShrink: 0 }} />
+                      <span style={{ color: 'var(--text2)' }}>{c.cohort}</span>
+                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--text)', marginLeft: 3 }}>₹{totalL.toFixed(1)}L</span>
+                      <span style={{ color: 'var(--text3)', fontSize: 10 }}>· {c.size} cust</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Cohort health KPIs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { l: 'Avg M+3 Retention', v: '57%', sub: 'Across Jan–Mar cohorts', color: 'var(--g2)', q: 'My average M+3 customer retention is 57%. What is a good benchmark for building materials B2B? What specific actions — loyalty programs, account reviews, proactive outreach — would most improve this?' },
+                { l: 'Best Cohort LTV',   v: '₹2.2L/cust', sub: 'Mar 2026 (18 customers)', color: 'var(--b2)', q: 'My March 2026 cohort has the highest LTV at ₹2.2L per customer over 4 months. What characterises this cohort — what did I do differently in March that made them more valuable? How do I replicate it?' },
+                { l: 'Churn Risk Window', v: 'M+1 to M+2', sub: 'Biggest retention drop', color: 'var(--a2)', q: 'The biggest customer churn happens between M+1 and M+2 in my cohort data. What interventions at the M+1 mark (30-day check-in, special offer, account review) would most effectively prevent churn? Give me a concrete 30-day playbook.' },
+                { l: 'Cohort Rev MTD',    v: '₹8.1L', sub: 'All 6 cohorts combined', color: 'var(--purple)', q: 'My combined cohort revenue this month is ₹8.1L from 6 acquisition cohorts. How should I think about cohort-based revenue forecasting for the next 3 months? What acquisition rate do I need to hit my target?' },
+              ].map(k => (
+                <div key={k.l} className="card" style={{ padding: '10px 14px', cursor: onGoChat ? 'pointer' : 'default' }}
+                  onClick={() => onGoChat?.(k.q)}>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{k.l}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--mono)', color: k.color }}>{k.v}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{k.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Retention heatmap */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
+            <div className="ch" style={{ padding: '12px 15px', marginBottom: 0, borderBottom: '1px solid var(--s4)' }}>
+              <div>
+                <div className="ctit">Customer Retention Heatmap</div>
+                <div className="csub">% of customers from each cohort still active N months later</div>
+              </div>
+              {onGoChat && (
+                <button className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
+                  onClick={() => onGoChat('My customer retention heatmap shows a typical drop from 100% at M+0 to around 43–50% by M+5. Is this healthy for a B2B building materials distributor? What are the 3 highest-ROI initiatives to improve retention from M+1 onwards?')}>
+                  ✨ AI Analysis
+                </button>
+              )}
+            </div>
+            <div style={{ overflowX: 'auto', padding: '14px 15px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'var(--mono)' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: 'var(--text3)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>Cohort</th>
+                    <th style={{ textAlign: 'center', padding: '6px 8px', color: 'var(--text3)', fontWeight: 600, fontSize: 11 }}>Size</th>
+                    {['M+0','M+1','M+2','M+3','M+4','M+5'].map(m => (
+                      <th key={m} style={{ textAlign: 'center', padding: '6px 12px', color: 'var(--text3)', fontWeight: 600, fontSize: 11 }}>{m}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {STATIC_COHORT_RET.map((row, ri) => (
+                    <tr key={row.cohort} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--text)', fontSize: 12, whiteSpace: 'nowrap' }}>{row.cohort}</td>
+                      <td style={{ padding: '8px 8px', textAlign: 'center', color: 'var(--text2)', fontSize: 11 }}>{row.size}</td>
+                      {row.ret.map((pct, mi) => {
+                        if (pct === null) return <td key={mi} style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--border)', fontSize: 11 }}>—</td>;
+                        const { bg, color, fw } = retColor(pct);
+                        return (
+                          <td key={mi} style={{ padding: '8px 12px', textAlign: 'center', background: bg, borderRadius: 4 }}>
+                            <span style={{ color, fontWeight: fw, fontSize: 12 }}>{pct}%</span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 11, color: 'var(--text2)' }}>
+                {[['#15803d','≥80% Excellent'],['#0f766e','60–79% Good'],['#d97706','40–59% Watch'],['#dc2626','<40% At Risk']].map(([c, l]) => (
+                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: c + '33', border: `1px solid ${c}`, flexShrink: 0 }} />
+                    {l}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Market basket analysis */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
+            <div className="ch" style={{ padding: '12px 15px', marginBottom: 0, borderBottom: '1px solid var(--s4)' }}>
+              <div>
+                <div className="ctit">Market Basket Analysis — Frequently Bought Together</div>
+                <div className="csub">Product pairs with high co-purchase frequency · Lift &gt;1 = products bought together more than by chance</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <ExportButton rows={STATIC_BASKET} filename="market_basket" columns={[
+                  { key: 'product_a', label: 'Product A' }, { key: 'product_b', label: 'Product B' },
+                  { key: 'support', label: 'Support %' }, { key: 'confidence', label: 'Confidence %' },
+                  { key: 'lift', label: 'Lift' }, { key: 'orders', label: 'Co-Orders' },
+                ]} />
+                {onGoChat && (
+                  <button className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
+                    onClick={() => onGoChat('Based on my market basket analysis, which product pairs should I bundle for promotions? How can I use this co-purchase data to increase average order value through cross-selling and bundle pricing strategies?')}>
+                    ✨ Bundle Strategy
+                  </button>
+                )}
+              </div>
+            </div>
+            <table className="tbl tbl-striped">
+              <thead>
+                <tr>
+                  <th>Product A</th>
+                  <th>→ Often with</th>
+                  <th>Support</th>
+                  <th>Confidence</th>
+                  <th>Lift</th>
+                  <th>Co-Orders</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {STATIC_BASKET.map((row, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600, fontSize: 13 }}>{row.product_a}</td>
+                    <td style={{ color: 'var(--text2)', fontSize: 12 }}>{row.product_b}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 50, height: 5, borderRadius: 3, background: 'var(--s4)', overflow: 'hidden' }}>
+                          <div style={{ width: `${row.support}%`, height: '100%', background: 'var(--blue)', borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 600, color: 'var(--text2)' }}>{row.support}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: row.confidence >= 70 ? 'var(--g2)' : row.confidence >= 60 ? 'var(--a2)' : 'var(--text)' }}>
+                        {row.confidence}%
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{
+                        background: row.lift >= 2.0 ? '#15803d1a' : row.lift >= 1.7 ? '#d977061a' : '#9ca3af1a',
+                        color: row.lift >= 2.0 ? '#15803d' : row.lift >= 1.7 ? '#d97706' : '#6b7280',
+                        fontFamily: 'var(--mono)', fontWeight: 700, borderRadius: 4, padding: '2px 7px', fontSize: 12,
+                      }}>{row.lift}×</span>
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{row.orders}</td>
+                    <td>
+                      {onGoChat && (
+                        <button className="btn-secondary" style={{ fontSize: 11, padding: '3px 8px' }}
+                          onClick={() => onGoChat(`Customers who buy "${row.product_a}" also buy "${row.product_b}" with ${row.confidence}% confidence and a lift of ${row.lift}×. Design a bundle promotion strategy — what discount structure, packaging, and sales pitch would work best to increase combined sales?`)}>
+                          Bundle
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* AI insights strip for cohort tab */}
+          {onGoChat && (
+            <div className="ai-opp-strip">
+              <span className="ai-opp-label">Cohort AI</span>
+              {[
+                { icon: '📊', text: 'Which cohort has the highest 6-month LTV — replicate the conditions', q: 'Analyse my customer cohort LTV data. Which acquisition cohort has the highest 6-month lifetime value? What were the market conditions, products sold, and sales behaviors in that month that drove higher LTV? Give me a plan to replicate those conditions.' },
+                { icon: '🔄', text: 'M+1 churn spike — design a 30-day retention campaign', q: 'My cohort data shows the biggest customer drop-off happens between M+0 and M+1. Design a concrete 30-day post-acquisition retention campaign: what to communicate, when, through which channel, and what offer to make to maximize the chance of a second purchase.' },
+                { icon: '🛒', text: 'HPL + Edge Band bundle — pricing and margin impact', q: 'HPL Sheet and Edge Band PVC are bought together in 78% of HPL purchases (lift 2.3×). Design a bundle pricing strategy: what discount to offer, whether to create a SKU bundle, how to train sales staff to cross-sell, and the expected margin impact at different discount levels.' },
+                { icon: '🏷️', text: 'Top 3 bundle opportunities to increase avg order value', q: 'From my market basket analysis, identify the top 3 product bundle opportunities with the highest potential to increase average order value. For each, give me: the bundle composition, recommended pricing, expected AOV lift, and the sales pitch.' },
+                { icon: '📈', text: 'Forecast next 3 months revenue from existing cohorts', q: 'Using my cohort retention curves (M+1=~75%, M+2=~64%, M+3=~56%), forecast the expected revenue from my existing customer base for the next 3 months. How much new customer acquisition revenue do I need to hit my growth targets?' },
+              ].map((o, i) => (
+                <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+                  <span>{o.icon}</span>
+                  <span>{o.text}</span>
+                  <span className="ai-opp-chip-arrow">→</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {onGoChat && (
+            <div className="ai-cta-bar" onClick={() => onGoChat('Give me a full cohort health report: which customer segments have the best retention, which product bundles drive repeat purchases, and what are my top 3 actions to improve LTV this quarter?')}>
+              ✨ Ask AI: Full cohort & LTV health report →
             </div>
           )}
         </div>

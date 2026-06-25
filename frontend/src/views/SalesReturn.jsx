@@ -6,21 +6,14 @@ import { exportToCsv } from '../utils/exportUtils';
 const fmt  = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtN = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 4 });
 
+const SR_BADGE_CLS = {
+  PROCESSED: 'bb', CREDIT_APPLIED: 'bg', PARTIAL: 'ba', OPEN: 'bb', APPLIED: 'bg',
+};
+const SR_BADGE_LABEL = {
+  PROCESSED: 'Processed', CREDIT_APPLIED: 'Credit Applied', PARTIAL: 'Partial', OPEN: 'Open', APPLIED: 'Applied',
+};
 function StatusBadge({ status }) {
-  const map = {
-    PROCESSED:     { bg: '#eff6ff', color: '#1d4ed8' },
-    CREDIT_APPLIED:{ bg: '#f0fdf4', color: '#15803d' },
-    PARTIAL:       { bg: '#fefce8', color: '#a16207' },
-    OPEN:          { bg: '#eff6ff', color: '#1d4ed8' },
-    APPLIED:       { bg: '#f0fdf4', color: '#15803d' },
-  };
-  const s = map[status] || { bg: 'var(--s3)', color: 'var(--text3)' };
-  return (
-    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-      background: s.bg, color: s.color, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-      {status}
-    </span>
-  );
+  return <span className={`bdg ${SR_BADGE_CLS[status] || 'bsl'}`}>{SR_BADGE_LABEL[status] || status}</span>;
 }
 
 function EntryRow({ dr, cr, amount, narration }) {
@@ -264,6 +257,26 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
         </div>
       </div>
 
+      {/* AI Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '📋', text: `${openCN} open credit notes totalling ${fmt(openBalance)} — collect or adjust`, q: `I have ${openCN} open credit notes with a total balance of ${fmt(openBalance)}. What is the best process to apply these credit notes — against future invoices, cash refund, or direct adjustment? How do I ensure each credit note is cleared within 30 days and doesn't create reconciliation issues at month end?` },
+            { icon: '🔴', text: 'High-damage returns — reduce by fixing packaging before dispatch', q: 'What percentage of my sales returns are due to damage in transit vs customer rejection vs wrong supply? For damage-related returns in hardware and sanitary fittings, what packaging standards and carrier instructions will reduce the return rate? How do I build this into my dispatch SOP?' },
+            { icon: '💰', text: `${fmt(totalCredit)} in credit issued — GST reversal and accounting treatment`, q: `I have issued ${fmt(totalCredit)} in total sales return credit. What is the correct GST treatment for sales returns in India — do I issue a credit note, reverse the original GST, or adjust in the next GSTR-1 filing? What documents are required for a valid GST credit note under the GST Act?` },
+            { icon: '📊', text: 'Which customers return the most — analyse patterns and set policy', q: 'Analyse my sales return patterns by customer and by product. Which customers have the highest return rate? Are returns concentrated in specific product categories? At what return rate should I review a customer account or tighten dispatch quality checks for their orders?' },
+            { icon: '🔄', text: 'Returned-good stock — restore to inventory or write off? Decision guide', q: 'For sales returns marked as GOOD condition, what is the process to restore them to sellable inventory — QC inspection, relabelling, system update? For PARTIALLY_DAMAGED or FULLY_DAMAGED returns, when should I repair vs write off? What is the accounting entry for each outcome?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
         {TABS.map(t => <button key={t} style={tabStyle(t)} onClick={() => setTab(t)}>{t}</button>)}
@@ -282,9 +295,9 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
             </thead>
             <tbody>
               {returns.map(r => {
-                const condColor = r.return_condition === 'GOOD' ? { bg: '#f0fdf4', color: '#15803d', label: '✓ Good' }
-                  : r.return_condition === 'PARTIALLY_DAMAGED' ? { bg: '#fffbeb', color: '#92400e', label: '⚠ Partial' }
-                  : r.return_condition === 'FULLY_DAMAGED' ? { bg: '#fef2f2', color: '#dc2626', label: '✗ Damaged' }
+                const condColor = r.return_condition === 'GOOD' ? { bg: 'var(--g5)', color: 'var(--g2)', label: '✓ Good' }
+                  : r.return_condition === 'PARTIALLY_DAMAGED' ? { bg: 'var(--a5)', color: 'var(--a2)', label: '⚠ Partial' }
+                  : r.return_condition === 'FULLY_DAMAGED' ? { bg: 'var(--r5)', color: 'var(--r2)', label: '✗ Damaged' }
                   : { bg: 'var(--s3)', color: 'var(--text3)', label: '—' };
                 return (
                 <React.Fragment key={r.return_id}>
@@ -293,7 +306,7 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--brand)' }}>{r.return_id}</td>
                     <td>
                       <div style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.invoice_id}</div>
-                      {r.so_number && <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#7c3aed' }}>{r.so_number}</div>}
+                      {r.so_number && <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--purple)' }}>{r.so_number}</div>}
                       {r.dc_number && <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{r.dc_number}</div>}
                     </td>
                     <td style={{ fontWeight: 600, fontSize: 13 }}>{r.customer_name}</td>
@@ -325,7 +338,7 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
                         {r.return_condition !== 'GOOD' && onNavigate && (
                           <button
                             onClick={() => onNavigate('damage')}
-                            style={{ fontSize: 9, padding: '2px 6px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', color: '#dc2626', fontWeight: 700 }}>
+                            style={{ fontSize: 9, padding: '2px 6px', background: 'var(--r5)', border: '1px solid var(--r4)', borderRadius: 4, cursor: 'pointer', color: 'var(--r2)', fontWeight: 700 }}>
                             Record Dmg
                           </button>
                         )}
@@ -365,13 +378,13 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
                                 </div>
                                 {(r.so_number || r.dc_number) && (
                                   <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 11, flexWrap: 'wrap' }}>
-                                    {r.so_number && <span><strong style={{ color: '#7c3aed' }}>SO:</strong> {r.so_number}</span>}
+                                    {r.so_number && <span><strong style={{ color: 'var(--purple)' }}>SO:</strong> {r.so_number}</span>}
                                     {r.dc_number && <span><strong>DC:</strong> {r.dc_number}</span>}
                                   </div>
                                 )}
                                 {r.return_condition && r.return_condition !== 'GOOD' && (
-                                  <div style={{ marginTop: 8, background: '#fef2f2', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
-                                    <strong style={{ color: '#dc2626' }}>Condition:</strong>{' '}
+                                  <div style={{ marginTop: 8, background: 'var(--r5)', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                                    <strong style={{ color: 'var(--r2)' }}>Condition:</strong>{' '}
                                     {r.return_condition.replace(/_/g, ' ')}
                                     {r.damage_qty && <> · <strong>{r.damage_qty} damaged</strong></>}
                                     {r.damage_desc && <> · {r.damage_desc}</>}
@@ -550,9 +563,9 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 8 }}>Return Condition *</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
-                  { val: 'GOOD',              label: '✓ Good',           sub: 'Back to inventory', bg: '#f0fdf4', border: '#86efac', color: '#15803d' },
-                  { val: 'PARTIALLY_DAMAGED', label: '⚠ Partial Damage', sub: 'Some pcs damaged',  bg: '#fffbeb', border: '#fcd34d', color: '#92400e' },
-                  { val: 'FULLY_DAMAGED',     label: '✗ Fully Damaged',  sub: 'Damage bucket',     bg: '#fef2f2', border: '#fca5a5', color: '#dc2626' },
+                  { val: 'GOOD',              label: '✓ Good',           sub: 'Back to inventory', bg: 'var(--g5)', border: 'var(--g4)', color: 'var(--g2)' },
+                  { val: 'PARTIALLY_DAMAGED', label: '⚠ Partial Damage', sub: 'Some pcs damaged',  bg: 'var(--a5)', border: 'var(--a4)', color: 'var(--a2)' },
+                  { val: 'FULLY_DAMAGED',     label: '✗ Fully Damaged',  sub: 'Damage bucket',     bg: 'var(--r5)', border: 'var(--r4)', color: 'var(--r2)' },
                 ].map(opt => (
                   <button key={opt.val} type="button"
                     onClick={() => setReturnCondition(opt.val)}
@@ -568,8 +581,8 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
 
             {/* Damage details — shown for PARTIALLY_DAMAGED or FULLY_DAMAGED */}
             {returnCondition !== 'GOOD' && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', marginBottom: 10 }}>Damage Details</div>
+              <div style={{ background: 'var(--r5)', border: '1px solid var(--r4)', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--r2)', marginBottom: 10 }}>Damage Details</div>
                 {returnCondition === 'PARTIALLY_DAMAGED' && (
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Damaged Qty (of returned qty)</label>
@@ -587,28 +600,28 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
               </div>
             )}
 
-            {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
-            {submitError && <div style={{ color: 'var(--r2)', fontSize: 13, background: '#fef2f2', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitError}</div>}
+            {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: 'var(--g5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
+            {submitError && <div style={{ color: 'var(--r2)', fontSize: 13, background: 'var(--r5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitError}</div>}
 
             {showDamageNudge && (
-              <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ background: 'var(--a5)', border: '1px solid var(--a4)', borderRadius: 8, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 20 }}>⚠️</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e' }}>Damage detected in return reason</div>
-                  <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--a2)' }}>Damage detected in return reason</div>
+                  <div style={{ fontSize: 12, color: 'var(--a2)', marginTop: 2 }}>
                     Record this as a Transit Damage entry to initiate insurance claim and update accounting.
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {onNavigate && (
                     <button
-                      style={{ background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 14px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                      style={{ background: 'var(--amber)', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 14px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
                       onClick={() => { setShowDamageNudge(false); onNavigate('damage'); }}>
                       Record Damage →
                     </button>
                   )}
                   <button
-                    style={{ background: 'transparent', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, padding: '7px 10px', fontSize: 11, cursor: 'pointer' }}
+                    style={{ background: 'transparent', color: 'var(--a2)', border: '1px solid var(--a4)', borderRadius: 6, padding: '7px 10px', fontSize: 11, cursor: 'pointer' }}
                     onClick={() => setShowDamageNudge(false)}>
                     Dismiss
                   </button>
@@ -627,7 +640,7 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
           {/* Preview panel */}
           <div>
             {preview?.error ? (
-              <div className="card" style={{ padding: 20, border: '1px solid var(--r3)', background: '#fef2f2' }}>
+              <div className="card" style={{ padding: 20, border: '1px solid var(--r3)', background: 'var(--r5)' }}>
                 <div style={{ color: 'var(--r2)', fontWeight: 600, fontSize: 13 }}>⚠ Validation Error</div>
                 <div style={{ color: 'var(--r2)', fontSize: 12, marginTop: 6 }}>{preview.error}</div>
               </div>
@@ -642,7 +655,7 @@ export default function SalesReturn({ dbStatus, period, onGoChat, onNavigate }) 
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>{preview.origUom} sold</div>
                     </div>
                     <div style={{ fontSize: 22 }}>→</div>
-                    <div style={{ textAlign: 'center', flex: 1, background: '#fef2f2', borderRadius: 8, padding: '12px 8px' }}>
+                    <div style={{ textAlign: 'center', flex: 1, background: 'var(--r5)', borderRadius: 8, padding: '12px 8px' }}>
                       <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--r2)' }}>{returnQty}</div>
                       <div style={{ fontSize: 11, color: 'var(--r2)' }}>{returnUom} returned</div>
                     </div>

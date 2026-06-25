@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Quote Approval — InvenIQ</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #059669;
+    --brand-dark: #047857;
+    --red: #dc2626;
+    --amber: #d97706;
+    --text: #111827;
+    --text2: #4b5563;
+    --text3: #9ca3af;
+    --border: #e5e7eb;
+    --surface: #ffffff;
+    --s2: #f9fafb;
+    --s3: #f3f4f6;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --radius: 10px;
+  }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 40%, #eff6ff 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 16px 64px;
+    color: var(--text);
+  }
+  .wrapper { width: 100%; max-width: 660px; }
+
+  /* ── Header ── */
+  .header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px;
+  }
+  .logo {
+    width: 42px; height: 42px; background: var(--brand);
+    border-radius: 12px; display: flex; align-items: center;
+    justify-content: center; color: #fff; font-weight: 900;
+    font-size: 18px; letter-spacing: -1px; flex-shrink: 0;
+  }
+  .logo-text { font-weight: 800; font-size: 20px; color: var(--brand-dark); letter-spacing: -0.5px; }
+  .logo-sub  { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 1px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 4px 32px rgba(0,0,0,.06);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .card-hd {
+    background: linear-gradient(135deg, #022c22 0%, #064e3b 55%, #059669 100%);
+    padding: 20px 24px;
+  }
+  .card-hd-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.55);
+    text-transform: uppercase; letter-spacing: 1px; font-family: var(--mono); margin-bottom: 6px; }
+  .card-hd-title { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+  .card-hd-sub   { font-size: 13px; color: rgba(255,255,255,.7); margin-top: 4px; }
+  .card-bd { padding: 24px; }
+
+  /* ── KPI row ── */
+  .kpi-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 20px; }
+  .kpi-cell {
+    background: var(--s2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .kpi-label { font-size: 9px; font-weight: 700; color: var(--text3);
+    text-transform: uppercase; letter-spacing: .6px; font-family: var(--mono); margin-bottom: 4px; }
+  .kpi-val { font-size: 18px; font-weight: 800; color: var(--text); }
+  .kpi-sub { font-size: 10px; color: var(--text3); margin-top: 3px; font-family: var(--mono); }
+
+  /* ── Sections ── */
+  .section-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--s3);
+    font-size: 13px;
+  }
+  .section-row:last-child { border-bottom: none; }
+  .section-name { font-weight: 600; color: var(--text); }
+  .section-meta { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+  .section-total { font-weight: 800; font-family: var(--mono); color: var(--text); }
+
+  /* ── Totals row ── */
+  .totals-box {
+    background: var(--s2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; margin-top: 16px;
+  }
+  .total-row { display: flex; justify-content: space-between;
+    font-size: 12px; color: var(--text2); padding: 3px 0; }
+  .total-row.grand { font-size: 17px; font-weight: 900; color: var(--brand);
+    border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px; }
+
+  /* ── Notes badge ── */
+  .notes-box {
+    background: #fefce8; border: 1px solid #fde68a;
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 12px; color: #92400e; margin-top: 14px;
+  }
+  .notes-box strong { display: block; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+
+  /* ── Status badge ── */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700; font-family: var(--mono);
+    padding: 3px 10px; border-radius: 20px; border: 1px solid;
+  }
+  .status-PENDING_L1, .status-PENDING_L2, .status-PENDING_L3
+    { color: #92400e; background: #fef3c7; border-color: #fcd34d; }
+  .status-DRAFT     { color: #374151; background: #f3f4f6; border-color: #d1d5db; }
+  .status-APPROVED  { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
+
+  /* ── Decision form ── */
+  .form-section { margin-top: 20px; }
+  .form-label { display: block; font-size: 11px; font-weight: 700; color: var(--text3);
+    text-transform: uppercase; letter-spacing: .6px; font-family: var(--mono); margin-bottom: 6px; }
+  .form-input {
+    width: 100%; padding: 10px 13px; border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 13px; color: var(--text);
+    background: var(--surface); font-family: inherit; outline: none;
+    transition: border-color .15s;
+  }
+  .form-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(5,150,105,.1); }
+  textarea.form-input { resize: vertical; min-height: 80px; }
+
+  /* ── Action buttons ── */
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 140px; padding: 14px 24px;
+    font-size: 14px; font-weight: 700; border-radius: 10px;
+    border: none; cursor: pointer; transition: all .15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-approve {
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(5,150,105,.3);
+  }
+  .btn-approve:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(5,150,105,.4); }
+  .btn-reject  {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(220,38,38,.25);
+  }
+  .btn-reject:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(220,38,38,.35); }
+
+  /* ── State overlays ── */
+  .state { text-align: center; padding: 48px 24px; }
+  .state-icon { font-size: 56px; margin-bottom: 16px; }
+  .state-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+  .state-sub { font-size: 14px; color: var(--text2); line-height: 1.6; max-width: 420px; margin: 0 auto; }
+  .state.success .state-title { color: var(--brand); }
+  .state.rejected .state-title { color: var(--red); }
+  .state.error   .state-title { color: var(--red); }
+  .state.expired .state-title { color: var(--amber); }
+
+  /* ── Spinner ── */
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid #e5e7eb;
+    border-top-color: var(--brand); border-radius: 50%;
+    animation: spin .7s linear infinite; margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Footer ── */
+  .footer { text-align: center; font-size: 11px; color: var(--text3);
+    font-family: var(--mono); margin-top: 20px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 520px) {
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+    .btn-row  { flex-direction: column; }
+    .card-hd-title { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">IQ</div>
+    <div>
+      <div class="logo-text">InvenIQ</div>
+      <div class="logo-sub">Design Quote Studio · Approval Portal</div>
+    </div>
+  </div>
+
+  <!-- Dynamic content -->
+  <div id="app"><div class="card"><div class="card-bd"><div class="state">
+    <div class="spinner"></div>
+    <div class="state-title" style="color:var(--text2)">Loading quote…</div>
+    <div class="state-sub">Fetching approval details, please wait.</div>
+  </div></div></div></div>
+
+  <div class="footer">This link is valid for 72 hours · One-time use · Powered by InvenIQ v3.7</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Helpers ── */
+  const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  const el  = id => document.getElementById(id);
+  const app = el('app');
+
+  function render(html) { app.innerHTML = html; }
+
+  function statusBadge(s) {
+    const labels = {
+      DRAFT: '📄 Draft', SENT: '📨 Sent',
+      PENDING_L1: '⏳ Pending L1', PENDING_L2: '⏳ Pending L2', PENDING_L3: '⏳ Pending L3',
+      APPROVED: '✅ Approved', REVISION: '✏️ Revision',
+      IN_PROGRESS: '🔨 In Progress', COMPLETED: '🎉 Completed', CANCELLED: '❌ Cancelled',
+    };
+    return `<span class="status-badge status-${s}">${labels[s] || s}</span>`;
+  }
+
+  /* ── Get token from URL ── */
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('token') || '';
+
+  if (!token) {
+    render(`<div class="card"><div class="card-bd"><div class="state error">
+      <div class="state-icon">🔗</div>
+      <div class="state-title">No approval token found</div>
+      <div class="state-sub">This link appears to be incomplete. Please use the link provided in the approval notification.</div>
+    </div></div></div>`);
+    return;
+  }
+
+  /* ── Fetch quote via token ── */
+  fetch('/api/design-quotes/token-review/' + encodeURIComponent(token))
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw { status: res.status, detail: data.detail || 'Unknown error' };
+      renderQuote(data);
+    })
+    .catch(err => {
+      const status = err.status || 0;
+      if (status === 404) {
+        render(`<div class="card"><div class="card-bd"><div class="state error">
+          <div class="state-icon">🚫</div>
+          <div class="state-title">Invalid approval link</div>
+          <div class="state-sub">This link is invalid or has never been generated. Please ask the architect to share a fresh approval link.</div>
+        </div></div></div>`);
+      } else if (status === 410) {
+        render(`<div class="card"><div class="card-bd"><div class="state expired">
+          <div class="state-icon">⏰</div>
+          <div class="state-title">Approval link expired</div>
+          <div class="state-sub">This link was valid for 72 hours and has now expired. Please ask the architect to generate a new approval link from InvenIQ Design Studio.</div>
+        </div></div></div>`);
+      } else if (status === 409) {
+        render(`<div class="card"><div class="card-bd"><div class="state expired">
+          <div class="state-icon">✅</div>
+          <div class="state-title">Already actioned</div>
+          <div class="state-sub">This approval link has already been used. Each link is single-use. If you need to make changes, please contact the architect to generate a new link.</div>
+        </div></div></div>`);
+      } else {
+        render(`<div class="card"><div class="card-bd"><div class="state error">
+          <div class="state-icon">⚠️</div>
+          <div class="state-title">Could not load quote</div>
+          <div class="state-sub">${err.detail || 'Network error — please check your connection and retry.'}</div>
+        </div></div></div>`);
+      }
+    });
+
+  /* ── Render quote details ── */
+  function renderQuote(q) {
+    const sections = (q.sections || []);
+    const sectionRows = sections.map(s =>
+      `<div class="section-row">
+        <div>
+          <div class="section-name">${s.section_name}</div>
+          <div class="section-meta">${s.item_count} item${s.item_count !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="section-total">${fmt(s.section_total)}</div>
+      </div>`
+    ).join('');
+
+    const notesHtml = q.notes
+      ? `<div class="notes-box"><strong>Designer Notes</strong>${q.notes}</div>` : '';
+    const termsHtml = q.payment_terms
+      ? `<div class="notes-box" style="background:#f0f9ff;border-color:#bae6fd;color:#0c4a6e;margin-top:8px"><strong>Payment Terms</strong>${q.payment_terms}</div>` : '';
+
+    render(`
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-hd-label">Interior Design Quotation · Approval Request</div>
+          <div class="card-hd-title">${q.quote_number || '—'}</div>
+          <div class="card-hd-sub">
+            ${q.client_name || '—'}
+            ${q.project_name ? ' · ' + q.project_name : ''}
+            ${q.project_type ? ' · ' + q.project_type : ''}
+          </div>
+        </div>
+        <div class="card-bd">
+
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
+            ${statusBadge(q.status)}
+            ${q.designer_name ? `<span style="font-size:12px;color:var(--text3);font-family:var(--mono)">By ${q.designer_name}${q.designer_company ? ' · ' + q.designer_company : ''}</span>` : ''}
+            ${q.created_at ? `<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">Created ${q.created_at}</span>` : ''}
+            ${q.valid_till ? `<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">Valid till ${q.valid_till}</span>` : ''}
+          </div>
+
+          <div class="kpi-row">
+            <div class="kpi-cell">
+              <div class="kpi-label">Subtotal (before GST)</div>
+              <div class="kpi-val" style="font-size:15px">${fmt(q.subtotal)}</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">GST (${q.gst_rate || 18}%)</div>
+              <div class="kpi-val" style="font-size:15px">${fmt(q.gst_amount)}</div>
+            </div>
+            <div class="kpi-cell" style="border-color:rgba(5,150,105,.3);background:rgba(5,150,105,.04)">
+              <div class="kpi-label" style="color:var(--brand)">Grand Total</div>
+              <div class="kpi-val" style="color:var(--brand)">${fmt(q.grand_total)}</div>
+              <div class="kpi-sub">${sections.length} room${sections.length !== 1 ? 's' : ''}</div>
+            </div>
+          </div>
+
+          ${sections.length > 0 ? `
+            <div style="margin-bottom:8px">
+              <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:10px">Room / Section Breakdown</div>
+              ${sectionRows}
+            </div>` : ''}
+
+          ${notesHtml}${termsHtml}
+
+          <!-- Decision form -->
+          <div class="form-section" id="decision-form">
+            <hr style="border:none;border-top:1px solid var(--border);margin:20px 0"/>
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text)">Your Decision</div>
+            <div style="margin-bottom:14px">
+              <label class="form-label" for="approver-name">Your Name *</label>
+              <input id="approver-name" class="form-input" type="text" placeholder="Enter your full name" autocomplete="name" />
+            </div>
+            <div>
+              <label class="form-label" for="approver-notes">Notes / Comments (optional)</label>
+              <textarea id="approver-notes" class="form-input" placeholder="Any conditions, revision requests, or remarks for the design team…"></textarea>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-approve" id="btn-approve" onclick="submitDecision('APPROVE')">
+                ✅ Approve Quote
+              </button>
+              <button class="btn btn-reject" id="btn-reject" onclick="submitDecision('REJECT')">
+                ↩ Return for Revision
+              </button>
+            </div>
+            <div id="form-error" style="display:none;margin-top:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:13px;color:#b91c1c;"></div>
+          </div>
+
+        </div>
+      </div>
+    `);
+  }
+
+  /* ── Submit decision ── */
+  window.submitDecision = function (action) {
+    const nameEl  = document.getElementById('approver-name');
+    const notesEl = document.getElementById('approver-notes');
+    const errEl   = document.getElementById('form-error');
+    const btnA    = document.getElementById('btn-approve');
+    const btnR    = document.getElementById('btn-reject');
+
+    const approverName  = (nameEl?.value || '').trim();
+    const approverNotes = (notesEl?.value || '').trim();
+
+    if (!approverName) {
+      errEl.style.display = 'block';
+      errEl.textContent = '⚠️ Please enter your name before submitting.';
+      nameEl?.focus();
+      return;
+    }
+    errEl.style.display = 'none';
+
+    // Confirm dialog
+    const verb = action === 'APPROVE' ? 'approve' : 'return for revision';
+    if (!confirm(`Are you sure you want to ${verb} this quote?\n\nThis action cannot be undone — each approval link is single-use.`)) return;
+
+    // Disable buttons
+    if (btnA) { btnA.disabled = true; btnA.innerHTML = '⏳ Processing…'; }
+    if (btnR) { btnR.disabled = true; }
+
+    fetch('/api/design-quotes/token-approve/' + encodeURIComponent(token), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, approver_name: approverName, notes: approverNotes }),
+    })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw { status: res.status, detail: data.detail || 'Request failed' };
+        renderResult(action, approverName, approverNotes);
+      })
+      .catch(err => {
+        if (btnA) { btnA.disabled = false; btnA.innerHTML = '✅ Approve Quote'; }
+        if (btnR) { btnR.disabled = false; }
+        const errEl2 = document.getElementById('form-error');
+        if (errEl2) {
+          errEl2.style.display = 'block';
+          errEl2.textContent = '⚠️ ' + (err.detail || 'Network error — please retry.');
+        }
+      });
+  };
+
+  /* ── Render success state ── */
+  function renderResult(action, name, notes) {
+    const isApprove = action === 'APPROVE';
+    const icon   = isApprove ? '🎉' : '↩️';
+    const title  = isApprove ? 'Quote Approved!' : 'Returned for Revision';
+    const cls    = isApprove ? 'success' : 'rejected';
+    const msg    = isApprove
+      ? `This interior design quotation has been approved by <strong>${name}</strong>. The design team has been notified and will proceed with the project.`
+      : `This quotation has been returned for revision by <strong>${name}</strong>. The design team will review your feedback and revise the quote.`;
+    render(`
+      <div class="card">
+        <div class="card-bd">
+          <div class="state ${cls}">
+            <div class="state-icon">${icon}</div>
+            <div class="state-title">${title}</div>
+            <div class="state-sub">${msg}</div>
+            ${notes ? `<div style="margin-top:16px;padding:12px 16px;background:var(--s3);border-radius:8px;font-size:13px;color:var(--text2);text-align:left"><strong style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Your Notes</strong>${notes}</div>` : ''}
+            <div style="margin-top:24px;padding:12px 16px;background:#f0fdf4;border-radius:8px;font-size:12px;color:#065f46;font-family:var(--mono)">
+              ✓ Decision recorded · ${new Date().toLocaleString('en-IN')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { baseOpts, createChart } from '../utils/chartHelpers';
+import { baseOpts, createChart, axisColors } from '../utils/chartHelpers';
 import DataSourceBadge from '../components/DataSourceBadge';
 import SkeletonView from '../components/SkeletonLoader';
 import { ExportButton } from '../utils/exportUtils';
@@ -200,72 +200,121 @@ function QuickCreatePOModal({ sku, onClose, onSuccess }) {
 }
 
 const STATIC_SKUS = [
-  { n: '18mm BWP (8×4)',  b: 'Century',  stk: 140, buy: 1420, sell: 1920, d: 8,   s30: 480, st: 'critical' },
-  { n: '12mm BWP (8×4)',  b: 'Century',  stk: 220, buy: 1080, sell: 1480, d: 11,  s30: 380, st: 'critical' },
-  { n: '12mm MR Plain',   b: 'Greenply', stk: 380, buy: 720,  sell: 940,  d: 18,  s30: 420, st: 'ok' },
-  { n: '18mm MR Plain',   b: 'Greenply', stk: 290, buy: 880,  sell: 1120, d: 22,  s30: 258, st: 'ok' },
-  { n: '8mm Flexi BWP',   b: 'Gauri',   stk: 110, buy: 640,  sell: 840,  d: 28,  s30: 72,  st: 'over' },
-  { n: '6mm Gurjan BWP',  b: 'National', stk: 186, buy: 960,  sell: 0,    d: 118, s30: 0,   st: 'dead' },
-  { n: '4mm MR Plain',    b: 'National', stk: 240, buy: 580,  sell: 0,    d: 97,  s30: 4,   st: 'dead' },
-  { n: '19mm Commercial', b: 'National', stk: 102, buy: 980,  sell: 0,    d: 91,  s30: 2,   st: 'dead' },
-  { n: '10mm Flexi BWP',  b: 'Gauri',   stk: 88,  buy: 1240, sell: 1580, d: 74,  s30: 14,  st: 'over' },
-  { n: 'Laminate Teak',   b: 'Supreme', stk: 165, buy: 340,  sell: 460,  d: 32,  s30: 128, st: 'ok' },
+  { n: '18mm BWP (8×4)',  b: 'Century',  stk: 140, buy: 1420, sell: 1920, d: 8,   s30: 480, st: 'critical', lead_days: 6 },
+  { n: '12mm BWP (8×4)',  b: 'Century',  stk: 220, buy: 1080, sell: 1480, d: 11,  s30: 380, st: 'critical', lead_days: 6 },
+  { n: '12mm MR Plain',   b: 'Greenply', stk: 380, buy: 720,  sell: 940,  d: 18,  s30: 420, st: 'ok',       lead_days: 7 },
+  { n: '18mm MR Plain',   b: 'Greenply', stk: 290, buy: 880,  sell: 1120, d: 22,  s30: 258, st: 'ok',       lead_days: 7 },
+  { n: '8mm Flexi BWP',   b: 'Gauri',   stk: 110, buy: 640,  sell: 840,  d: 28,  s30: 72,  st: 'over',     lead_days: 10 },
+  { n: '6mm Gurjan BWP',  b: 'National', stk: 186, buy: 960,  sell: 0,    d: 118, s30: 0,   st: 'dead',     lead_days: 8 },
+  { n: '4mm MR Plain',    b: 'National', stk: 240, buy: 580,  sell: 0,    d: 97,  s30: 4,   st: 'dead',     lead_days: 8 },
+  { n: '19mm Commercial', b: 'National', stk: 102, buy: 980,  sell: 0,    d: 91,  s30: 2,   st: 'dead',     lead_days: 8 },
+  { n: '10mm Flexi BWP',  b: 'Gauri',   stk: 88,  buy: 1240, sell: 1580, d: 74,  s30: 14,  st: 'over',     lead_days: 10 },
+  { n: 'Laminate Teak',   b: 'Supreme', stk: 165, buy: 340,  sell: 460,  d: 32,  s30: 128, st: 'ok',       lead_days: 5 },
 ];
+
+// ── ABC Classification Engine ─────────────────────────────────────────────────
+// A = top SKUs driving 0–80% of revenue, B = 80–95%, C = 95–100%
+function computeABC(skus) {
+  const withRev = skus.map(s => ({ ...s, _rev: (s.s30 ?? 0) * (s.sell > 0 ? s.sell : s.buy) }));
+  const totalRev = withRev.reduce((sum, s) => sum + s._rev, 0);
+  if (totalRev === 0) return skus.map(s => ({ ...s, abc: 'C', ss: 0, rop: 0 }));
+  const sorted = [...withRev].sort((a, b) => b._rev - a._rev);
+  let cum = 0;
+  const classMap = {};
+  sorted.forEach(s => {
+    cum += s._rev;
+    const pct = cum / totalRev;
+    classMap[s.n] = pct <= 0.80 ? 'A' : pct <= 0.95 ? 'B' : 'C';
+  });
+  return withRev.map(s => {
+    const dailyDemand = (s.s30 ?? 0) / 30;
+    const lead        = s.lead_days ?? 7;
+    const safetyStock = Math.ceil(dailyDemand * 1.5);          // 1.5× avg daily for safety buffer
+    const rop         = Math.ceil(dailyDemand * lead + safetyStock);
+    return { ...s, abc: s.st === 'dead' ? 'C' : (classMap[s.n] ?? 'C'), ss: safetyStock, rop };
+  });
+}
 
 export default function Inventory({ onGoChat, period = 'MTD' }) {
   const [filter, setFilter]       = useState('all');
+  const [abcFilter, setAbcFilter] = useState('all');
   const [search, setSearch]       = useState('');
   const [page, setPage]           = useState(1);
+  const [sort, setSort]           = useState({ field: null, dir: 'asc' });
   const PAGE_SIZE = 15;
   const [d, setD]                 = useState(null);
   const [loading, setLoading]     = useState(true);
   const [poPrefill, setPoPrefill] = useState(null);
+  const [showABC, setShowABC]     = useState(false);
   const mvRef = useRef(null);
 
   const fetchData = useCallback(() => {
-    setLoading(true);
     fetch(`/api/inventory?period=${encodeURIComponent(period)}`).then(r => r.json()).then(data => { setD(data); setLoading(false); }).catch(() => setLoading(false));
   }, [period]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setLoading(true); fetchData(); }, [fetchData]);
   useAutoRefresh(fetchData, 5 * 60_000);
-  useEffect(() => { setPage(1); }, [filter, search]);
+  useEffect(() => { setPage(1); }, [filter, abcFilter, search]);
 
   const src = d?.data_source ?? 'demo';
 
-  // Map API shape to internal shape
-  const allSkus = (d?.skus?.length ? d.skus : STATIC_SKUS).map(s => ({
-    n:   s.n ?? s.name,
-    b:   s.b ?? s.brand,
-    stk: s.stk ?? s.stock,
-    buy: s.buy ?? 0,
-    sell: s.sell ?? 0,
-    d:   s.d ?? s.days_cover,
-    s30: s.s30 ?? s.sales_30,
-    st:  s.st ?? s.status,
+  // Map API shape to internal shape, then compute ABC classification
+  const allSkusRaw = (d?.skus?.length ? d.skus : STATIC_SKUS).map(s => ({
+    n:        s.n ?? s.name,
+    b:        s.b ?? s.brand,
+    stk:      s.stk ?? s.stock,
+    buy:      s.buy ?? 0,
+    sell:     s.sell ?? 0,
+    d:        s.d ?? s.days_cover,
+    s30:      s.s30 ?? s.sales_30,
+    st:       s.st ?? s.status,
+    lead_days: s.lead_days ?? 7,
   }));
+  const allSkus = computeABC(allSkusRaw);
+
+  // ABC summary stats
+  const abcA = allSkus.filter(s => s.abc === 'A');
+  const abcB = allSkus.filter(s => s.abc === 'B');
+  const abcC = allSkus.filter(s => s.abc === 'C');
+  const totalRev = allSkus.reduce((sum, s) => sum + (s._rev ?? 0), 0);
+  const aRevPct  = totalRev > 0 ? Math.round(abcA.reduce((s, x) => s + (x._rev ?? 0), 0) / totalRev * 100) : 80;
+  const bRevPct  = totalRev > 0 ? Math.round(abcB.reduce((s, x) => s + (x._rev ?? 0), 0) / totalRev * 100) : 15;
 
   const chartData   = allSkus.slice(0, 8).map(s => s.s30 ?? 0);
   const chartLabels = allSkus.slice(0, 8).map(s => s.n ?? 'SKU');
 
   useEffect(() => {
     if (!d) return;
+    const c = axisColors();
     return createChart(mvRef, {
       type: 'bar',
       data: {
         labels: chartLabels,
         datasets: [{ data: chartData, backgroundColor: chartData.map((v, i) => allSkus[i]?.st === 'dead' ? '#dc2626cc' : allSkus[i]?.st === 'critical' ? '#0f766ecc' : '#2563ebcc'), borderWidth: 0, borderRadius: 3 }],
       },
-      options: baseOpts({ scales: { x: { grid: { color: '#e2e6ec' }, ticks: { color: '#4b5563', font: { size: 9 } } }, y: { grid: { color: '#e2e6ec' }, ticks: { color: '#9ca3af', font: { size: 9, family: 'JetBrains Mono' }, callback: v => v + ' sh' } } } }),
+      options: baseOpts({ scales: { x: { grid: { color: c.grid }, ticks: { color: c.label, font: { size: 9 } } }, y: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 9, family: 'JetBrains Mono' }, callback: v => v + ' sh' } } } }),
     });
   }, [d]);
 
   if (loading) return <SkeletonView />;
 
   const byStatus = filter === 'all' ? allSkus : allSkus.filter(s => s.st === filter);
+  const byABC    = abcFilter === 'all' ? byStatus : byStatus.filter(s => s.abc === abcFilter);
   const q = search.trim().toLowerCase();
-  const filtered = q ? byStatus.filter(s => (s.n ?? '').toLowerCase().includes(q) || (s.b ?? '').toLowerCase().includes(q)) : byStatus;
-  const list = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filtered = q ? byABC.filter(s => (s.n ?? '').toLowerCase().includes(q) || (s.b ?? '').toLowerCase().includes(q)) : byABC;
+  const sortedFiltered = sort.field ? [...filtered].sort((a, b) => {
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    const getV = (s) => {
+      if (sort.field === 'mg') return s.sell > 0 ? (s.sell - s.buy) / s.sell * 100 : 0;
+      return s[sort.field] ?? 0;
+    };
+    const va = getV(a), vb = getV(b);
+    return typeof va === 'string' ? va.localeCompare(vb) * mul : (va - vb) * mul;
+  }) : filtered;
+  const toggleSort = (field) => setSort(prev => ({ field, dir: prev.field === field && prev.dir === 'asc' ? 'desc' : 'asc' }));
+  const sic = (f) => sort.field === f ? (sort.dir === 'asc' ? '↑' : '↓') : '↕';
+  const stc = (f) => `sth${sort.field === f ? (sort.dir === 'asc' ? ' sth-asc' : ' sth-desc') : ''}`;
+  const list = sortedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const deadVal = d?.dead_stock_value ? (typeof d.dead_stock_value === 'number' ? `₹${d.dead_stock_value.toFixed(1)}L` : String(d.dead_stock_value)) : '₹4.2L';
 
@@ -306,6 +355,26 @@ export default function Inventory({ onGoChat, period = 'MTD' }) {
         ))}
       </div>
 
+      {/* ── AI Inventory Opportunity Chips ── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🔴', text: '18mm BWP: 8 days cover left — order 200 sheets today or lose ₹1.9L', q: '18mm BWP has only 8 days of stock cover and is my highest revenue SKU. How many sheets should I order, from which supplier, and what should I pay? Suggest EOQ and reorder point.' },
+            { icon: '💰', text: '₹4.2L dead stock — discount + bundle strategy to recover ₹3.1L',     q: 'I have ₹4.2L in dead stock (90+ days no movement). Design a liquidation plan — which SKUs to discount, bundle, or return to supplier to recover maximum cash this month.' },
+            { icon: '📊', text: 'Top 4 SKUs drive 78% revenue — maintain 45-day buffer for these',    q: 'My top 4 SKUs (A-grade) drive 78% of my revenue. What buffer stock level should I maintain for each, and how much working capital should I reserve for them?' },
+            { icon: '⚠',  text: 'Gauri freight ₹110/sheet kills 8mm Flexi margin — reprice or switch', q: 'Gauri freight cost of ₹110/sheet reduces 8mm Flexi BWP true margin from stated 24% to just 6.7%. Should I reprice, find a new supplier, or delist this SKU?' },
+            { icon: '📈', text: 'Laminate demand up 22% forecast — pre-buy 80 sheets before stock-out', q: 'Laminate Teak demand is forecast up 22% next 30 days but I only have 32 days cover. Should I pre-buy 80 sheets now? Calculate the risk vs cost of under-buying.' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: '12px' }}>
         <div className="ch">
           <div><div className="ctit">SKU-wise Stock Health — AI Classification</div></div>
@@ -317,50 +386,112 @@ export default function Inventory({ onGoChat, period = 'MTD' }) {
                 </div>
               ))}
             </div>
+            <div className="chip-row">
+              {[['all','ABC All'],['A','A Class'],['B','B Class'],['C','C Class']].map(([f, l]) => (
+                <div key={f} className={`chip${abcFilter === f ? ' sel' : ''}`} onClick={() => setAbcFilter(f)}>{l}</div>
+              ))}
+            </div>
             <input
               type="text"
               placeholder="Search SKU or brand…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)', outline: 'none', width: 180 }}
+              style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)', outline: 'none', width: 160 }}
             />
+            <button className="btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setShowABC(v => !v)}>
+              📊 ABC Analysis
+            </button>
             <ExportButton rows={allSkus} filename="inventory" columns={[
-              { key: 'n', label: 'SKU' }, { key: 'b', label: 'Brand' },
+              { key: 'n', label: 'SKU' }, { key: 'b', label: 'Brand' }, { key: 'abc', label: 'ABC Class' },
               { key: 'stk', label: 'Stock (sheets)' }, { key: 'buy', label: 'Buy Price' },
               { key: 'sell', label: 'Sell Price' }, { key: 'd', label: 'Days Cover' },
-              { key: 's30', label: '30d Sales' }, { key: 'st', label: 'Status' },
+              { key: 's30', label: '30d Sales' }, { key: 'ss', label: 'Safety Stock' },
+              { key: 'rop', label: 'Reorder Point' }, { key: 'st', label: 'Status' },
             ]} />
           </div>
         </div>
-        <table className="tbl">
+        {/* ABC Analysis Panel */}
+        {showABC && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, margin: '0 0 12px' }}>
+            {[
+              { cls: 'A', color: '#0f766e', bg: 'var(--g5,#f0fdf4)', border: 'var(--g4,#86efac)', skus: abcA, revPct: aRevPct, desc: 'Vital Few — protect at all costs', action: 'Maintain 45-day cover · Weekly reorder review · Premium supplier relations' },
+              { cls: 'B', color: 'var(--b2)', bg: 'var(--b5)', border: 'var(--b4)', skus: abcB, revPct: bRevPct, desc: 'Important — manage carefully', action: 'Monthly reorder review · Standard reorder quantities · Dual sourcing' },
+              { cls: 'C', color: '#9ca3af', bg: 'var(--s3)', border: 'var(--border)', skus: abcC, revPct: 100 - aRevPct - bRevPct, desc: 'Trivial Many — minimal investment', action: 'Quarterly review · Reduce safety stock · Consider delisting slow movers' },
+            ].map(ab => (
+              <div key={ab.cls} style={{ padding: 14, background: ab.bg, border: `1px solid ${ab.border}`, borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 22, fontWeight: 900, fontFamily: 'var(--mono)', color: ab.color }}>Class {ab.cls}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>{ab.desc}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)', color: ab.color }}>{ab.revPct}%</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)' }}>of revenue</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 6 }}>
+                  <strong>{ab.skus.length} SKU{ab.skus.length !== 1 ? 's' : ''}</strong> · {ab.skus.slice(0, 3).map(s => s.n.split(' ')[0]).join(', ')}{ab.skus.length > 3 ? '…' : ''}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.5 }}>{ab.action}</div>
+                {onGoChat && (
+                  <button style={{ marginTop: 8, fontSize: 10, padding: '3px 10px', background: 'transparent', border: `1px solid ${ab.border}`, borderRadius: 5, cursor: 'pointer', color: ab.color, fontWeight: 600, whiteSpace: 'nowrap' }}
+                    onClick={() => onGoChat(`I have ${ab.skus.length} Class ${ab.cls} SKUs that drive ${ab.revPct}% of my revenue: ${ab.skus.map(s => s.n).join(', ')}. What is the optimal stock strategy, reorder frequency, and supplier strategy for Class ${ab.cls} items in my type of business?`)}>
+                    ✨ AI Strategy
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <table className="tbl tbl-striped">
           <thead>
-            <tr><th>SKU / Product</th><th>Brand</th><th>In Stock</th><th>Buy Price</th><th>Sell Price</th><th>Margin</th><th>Days Cover</th><th>30d Sales</th><th>AI Status</th><th>Action</th></tr>
+            <tr>
+            <th className={stc('n')} onClick={() => toggleSort('n')}>SKU / Product<span className="sort-ic">{sic('n')}</span></th>
+            <th>Brand</th>
+            <th>Class</th>
+            <th className={stc('stk')} onClick={() => toggleSort('stk')}>In Stock<span className="sort-ic">{sic('stk')}</span></th>
+            <th className={stc('buy')} onClick={() => toggleSort('buy')}>Buy Price<span className="sort-ic">{sic('buy')}</span></th>
+            <th className={stc('sell')} onClick={() => toggleSort('sell')}>Sell Price<span className="sort-ic">{sic('sell')}</span></th>
+            <th className={stc('mg')} onClick={() => toggleSort('mg')}>Margin<span className="sort-ic">{sic('mg')}</span></th>
+            <th className={stc('d')} onClick={() => toggleSort('d')}>Days Cover<span className="sort-ic">{sic('d')}</span></th>
+            <th>Safety Stock</th>
+            <th>Reorder Point</th>
+            <th>AI Status</th>
+            <th>Action</th>
+          </tr>
           </thead>
           <tbody>
             {list.length === 0 && (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>No SKUs match the selected filters</td></tr>
+              <tr><td colSpan={12} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>No SKUs match the selected filters</td></tr>
             )}
             {list.map(s => {
               const mg = s.sell > 0 ? Math.round((s.sell - s.buy) / s.sell * 100) : 0;
               const sc = s.st === 'ok' ? 'bg' : s.st === 'critical' ? 'br' : s.st === 'dead' ? 'br' : 'ba';
               const sl = s.st === 'ok' ? 'HEALTHY' : s.st === 'critical' ? 'CRITICAL' : s.st === 'dead' ? 'DEAD STOCK' : 'OVERSTOCK';
+              const abcColor = s.abc === 'A' ? '#0f766e' : s.abc === 'B' ? '#2563eb' : '#9ca3af';
+              const belowROP = s.stk < (s.rop ?? 0) && s.st !== 'dead';
               return (
-                <tr key={s.n} style={{ cursor: onGoChat ? 'pointer' : 'default' }}
-                  onClick={() => onGoChat?.(`Stock status and reorder recommendation for ${s.n}`)}>
-                  <td style={{ fontWeight: 600 }}>{s.n}</td>
+                <tr key={s.n} style={{ cursor: onGoChat ? 'pointer' : 'default', background: belowROP ? 'rgba(220,38,38,.04)' : 'transparent' }}
+                  onClick={() => onGoChat?.(`Stock status, ABC class, safety stock, and reorder recommendation for ${s.n}`)}>
+                  <td style={{ fontWeight: 600 }}>{s.n}{belowROP && <span style={{ marginLeft: 5, fontSize: 9, color: '#dc2626', fontWeight: 700 }}>BELOW ROP</span>}</td>
                   <td style={{ fontSize: '10px', color: 'var(--text2)' }}>{s.b}</td>
+                  <td>
+                    <span style={{ fontSize: 11, fontWeight: 800, fontFamily: 'var(--mono)', color: abcColor, padding: '2px 6px', background: `${abcColor}18`, borderRadius: 4 }}>{s.abc}</span>
+                  </td>
                   <td style={{ fontFamily: 'var(--mono)' }}>{s.stk} sheets</td>
                   <td style={{ fontFamily: 'var(--mono)' }}>{s.buy > 0 ? '₹' + s.buy.toLocaleString() : '—'}</td>
                   <td style={{ fontFamily: 'var(--mono)' }}>{s.sell > 0 ? '₹' + s.sell.toLocaleString() : '—'}</td>
                   <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: mg > 25 ? '#16a34a' : mg > 15 ? '#d97706' : '#dc2626' }}>{mg > 0 ? mg + '%' : '—'}</td>
                   <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: s.d < 15 ? '#dc2626' : s.d < 30 ? '#d97706' : '#16a34a' }}>{s.d}d</td>
-                  <td style={{ fontFamily: 'var(--mono)' }}>{s.s30 > 0 ? s.s30 + ' sheets' : 'None'}</td>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>{s.ss > 0 ? s.ss + ' sh' : '—'}</td>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 600, color: s.stk < (s.rop ?? 0) && s.rop > 0 ? '#dc2626' : 'var(--text2)' }}>{s.rop > 0 ? s.rop + ' sh' : '—'}</td>
                   <td><span className={`bdg ${sc}`}>{sl}</span></td>
                   <td>
-                    {s.st === 'critical' ? (
+                    {s.st === 'critical' || belowROP ? (
                       <button
-                        onClick={e => { e.stopPropagation(); setPoPrefill(s); }}
-                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#fff', background: 'linear-gradient(135deg,#dc2626,#b91c1c)', border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font)' }}>
+                        className="btn-order-now"
+                        onClick={e => { e.stopPropagation(); setPoPrefill(s); }}>
                         📋 Order now
                       </button>
                     ) : (

@@ -5,22 +5,11 @@ import { exportToCsv } from '../utils/exportUtils';
 const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 // ── Status badge ──────────────────────────────────────────────────────────────
+const DMG_BADGE_CLS = {
+  CLAIM_RAISED: 'bb', PENDING: 'ba', INSURANCE_APPROVED: 'bg', RESOLVED: 'bg', SUPPLIER_RETURN_INITIATED: 'bo',
+};
 function StatusBadge({ status }) {
-  const map = {
-    CLAIM_RAISED:             { bg: '#eff6ff', color: '#1d4ed8' },
-    PENDING:                  { bg: '#fefce8', color: '#a16207' },
-    INSURANCE_APPROVED:       { bg: '#f0fdf4', color: '#15803d' },
-    RESOLVED:                 { bg: '#f0fdf4', color: '#15803d' },
-    SUPPLIER_RETURN_INITIATED:{ bg: '#fef3c7', color: '#92400e' },
-  };
-  const s = map[status] || { bg: 'var(--s3)', color: 'var(--text3)' };
-  return (
-    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-      background: s.bg, color: s.color, textTransform: 'uppercase', letterSpacing: '.5px',
-      whiteSpace: 'nowrap' }}>
-      {status?.replace(/_/g, ' ')}
-    </span>
-  );
+  return <span className={`bdg ${DMG_BADGE_CLS[status] || 'bsl'}`}>{status?.replace(/_/g, ' ')}</span>;
 }
 
 // ── Accounting entries block ──────────────────────────────────────────────────
@@ -393,6 +382,26 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
         </div>
       </div>
 
+      {/* AI Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '🔴', text: `${fmt(totalGrnValue)} in GRN damage — which suppliers cause the most?`, q: `My GRN damage value is ${fmt(totalGrnValue)} across ${grnDamages.length} incidents. Which suppliers are responsible for the most damage and what should I do about it — issue quality improvement notices, adjust incoming inspection procedures, or change packaging requirements in the PO terms?` },
+            { icon: '🚛', text: `${fmt(totalTransitValue)} in transit damage — which routes and carriers fail most?`, q: `My transit damage value is ${fmt(totalTransitValue)} across ${transitDmgs.length} incidents. Which delivery routes and carriers have the highest damage rates? What packaging and loading standards should I impose on carriers? How do I include transit damage liability clauses in my carrier contracts?` },
+            { icon: '🏥', text: `${fmt(insuredTotal)} insurance recoverable — are claims filed correctly?`, q: `I have ${fmt(insuredTotal)} in insurance-recoverable damage with ${openClaims} open claims. What documentation is required for a valid transit and GRN damage insurance claim in India? What is the standard timeline for claim settlement and how do I follow up with insurers effectively?` },
+            { icon: '📋', text: 'Damage accounting — credit notes, write-offs, and insurance credit entries', q: 'What are the correct accounting entries for: 1) GRN damage — partial rejection with supplier credit note; 2) Transit damage — carrier liability claim; 3) Sales return damage — credit note to customer. How do I record insurance claim receipts and write off unrecovered damage amounts?' },
+            { icon: '📉', text: 'Reduce damage rate — what operational changes have the biggest impact?', q: 'What are the most effective operational changes to reduce damage rates in a hardware and sanitary fittings distribution business? Which interventions — improved packaging, carrier audits, better put-away training, stretch-wrapping, or corner protection — have the highest ROI for reducing damage claims?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
         {TABS.map(t => <button key={t} style={tabStyle(t)} onClick={() => { setTab(t); setSubmitMsg(''); setSubmitErr(''); }}>{t}</button>)}
@@ -470,10 +479,10 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                                   <span style={{ fontSize: 11, color: 'var(--text3)' }}>Buy Price: </span>
                                   <span style={{ fontSize: 12, fontFamily: 'var(--mono)' }}>{fmt(d.buy_price)}/{d.uom}</span>
                                 </div>
-                                <div style={{ marginTop: 10, padding: '8px 12px', background: d.photos_pending ? '#fef3c7' : '#f0fdf4', borderRadius: 6 }}>
+                                <div style={{ marginTop: 10, padding: '8px 12px', background: d.photos_pending ? 'var(--a5)' : 'var(--g5)', borderRadius: 6 }}>
                                   {d.photos_pending
-                                    ? <span style={{ fontSize: 11, color: '#92400e' }}>⚠ Photos / documentation pending</span>
-                                    : <span style={{ fontSize: 11, color: '#15803d' }}>✓ Photos attached</span>}
+                                    ? <span style={{ fontSize: 11, color: 'var(--a2)' }}>⚠ Photos / documentation pending</span>
+                                    : <span style={{ fontSize: 11, color: 'var(--g2)' }}>✓ Photos attached</span>}
                                 </div>
                               </div>
                               {onGoChat && (
@@ -577,8 +586,8 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>ACCOUNTING ENTRIES</div>
                               <AccountingEntries entries={d.accounting?.entries} />
                               {d.insurance_claim_id && (
-                                <div style={{ marginTop: 10, padding: '10px 14px', background: '#eff6ff', borderRadius: 6, border: '1px solid #bfdbfe', fontSize: 12 }}>
-                                  <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: 4 }}>Insurance Claim</div>
+                                <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--b5)', borderRadius: 6, border: '1px solid var(--b4)', fontSize: 12 }}>
+                                  <div style={{ fontWeight: 700, color: 'var(--b2)', marginBottom: 4 }}>Insurance Claim</div>
                                   <div>Claim ID: <strong>{d.insurance_claim_id}</strong></div>
                                   <div>Amount: <strong style={{ fontFamily: 'var(--mono)' }}>{fmt(d.insurance_amount)}</strong></div>
                                 </div>
@@ -666,19 +675,19 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                 </div>
 
                 {uomG === 'Boxes' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, marginTop: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, marginTop: 10, background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 12px' }}>
                     <div>
-                      <label style={{ ...lbl, color: '#1d4ed8' }}>Pcs per Box *</label>
+                      <label style={{ ...lbl, color: 'var(--b2)' }}>Pcs per Box *</label>
                       <input style={inp} type="number" min="1" value={pcsPerBoxG} onChange={e => setPcsPerBoxG(e.target.value)} placeholder="e.g. 10" />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 2 }}>
-                      <div style={{ fontSize: 11, color: '#1e40af', fontFamily: 'var(--mono)', fontWeight: 700 }}>
+                      <div style={{ fontSize: 11, color: 'var(--b2)', fontFamily: 'var(--mono)', fontWeight: 700 }}>
                         {damagedQtyG && pcsPerBoxG && Number(pcsPerBoxG) > 0
                           ? `${damagedQtyG} boxes × ${pcsPerBoxG} pcs = ${Number(damagedQtyG) * Number(pcsPerBoxG)} pcs damaged`
                           : 'Enter boxes and pcs/box to calculate total pcs'}
                       </div>
                       {buyPriceG && pcsPerBoxG && Number(pcsPerBoxG) > 0 && (
-                        <div style={{ fontSize: 11, color: '#1e40af', fontFamily: 'var(--mono)', marginTop: 3 }}>
+                        <div style={{ fontSize: 11, color: 'var(--b2)', fontFamily: 'var(--mono)', marginTop: 3 }}>
                           Price per pcs: ₹{(Number(buyPriceG) / Number(pcsPerBoxG)).toFixed(2)}
                         </div>
                       )}
@@ -720,8 +729,8 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                   Raise insurance claim for this damage
                 </label>
 
-                {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
-                {submitErr && <div style={{ color: 'var(--r2)', fontSize: 13, background: '#fef2f2', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitErr}</div>}
+                {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: 'var(--g5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
+                {submitErr && <div style={{ color: 'var(--r2)', fontSize: 13, background: 'var(--r5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitErr}</div>}
 
                 <button onClick={handleGrnSubmit} disabled={submitting}
                   style={{ width: '100%', padding: 11, borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',
@@ -804,13 +813,13 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                 </div>
 
                 {uomT === 'Boxes' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, marginTop: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, marginTop: 10, background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '10px 12px' }}>
                     <div>
-                      <label style={{ ...lbl, color: '#1d4ed8' }}>Pcs per Box *</label>
+                      <label style={{ ...lbl, color: 'var(--b2)' }}>Pcs per Box *</label>
                       <input style={inp} type="number" min="1" value={pcsPerBoxT} onChange={e => setPcsPerBoxT(e.target.value)} placeholder="e.g. 10" />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 2 }}>
-                      <div style={{ fontSize: 11, color: '#1e40af', fontFamily: 'var(--mono)', fontWeight: 700 }}>
+                      <div style={{ fontSize: 11, color: 'var(--b2)', fontFamily: 'var(--mono)', fontWeight: 700 }}>
                         {damagedQtyT && pcsPerBoxT && Number(pcsPerBoxT) > 0
                           ? `${damagedQtyT} boxes × ${pcsPerBoxT} pcs = ${Number(damagedQtyT) * Number(pcsPerBoxT)} pcs damaged`
                           : 'Enter boxes and pcs/box to calculate total pcs'}
@@ -872,10 +881,10 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
 
                 {/* Live preview of financial impact */}
                 {damagedQtyT && sellPrice && buyPriceT && parseFloat(damagedQtyT) > 0 && (uomT !== 'Boxes' || (pcsPerBoxT && Number(pcsPerBoxT) > 0)) && (
-                  <div style={{ background: '#fef2f2', borderRadius: 8, padding: '12px 16px', marginBottom: 16, border: '1px solid #fecaca' }}>
+                  <div style={{ background: 'var(--r5)', borderRadius: 8, padding: '12px 16px', marginBottom: 16, border: '1px solid var(--r4)' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--r2)', marginBottom: 8, textTransform: 'uppercase' }}>Financial Impact Preview</div>
                     {uomT === 'Boxes' && (
-                      <div style={{ fontSize: 11, color: '#92400e', marginBottom: 6, fontFamily: 'var(--mono)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--a2)', marginBottom: 6, fontFamily: 'var(--mono)' }}>
                         {damagedQtyT} boxes × {pcsPerBoxT} pcs/box = {Number(damagedQtyT) * Number(pcsPerBoxT)} pcs damaged
                       </div>
                     )}
@@ -895,8 +904,8 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                   </div>
                 )}
 
-                {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
-                {submitErr && <div style={{ color: 'var(--r2)', fontSize: 13, background: '#fef2f2', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitErr}</div>}
+                {submitMsg && <div style={{ color: 'var(--g2)', fontSize: 13, background: 'var(--g5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
+                {submitErr && <div style={{ color: 'var(--r2)', fontSize: 13, background: 'var(--r5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitErr}</div>}
 
                 <button onClick={handleTransitSubmit} disabled={submitting}
                   style={{ width: '100%', padding: 11, borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',
@@ -1083,8 +1092,8 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
               </div>
 
               {srUom === 'Boxes' && (
-                <div style={{ background: '#eff6ff', borderRadius: 8, padding: '10px 14px', marginBottom: 16, border: '1px solid #bfdbfe' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 8 }}>Box → Pcs Conversion</div>
+                <div style={{ background: 'var(--b5)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, border: '1px solid var(--b4)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--b2)', marginBottom: 8 }}>Box → Pcs Conversion</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
                       <label style={lbl}>Pcs per Box *</label>
@@ -1149,7 +1158,7 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
 
               {/* Live preview */}
               {srReturnQty && srDamagedQty && srBuyPrice && parseFloat(srReturnQty) > 0 && parseFloat(srBuyPrice) > 0 && (
-                <div style={{ background: '#fef2f2', borderRadius: 8, padding: '12px 16px', marginBottom: 16, border: '1px solid #fecaca' }}>
+                <div style={{ background: 'var(--r5)', borderRadius: 8, padding: '12px 16px', marginBottom: 16, border: '1px solid var(--r4)' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--r2)', marginBottom: 8, textTransform: 'uppercase' }}>Accounting Preview</div>
                   {(() => {
                     const totalPcs   = srUom === 'Boxes' ? parseFloat(srReturnQty) * parseFloat(srPcsPerBox || 1) : parseFloat(srReturnQty);
@@ -1167,8 +1176,8 @@ export default function DamageRecording({ dbStatus, period, onGoChat }) {
                 </div>
               )}
 
-              {submitMsg && tab === 'Sales Return Damage' && <div style={{ color: 'var(--g2)', fontSize: 13, background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
-              {submitErr && tab === 'Sales Return Damage' && <div style={{ color: 'var(--r2)', fontSize: 13, background: '#fef2f2', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitErr}</div>}
+              {submitMsg && tab === 'Sales Return Damage' && <div style={{ color: 'var(--g2)', fontSize: 13, background: 'var(--g5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✓ {submitMsg}</div>}
+              {submitErr && tab === 'Sales Return Damage' && <div style={{ color: 'var(--r2)', fontSize: 13, background: 'var(--r5)', padding: '10px 14px', borderRadius: 8, marginBottom: 12 }}>✗ {submitErr}</div>}
 
               <button onClick={handleSrSubmit} disabled={submitting}
                 style={{ width: '100%', padding: 11, borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',

@@ -38,11 +38,10 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+const PR_BADGE_CLS = { PENDING: 'ba', APPROVED: 'bg', REJECTED: 'br', CONVERTED: 'bi', PARTIAL_CONVERTED: 'bt', CANCELLED: 'bsl' };
 function StatusBadge({ status }) {
   const s = STATUS_COLORS[status] || STATUS_COLORS.PENDING;
-  return (
-    <span className="pr-badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-  );
+  return <span className={`bdg ${PR_BADGE_CLS[status] || 'bsl'}`}>{s.label}</span>;
 }
 
 const PR_OPERATION_TYPES = [
@@ -703,6 +702,26 @@ export default function PurchaseRequisition({ onGoChat, dbStatus, period }) {
           </div>
         ))}
       </div>
+
+      {/* AI Opportunity Chips */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '⏳', text: `${kpiCards[0].value} PRs pending approval — which are urgent and overdue?`, q: `I have ${kpiCards[0].value} purchase requisitions pending approval. Which departments submitted them, what is the total estimated value at risk, and which ones have passed their required-by date? Give me a prioritised action list for approvals today.` },
+            { icon: '🔄', text: 'Consolidate PRs from same department into fewer POs — save 20%', q: 'Analyse my open purchase requisitions and identify which items from the same department or same supplier can be consolidated into a single purchase order. What is the estimated cost saving from consolidation vs splitting into multiple small POs?' },
+            { icon: '🏭', text: 'Which department raises the most emergency PRs? Fix the root cause', q: 'Looking at my purchase requisitions, which departments have the highest rate of URGENT or high-priority PRs with short lead times? What root causes typically create emergency procurement and what process changes will reduce rush buying costs?' },
+            { icon: '💰', text: `Total est. value ${kpiCards[4].value} awaiting PO conversion — budget impact?`, q: `My purchase requisitions have an estimated value of ${kpiCards[4].value} awaiting conversion to purchase orders. What is the cash flow impact of releasing all of them at once vs staggering by priority? Which items are most time-sensitive?` },
+            { icon: '📊', text: 'Partial conversions stuck — how to complete PO coverage for open PRs', q: 'I have purchase requisitions that are partially converted to POs — meaning some items have POs but others do not. What is the best process for managing partially converted PRs? How do I ensure no items get forgotten and all demand is fulfilled?' },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="pr-filters">

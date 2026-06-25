@@ -139,6 +139,13 @@ const NAV_ITEMS = [
     icon: <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="1.5" stroke="white" strokeWidth="1.3" opacity=".85"/><path d="M4 10V13M7 7V13M10 4V13M13 1V13" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".8"/></svg>,
   },
 
+  // ── Costing ───────────────────────────────────────────────────────────────
+  { section: 'Costing' },
+  {
+    id: 'costing', label: 'Costing Intelligence', badge: 'NEW', badgeClass: 'nb-g',
+    icon: <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="white" strokeWidth="1.4" opacity=".85"/><path d="M8 3v10M5 6h4a1.5 1.5 0 010 3H6a1.5 1.5 0 000 3h5" stroke="white" strokeWidth="1.3" strokeLinecap="round" opacity=".9"/></svg>,
+  },
+
   // ── Design Studio ─────────────────────────────────────────────────────────
   { section: 'Design Studio' },
   {

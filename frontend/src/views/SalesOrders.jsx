@@ -251,11 +251,11 @@ function DeliveryChallanModal({ order, onClose }) {
 
           {/* Transport preview chips */}
           {(transport.vehicle_no || transport.lr_number || transport.eway_bill || transport.driver_name) && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, padding: '10px 12px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 7 }}>
-              {transport.vehicle_no && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>🚛 {transport.vehicle_no}</span>}
-              {transport.lr_number && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>📋 LR: {transport.lr_number}</span>}
-              {transport.eway_bill && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>📱 E-Way: {transport.eway_bill}</span>}
-              {transport.driver_name && <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>👤 {transport.driver_name}</span>}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, padding: '10px 12px', background: 'var(--g5)', border: '1px solid var(--g4)', borderRadius: 7 }}>
+              {transport.vehicle_no && <span style={{ fontSize: 11, background: 'var(--g3)', color: 'var(--g2)', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>🚛 {transport.vehicle_no}</span>}
+              {transport.lr_number && <span style={{ fontSize: 11, background: 'var(--g3)', color: 'var(--g2)', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>📋 LR: {transport.lr_number}</span>}
+              {transport.eway_bill && <span style={{ fontSize: 11, background: 'var(--g3)', color: 'var(--g2)', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>📱 E-Way: {transport.eway_bill}</span>}
+              {transport.driver_name && <span style={{ fontSize: 11, background: 'var(--g3)', color: 'var(--g2)', borderRadius: 5, padding: '2px 8px', fontFamily: 'var(--mono)' }}>👤 {transport.driver_name}</span>}
             </div>
           )}
 
@@ -611,11 +611,11 @@ function SalesInvoiceModal({ order, onClose, onConfirm }) {
                   <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>Taxable Amount</td>
                   <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(taxableAmt)}</td>
                 </tr>
-                <tr style={{ borderBottom: '1px solid var(--border)', background: '#eff6ff' }}>
+                <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--b5)' }}>
                   <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>CGST @ 9%</td>
                   <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(cgstAmt)}</td>
                 </tr>
-                <tr style={{ borderBottom: '1px solid var(--border)', background: '#eff6ff' }}>
+                <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--b5)' }}>
                   <td style={{ padding: '5px 10px', color: 'var(--text2)' }}>SGST @ 9%</td>
                   <td style={{ padding: '5px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmtCur(sgstAmt)}</td>
                 </tr>
@@ -628,8 +628,8 @@ function SalesInvoiceModal({ order, onClose, onConfirm }) {
           </div>
 
           {/* Payment Info */}
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>💳 Payment Details</div>
+          <div style={{ background: 'var(--b5)', border: '1px solid var(--b4)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--b2)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>💳 Payment Details</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, fontSize: 11 }}>
               {[['Bank', '[Your Bank Name]'], ['A/c No.', '[Account No.]'], ['IFSC', '[IFSC Code]'], ['A/c Type', 'Current'], ['Due Date', dueDate], ['UPI', '[UPI ID]']].map(([l, v]) => (
                 <div key={l}><span style={{ fontWeight: 600, color: 'var(--text3)' }}>{l}: </span><span style={{ fontWeight: 700, fontFamily: 'var(--mono)' }}>{v}</span></div>
@@ -1730,7 +1730,7 @@ function SalesOrdersTab({ data, onRefresh, openAI }) {
           </div>
         </div>
         <div style={{ overflowX:'auto' }}>
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead><tr>
               <th>Order #</th><th>Customer</th><th>Type</th>
               <th>Product</th><th style={{textAlign:'right'}}>Qty</th>
@@ -2083,7 +2083,7 @@ function DistributorClaimsTab({ data, onRefresh, openAI }) {
           </div>
         </div>
         <div style={{overflowX:'auto'}}>
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead><tr>
               <th>Claim #</th><th>Distributor</th><th>Type</th><th>Product</th>
               <th>Invoice</th><th style={{textAlign:'right'}}>Claimed</th>
@@ -2347,7 +2347,7 @@ function CustomerRebatesTab({ data, onRefresh, openAI }) {
           </div>
         </div>
         <div style={{overflowX:'auto'}}>
-          <table className="tbl">
+          <table className="tbl tbl-striped">
             <thead><tr>
               <th>Rebate #</th><th>Customer</th><th>Type</th><th>Category</th>
               <th style={{textAlign:'right'}}>Target</th><th style={{textAlign:'right'}}>Actual</th>
@@ -2544,6 +2544,31 @@ export default function SalesOrders({ onGoChat, dbStatus }) {
             `Rate each KPI green/amber/red and give one action per red/amber metric.`
           )} />
       </div>
+
+      {/* ── AI Opportunity Strip ─────────────────────────────────────────────── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '📦', text: 'Dispatch priority — which pending orders to fulfill first today',
+              q: 'Which pending sales orders should I dispatch first today? Consider order age, customer priority, margin, and promised delivery dates. Give me a ranked dispatch list with the reason for each.' },
+            { icon: '📈', text: `Pipeline ${fmtL(kpis.pipeline_value||0)} — which deals to push to close this week`,
+              q: `My sales order pipeline is ${fmtL(kpis.pipeline_value||0)}. Which deals have the highest win probability? For each high-value pending order, what specific closing action should I take this week to convert it?` },
+            { icon: '💰', text: `Avg margin ${fmtPct(kpis.avg_margin_pct||0)} — identify low-margin orders pulling it down`,
+              q: `My average order margin is ${fmtPct(kpis.avg_margin_pct||0)}. Which specific product lines or customer segments are pulling down my average? What pricing adjustments would have the highest impact on improving margin?` },
+            { icon: '⚠️', text: `Claims ${fmtL(kpis.claims_pending||0)} pending — resolve highest-value disputes first`,
+              q: `I have ${fmtL(kpis.claims_pending||0)} in pending distributor claims. Which claims are oldest and what documentation is needed to resolve them quickly? Give me a claims resolution checklist and escalation guide.` },
+            { icon: '🏷️', text: `Rebate liability ${fmtL(kpis.rebate_liability||0)} — provision plan and GST treatment`,
+              q: `My rebate liability is ${fmtL(kpis.rebate_liability||0)}. How should I provision for this in my books? What is the correct GST treatment for customer rebates under Indian GST law and what credit notes do I need to issue?` },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
       <div className="ll-tabs">

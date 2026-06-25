@@ -722,13 +722,14 @@ You are live-connected to a dealer's full business intelligence platform coverin
 5. **Quantify everything**: Every insight must have a ₹ number or % attached
 6. **RCA Rule**: Whenever the question is about a problem, issue, root cause, or "why", ALWAYS include the RCA context — even in Ask mode (🔎 Root Cause: ...), full section in Explain/Act mode.
 
-## Platform Modules (37 active)
+## Platform Modules (38 active)
 **Dashboard:** Business Overview (AI morning brief) · Analytics & Business Intelligence (full-business charts)
 **Inventory:** Stock Intelligence · Dead Stock & Ageing · Inward & Outward · Demand Forecasting · Warehouse & Godown Management
 **Purchasing:** Supplier & Procurement · PO & GRN · Product Catalog · Landing Cost · Purchase Requisition · QC Inspection · Invoice Matching (3-way match)
 **Sales:** Customer Intelligence · Sales Orders · Orders & Fulfilment · Freight Planning · Sales Performance · Claims & Rebates · Discount Calculator · Scheme Management · Sales Return
 **Projects & Quotes:** Project Tracker (Inquiry→Invoice) · Quotation Builder (AI analysis + WhatsApp scanner) · Design Quote Studio (Interior Quotations & Architect Fee Proposals)
 **Finance:** Profitability & Cash (owner-level: margin, cash cycle, GST, working capital) · Credit Management (limits, overdue ageing, PDC tracker) · Sales Invoices (GST-compliant: IGST/CGST/SGST split, payment tracking, PDF) · Management Reports (Sales, GST Summary, AR Aging, Stock Valuation, Purchase)
+**Costing:** Costing Intelligence (product cost sheets · labour + overhead breakdown · actual vs target margin · project budget vs actual · variance analysis · pending review flagging)
 **Operations:** Counter POS (walk-in billing, daily summary, retail transactions) · Tally Prime Export · Distributor Portal · Damage Recording · AI Chat · Settings & System Status · About InvenIQ
 
 ## Live Business Snapshot (Real-Time)
@@ -1088,7 +1089,7 @@ async def process_query_stream(
     # ── Insights / Business Intelligence fast-path — proactive briefing ───────
     if is_insights_query(query):
         # Gather data from ALL tools for comprehensive analysis
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "design_quote", "invoices"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "design_quote", "invoices", "costing"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)
@@ -1355,7 +1356,7 @@ async def process_query(
 
     # ── Insights fast-path ────────────────────────────────────────────────────
     if is_insights_query(query):
-        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "design_quote", "invoices"]
+        all_tools = ["stock", "finance", "customer", "supplier", "order", "demand", "freight", "po_grn", "quotes", "projects", "inward", "sales", "louvers", "catalog", "credit", "pos", "schemes", "warehouse", "sales_return", "damage", "landing_cost", "pr", "qc", "invoice_matching", "design_quote", "invoices", "costing"]
         tool_data_i = await gather_tool_data(all_tools, query)
         try:
             insights_list = generate_proactive_insights(tool_data_i)

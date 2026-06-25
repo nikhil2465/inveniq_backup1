@@ -495,6 +495,31 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
         >✨ Analyse all KPIs</button>
       </div>
 
+      {/* ── AI Opportunity Strip ─────────────────────────────────────────────── */}
+      {onGoChat && (
+        <div className="ai-opp-strip">
+          <span className="ai-opp-label">AI Opportunities</span>
+          {[
+            { icon: '💸', text: `Avg discount ${fmtPct(kpis.avg_discount_pct ?? 0)} — find over-discounting by segment`,
+              q: `My average discount this month is ${fmtPct(kpis.avg_discount_pct ?? 0)}. Which customer segments or specific customers are getting discounts above the 8% policy? Show me where discount leakage is happening and the revenue impact of plugging it.` },
+            { icon: '📉', text: `Acceptance rate ${fmtPct(kpis.acceptance_rate ?? 0)} — improve quote conversion tactics`,
+              q: `My quote acceptance rate is ${fmtPct(kpis.acceptance_rate ?? 0)}. What are the main reasons quotes get rejected in the plywood and hardware trade? What discount structure and value-adds would improve conversion for contractors vs interior firms vs retailers?` },
+            { icon: '⚠️', text: 'Margin floor violations — quotes below 15% minimum margin',
+              q: `Which recent discount quotes have breached the 15% minimum margin guardrail? Was it a manual override or rule gap? Give me a margin compliance report and what corrective action is needed for each violation.` },
+            { icon: '🏷️', text: 'Volume slab review — are quantity thresholds driving right order sizes',
+              q: `Review my discount volume slabs — the quantity thresholds that unlock higher discounts. Are these slabs incentivizing the right order sizes? What changes to the slab structure would drive larger average order values while protecting margins?` },
+            { icon: '🎯', text: `Pipeline ${fmtL(kpis.total_quoted_value ?? 0)} — which open quotes to follow up on today`,
+              q: `I have ${kpis.quotes_this_month ?? 0} quotes worth ${fmtL(kpis.total_quoted_value ?? 0)} this month at ${fmtPct(kpis.acceptance_rate ?? 0)} acceptance rate. Which open quotes are most likely to close? Give me a follow-up priority list with the right script for each customer type.` },
+          ].map((o, i) => (
+            <button key={i} className="ai-opp-chip" onClick={() => onGoChat?.(o.q)}>
+              <span>{o.icon}</span>
+              <span>{o.text}</span>
+              <span className="ai-opp-chip-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Main two-column grid ─────────────────────────────────────────────── */}
       <div className="gl g75" style={{ marginBottom: 14 }}>
 
@@ -875,7 +900,7 @@ export default function DistributorDiscount({ onGoChat, dbStatus }) {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="tbl">
+            <table className="tbl tbl-striped">
               <thead>
                 <tr>
                   <th>Quote #</th>

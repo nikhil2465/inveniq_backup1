@@ -1,0 +1,28 @@
+# Normalize line endings repo-wide; do not retroactively rewrite existing
+# files (no renormalize has been run) — this only governs new/changed content.
+* text=auto eol=lf working-tree-encoding=UTF-8
+
+*.py    text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.css   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.pptx  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary

@@ -365,6 +365,23 @@ KEYWORD_MAP = {
         "boq generator", "generate boq interior", "interior boq generator",
         "design scan", "interior materials quote",
     ],
+    "costing": [
+        "costing", "cost sheet", "cost sheets", "cost analysis", "product cost",
+        "cost of goods", "landed cost product", "material cost", "labour cost",
+        "labor cost", "overhead", "selling price", "sell price", "margin analysis",
+        "gross margin", "net margin", "margin per product", "margin squeeze",
+        "margin drop", "margin erosion", "low margin", "below margin", "margin alert",
+        "target margin", "actual margin", "cost vs price", "cost breakdown",
+        "cost intelligence", "costing intelligence", "costing module",
+        "project budget", "project costing", "project cost", "project variance",
+        "budget vs actual", "over budget", "under budget", "cost overrun",
+        "project overrun", "project spend", "fit-out budget", "interior budget",
+        "how much does it cost", "cost to build", "build cost", "cost of fit-out",
+        "variance analysis", "cost variance", "category variance", "cost report",
+        "pending review cost", "approve cost sheet", "cost sheet status",
+        "profitability analysis", "product profitability", "which products lose money",
+        "cost per unit", "price benchmarking", "competitive costing",
+    ],
 }
 
 # ── Additional keyword expansions (merged into KEYWORD_MAP on import) ──────────
